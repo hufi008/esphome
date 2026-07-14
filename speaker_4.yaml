@@ -8,5 +8,5 @@ packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-esp32.yaml
   # Holt die Funktionalität
-  functions: !include common/test1.yaml
+  functions: !include common/test2.yaml
 

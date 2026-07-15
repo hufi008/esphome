@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {
+      "type": "esphome",
+      "problemMatcher": [],
+      "label": "ESPHome: Upload OTA"
+    }
+  ]
+}

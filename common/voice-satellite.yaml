@@ -103,7 +103,7 @@ network:
 globals:
   - id: is_booting
     type: bool
-    initial_value: "true"
+    initial_value: "false"
   - id: skip_next_announcement
     type: bool
     initial_value: "false"
@@ -372,12 +372,19 @@ light:
           name: "Effect CONTENT_0" # BOOT
           update_interval: 50ms
           lambda: |-
-            int value = 16 + (millis() / 40);
-            if (value > 255) value = 255;
+            // Definiert die Geschwindigkeit und zwingt den Wert in eine Endlosschleife von 0 bis 255
+            int wave_time = (millis() / 20) % 256;
 
             for (int i = 0; i < it.size(); i++) {
-              it[i] = Color(0, 0, value);
+              // Berechnet den Helligkeitsverlauf basierend auf der LED-Position
+              int v = wave_time + abs(i - it.size() / 2.0f) * 16;
+              
+              // Nutzt Modulo, damit die Welle endlos von außen nach innen "durchläuft"
+              v = v % 256; 
+              
+              it[i] = Color(0, 0, v);
             }
+
       # Effect CONTENT_IDLE
       - addressable_lambda:
           name: "Effect CONTENT_1" # IDLE

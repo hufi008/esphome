@@ -10,4 +10,5 @@ packages:
   # Holt die Funktionalität
   # environment: !include common/bme280.yaml
   functions: !include common/voice-satellite.yaml
+  scripts: !include common/scripts.yaml
 

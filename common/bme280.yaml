@@ -1,0 +1,34 @@
+# common/bme280.yaml
+
+esphome:
+  platformio_options:
+    build_flags: "-DHAVE_ENVIRONMENT"
+
+substitutions:
+  # Environment BME280
+  bme_addr:      "0x76"
+  # VCC: 3V3
+  # sda, scl vom i2c_bus
+
+sensor:
+  - platform: bme280_i2c
+    id: envir_id
+    address: 0x76
+    temperature:
+      id: room_temp
+      name: Temperature
+      device_class: temperature
+      state_class: measurement      
+    humidity:
+      id: room_hum
+      name: Humidity
+      device_class: humidity
+      state_class: measurement      
+    pressure:
+      id: room_press
+      name: Pressure
+      device_class: atmospheric_pressure
+      state_class: measurement
+
+
+

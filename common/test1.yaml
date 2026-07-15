@@ -1,0 +1,225 @@
+substitutions:
+  version: "0.0.3"
+  # LED strip
+  led_pin: "GPIO48"
+  led_count: "1"
+  # Buttons
+  btn_up_pin: "GPIO15"
+  btn_down_pin: "GPIO16"
+  btn_left_pin: "GPIO17"
+  btn_right_pin: "GPIO18"
+  # I2C bus
+  i2c_sda_pin: "GPIO1"
+  i2c_scl_pin: "GPIO2"  
+
+esphome:
+  min_version: 2026.6.5
+  project:
+    name: "hufi.test0"
+    version: ${version}
+  on_boot:
+    priority: -100
+    then:
+      - light.turn_on:
+          id: onboard_led
+          effect: "Rainbow"
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: onboard_led
+    name: "Onboard RGB"
+    pin: ${led_pin}
+    num_leds: ${led_count}
+    rgb_order: GRB
+    chipset: WS2812
+    effects:
+      - addressable_rainbow:
+          id: effect_rainbow
+          name: "Rainbow"
+          speed: 10           
+
+button:
+  - platform: restart
+    name: "Restart"
+    on_press:
+      then:
+        - lambda: |-
+            #ifdef USE_SAFE_MODE
+            global_safe_mode->clean_shutdown();
+            #endif
+
+binary_sensor:
+  - platform: gpio
+    id: btn_up_id
+    pin:
+      number: GPIO15
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_1_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_1_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - logger.log: "on_btn_1_long_click"    
+  - platform: gpio
+    id: btn_down_id
+    pin:
+      number: GPIO16
+      allow_other_uses: false
+    
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_2_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_2_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - logger.log: "on_btn_2_long_click"    
+  - platform: gpio
+    id: btn_left_id
+    pin:
+      number: GPIO17
+      allow_other_uses: false
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_3_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_3_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - logger.log: "on_btn_3_long_click"    
+  - platform: gpio
+    id: btn_right_id
+    pin:
+      number: GPIO18
+      allow_other_uses: false
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_4_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - logger.log: "on_btn_4_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - logger.log: "on_btn_4_long_click"    
+
+text_sensor:
+  # Wifi Informationen
+  - platform: wifi_info
+    id: wifi_info
+    ip_address:
+      name: "IP"
+      icon: "mdi:wifi"
+    ssid:
+      name: "SSID"
+      icon: "mdi:wifi"
+    bssid:
+      name: "BSSID"
+      icon: "mdi:wifi"
+    mac_address:
+      name: "Mac"
+      icon: "mdi:wifi"
+    dns_address:
+      name: "DNS"
+      icon: "mdi:wifi"
+    power_save_mode:
+      name: "Power Save"
+      icon: "mdi:wifi"
+           
+i2c:
+  - id: i2c_bus
+    sda: ${i2c_sda_pin}
+    scl: ${i2c_scl_pin}
+    scan: true
+    frequency: 400kHz
+
+sensor:
+  # Wifi Informationen
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi Signal dB"
+    update_interval: 30s
+  - platform: template
+    id: wifi_channel
+    name: "Channel"
+    icon: "mdi:wifi-marker"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(wifi_id).is_connected())
+        return id(wifi_id).get_wifi_channel();
+      return -1;    
+    update_interval: 30s      
+  - platform: bme280_i2c
+    id: envir_id
+    address: 0x76
+    temperature:
+      id: room_temp
+      name: Temperature
+      device_class: temperature
+      state_class: measurement      
+    humidity:
+      id: room_hum
+      name: Humidity
+      device_class: humidity
+      state_class: measurement      
+    pressure:
+      id: room_press
+      name: Pressure
+      device_class: atmospheric_pressure
+      state_class: measurement
+    

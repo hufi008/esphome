@@ -1,0 +1,2018 @@
+######################### Configuration
+
+substitutions:
+  version: "0.6.0"
+
+  ### Pin-Belegung
+  # Amp Max98357
+  amp_lrclk_pin:  "GPIO11"   # LEFT / RIGHT CLOCK
+  amp_bclk_pin:   "GPIO10"   # Bit CLOCK
+  amp_din_pin:    "GPIO09"   # DATA IN
+  # VCC: 5V
+  # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
+  # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
+  
+
+  # Microphone INMP441
+  mic_ws_pin:    "GPIO04"   # WORD SELECT
+  mic_sck_pin:   "GPIO05"   # SERIAL CLOCK
+  mic_sd_pin:    "GPIO06"   # SERIAL DATA
+  # VCC: 3V3
+  # L/R: GND = Links, VCC = Rechts
+
+  # LED Strip WS2812
+  led_din_pin:   "GPIO08"    # DATA IN
+  led_count:     "10"        # Number of LEDs
+  # VCC: 5V
+  # din mit Levelshifter auf 5V heben
+
+  # I2C
+  i2c_sda_pin:   "GPIO01"    # SERIAL DATA
+  i2c_scl_pin:   "GPIO02"    # SERIAL CLOCK
+  # VCC: 3V3
+  
+  # Environment BME280
+  bme_addr:      "0x76"
+  # VCC: 3V3 bis 5V
+
+  # Display OLED SSD1306
+  ssd_addr:      "0x3C"
+  # VCC: 3V3 bis 5V
+
+  # Button TTP221
+  btn_1_pin:     "GPIO15"
+  btn_2_pin:     "GPIO16"
+  btn_3_pin:     "GPIO17"
+  btn_4_pin:     "GPIO18"
+  # VCC: 2V bis 5V5
+
+  # Display Modes
+  CONTENT_BOOT:     0
+  CONTENT_IDLE:     1
+  CONTENT_PLAY:     2
+  CONTENT_PAUSE:    3
+  CONTENT_LISTEN:   4
+  CONTENT_THINK:    5
+
+  OVERLAY_NONE:     0
+  OVERLAY_VOLUME:   1
+  OVERLAY_ERROR:    2
+  OVERLAY_ALARM:    3
+  OVERLAY_ANNOUNCE: 4
+
+esphome:
+  project:
+    name: "hufi.smart_speaker"
+    version: ${version}
+  on_boot:
+    - priority: 600
+      then:
+        - script.execute: on_esp_boot_600
+    - priority: 250
+      then:
+        - script.execute: on_esp_boot_250
+    - priority: 200
+      then:
+        - script.execute: on_esp_boot_200
+    - priority: -100
+      then:
+        - script.execute: on_esp_boot_minus100
+            
+    
+# Enable Home Assistant API
+api:
+  on_client_connected:
+    - script.execute: on_api_client_connect
+  on_client_disconnected:
+    - script.execute: on_api_client_disconnect
+
+wifi:
+  on_connect:
+    - script.execute: on_wifi_connect
+  on_disconnect:
+    - script.execute: on_wifi_disconnect
+# Enable logging
+logger:
+  level: DEBUG
+
+# SSL-Zertifikatsprüfung für Streams abschalten (schont Heap-Memory & CPU)
+http_request:
+  verify_ssl: false
+
+# High-Performance Netzwerk-Puffer drosseln (verhindert Buffer-Overflows im File-Reader)
+network:
+  enable_high_performance: false
+
+globals:
+  - id: is_booting
+    type: bool
+    initial_value: "true"
+  - id: skip_next_announcement
+    type: bool
+    initial_value: "false"
+  - id: mic_peak_left
+    type: 'int32_t'
+    initial_value: '0'
+  - id: mic_peak_right
+    type: 'int32_t'
+    initial_value: '0'
+    
+  - id: content_mode
+    type: int
+    initial_value: "0"    
+  - id: overlay_mode
+    type: int
+    initial_value: "0"
+  - id: content_mode_text
+    type: std::vector<std::string>
+    initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE"}'  
+  - id: overlay_mode_text
+    type: std::vector<std::string>
+    initial_value: '{"NONE", "VOLUME", "ERROR", "ALARM", "ANNOUNCE"}'  
+
+  - id: status_symbols
+    type: 'image::Image*[4]'
+    initial_value: '{nullptr, nullptr, nullptr, nullptr}'
+  - id: title_text
+    type: std::string
+    initial_value: "\"title\""
+
+  - id: image_icon
+    type: 'image::Image*'
+    initial_value: '&id(icon_think)'
+  - id: idle_message0
+    type: std::string
+    initial_value: "\"00:00\""
+  - id: idle_message1
+    type: std::string
+    initial_value: "\"Hallo\""
+  - id: idle_message2
+    type: std::string
+    initial_value: "\"Welt\""
+  - id: idle_message3
+    type: std::string
+    initial_value: "\"Again\""
+
+  - id: command_message
+    type: std::string
+    initial_value: "\"command\""
+  - id: intent_message
+    type: std::string
+    initial_value: "\"intent\""
+  - id: announce_message
+    type: std::string
+    initial_value: "\"announce\""
+  - id: url_message
+    type: std::string
+    initial_value: "\"url\""
+  - id: alarm_message
+    type: std::string
+    initial_value: "\"alarm\""
+  - id: error_code
+    type: std::string
+    initial_value: "\"code\""
+  - id: error_message
+    type: std::string
+    initial_value: "\"error\""
+
+########################## Components
+psram:
+  mode: octal
+  speed: 80MHz
+
+time:
+  - platform: homeassistant
+    id: esptime
+    on_time_sync: 
+      then:
+        - script.execute: on_time_time_sync
+
+deep_sleep:
+  id: deep_sleep_id
+  wakeup_pin: 
+    number: GPIO15
+    allow_other_uses: true
+  wakeup_pin_mode: INVERT_WAKEUP
+  #esp32_ext1_wakeup :
+  #  pins: 
+  #    - GPIO15
+  #    - GPIO16
+  #    - GPIO17
+  #    - GPIO18
+  #  mode: ANY_LOW
+  
+button:
+  - platform: restart
+    name: "Restart"
+  - platform: template
+    name: "Shutdown"
+    on_press:
+      then:
+        # Display ausschalten
+        - lambda: 'id(display_id).turn_off();'
+        - media_player.mute: media_player_id
+        - light.turn_off: ledstrip_id
+        - wait_until:
+              light.is_off: ledstrip_id
+        - delay: 100ms
+        - deep_sleep.enter: deep_sleep_id
+
+binary_sensor:
+  - platform: gpio
+    id: btn_up_id
+    pin:
+      number: GPIO15
+      allow_other_uses: true
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_1_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_1_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - script.execute: "on_btn_1_long_click"    
+  - platform: gpio
+    id: btn_down_id
+    pin:
+      number: GPIO16
+      allow_other_uses: false
+    
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_2_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_2_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - script.execute: "on_btn_2_long_click"    
+  - platform: gpio
+    id: btn_left_id
+    pin:
+      number: GPIO17
+      allow_other_uses: false
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_3_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_3_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - script.execute: "on_btn_3_long_click"    
+  - platform: gpio
+    id: btn_right_id
+    pin:
+      number: GPIO18
+      allow_other_uses: false
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_4_single_click"
+
+      # --- DOPPELKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.5s
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - script.execute: "on_btn_4_double_click"
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - script.execute: "on_btn_4_long_click"    
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: ledstrip_id
+    name: LED Status
+    pin: GPIO8
+    chipset: WS2812
+    num_leds: 10
+    rgb_order: GRB
+    restore_mode: RESTORE_AND_ON
+    icon: "mdi:led-strip"
+    max_refresh_rate: 30ms
+    use_dma: true
+    rmt_symbols: 48
+    use_psram: true
+    effects:
+      - addressable_scan:
+          name: Scan slow
+          move_interval: 0.2s
+          scan_width: 3
+      - addressable_rainbow:
+          speed: 8
+          width: 12
+          name: Rainbow
+      - addressable_twinkle:
+          name: Twinkle
+          progress_interval: 4ms
+          twinkle_probability: 5%
+      - addressable_color_wipe:
+          name: Color Wipe
+          add_led_interval: 0.1s
+      # Content Mode Effects
+      # Effect CONTENT_BOOT
+      - addressable_lambda:
+          name: "Effect CONTENT_0" # BOOT
+          update_interval: 50ms
+          lambda: |-
+            int value = 16 + (millis() / 40);
+            if (value > 255) value = 255;
+
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(0, 0, value);
+            }
+      # Effect CONTENT_IDLE
+      - addressable_lambda:
+          name: "Effect CONTENT_1" # IDLE
+          update_interval: 30ms
+          lambda: |-
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(0, 0, 0);
+            }
+      # Effect CONTENT_PLAY
+      - addressable_rainbow:
+          name: "Effect CONTENT_2" # PLAY
+          speed: 16
+          width: 12
+          
+      # Effect CONTENT_PAUSE
+      - addressable_lambda:
+          name: "Effect CONTENT_3" # PAUSE
+          update_interval: 50ms
+          lambda: |-
+            float t = (sin(millis() / 500.0f) + 1) / 2;  // langsames Atmen
+            uint8_t y = 60 + (uint8_t)(t * 120);
+
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(y, y, 0);  // Gelb
+            }
+      # Effect CONTENT_LISTEN
+      - addressable_lambda:
+          name: "Effect CONTENT_4"  # LISTEN
+          update_interval: 20ms
+          lambda: |-
+            const int count = it.size();
+            const float t = millis() / 250.0f;   // Puls-Geschwindigkeit
+            const float pulse = (sin(t) + 1.0f) * 0.5f;  // 0..1
+      
+            const float center = (count - 1) / 2.0f;     // Mitte der LEDs
+      
+            for (int i = 0; i < count; i++) {
+              float d = fabsf(i - center);               // Abstand zur Mitte
+              float falloff = 1.0f - (d / center);       // 1.0 in der Mitte, 0.0 außen
+              if (falloff < 0.0f) falloff = 0.0f;
+      
+              int brightness = int( falloff * pulse * 255 );
+      
+              // Farbe: Cyan-Blau wie dein Listening-Effekt
+              it[i] = Color(0, 64, brightness);
+            }
+      # Effect CONTENT_THINK
+      - addressable_lambda:
+          name: "Effect CONTENT_5" # THINK
+          update_interval: 20ms
+          lambda: |-
+            int pos = (millis() / 40) % it.size();
+            pos = it.size() - pos;
+            for (int i = 0; i < it.size(); i++) {
+              int d = abs(i - pos);
+              int b = max(0, 150 - d * 40);
+              it[i] = Color(b, 0, b);
+            }
+
+      # Overlay Mode Effects
+      # Effect OVERLAY_NONE
+      - addressable_lambda:
+          name: "Effect OVERLAY_0"
+          update_interval: 250ms
+          lambda: |-
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(0,0,0);
+            }
+      # Effect OVERLAY_VOLUME
+      - addressable_lambda:
+          name: "Effect OVERLAY_1"
+          update_interval: 20ms
+          lambda: |-
+            if (id(media_player_id).is_muted()) {
+              float t = (millis() % 800) / 800.0f;
+              float fade = (sin(t * 2 * 3.14159f) + 1) / 2;  // 0–1
+              for (int i = 0; i < it.size(); i++) {
+                it[i] = Color(0, 0, int(128 * fade));
+              }
+              return;
+            }
+
+            float index = id(media_player_id).volume * it.size();
+
+            for (int i = 0; i < it.size(); i++) {
+              float fade = std::clamp(index - i, 0.2f, 1.0f);
+              // falschrum eingebaut
+              it[i] = Color(0, int(127*fade), int(255*fade));
+            }
+      # Effect OVERLAY_ERROR
+      - addressable_lambda:
+          name: "Effect OVERLAY_2"
+          update_interval: 40ms
+          lambda: |-
+            float t = (millis() % 800) / 800.0f;
+            float b = (sin(t * 2 * 3.14159f) + 1) / 2;  // 0–1
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(int(200 * b), 0, 0);
+            }
+      # Effect CONTENT_ALARM
+      - addressable_lambda:
+          name: "Effect OVERLAY_3"
+          update_interval: 50ms
+          lambda: |-
+            float t = (sin(millis() / 250.0f) + 1) / 2;  // langsames Atmen
+            uint8_t y = 60 + (uint8_t)(t * 120);
+
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(y, 0, 0);  // Rot
+            }
+      # Effect OVERLAY_ANNOUNCE
+      - addressable_lambda:
+          name: "Effect OVERLAY_4"
+          update_interval: 20ms
+          lambda: |-
+            const int count = it.size();
+
+            // Position des Scans (läuft von 0 bis count-1)
+            int pos = (millis() / 40) % count;
+
+            for (int i = 0; i < count; i++) {
+              // Abstand zur Scan-Position
+              int d = abs(i - pos);
+
+              // Helligkeit abhängig vom Abstand (weicher Abfall)
+              int b = max(0, 120 - d * 40);  // 120 = hell, 40 = Abfall pro LED
+
+              it[i] = Color(b+75, b, b+75);  // Cyan-Blau
+            }
+            
+          
+i2c:
+  - id: i2c_bus
+    sda: GPIO1
+    scl: GPIO2
+    scan: true
+    frequency: 400kHz
+
+sensor:
+  # Wifi Informationen
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi Signal dB"
+    update_interval: 30s
+  - platform: template
+    id: wifi_channel
+    name: "Channel"
+    icon: "mdi:wifi-marker"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(wifi_id).is_connected())
+        return id(wifi_id).get_wifi_channel();
+      return -1;    
+    update_interval: 30s      
+  - platform: bme280_i2c
+    id: envir_id
+    address: 0x76
+    temperature:
+      id: room_temp
+      name: Temperature
+      device_class: temperature
+      state_class: measurement      
+    humidity:
+      id: room_hum
+      name: Humidity
+      device_class: humidity
+      state_class: measurement      
+    pressure:
+      id: room_press
+      name: Pressure
+      device_class: atmospheric_pressure
+      state_class: measurement
+
+  - platform: template
+    name: "Mic Left Peak"
+    id: sensor_mic_left_peak
+    unit_of_measurement: "amp"
+    accuracy_decimals: 0
+    update_interval: never
+  - platform: template
+    name: "Mic Right Peak"
+    id: sensor_mic_right_peak
+    unit_of_measurement: "amp"
+    accuracy_decimals: 0
+    update_interval: never
+    
+text_sensor:
+  # Wifi Informationen
+  - platform: wifi_info
+    id: wifi_info
+    ip_address:
+      name: "IP"
+      icon: "mdi:wifi"
+    ssid:
+      name: "SSID"
+      icon: "mdi:wifi"
+    bssid:
+      name: "BSSID"
+      icon: "mdi:wifi"
+    mac_address:
+      name: "Mac"
+      icon: "mdi:wifi"
+    dns_address:
+      name: "DNS"
+      icon: "mdi:wifi"
+    power_save_mode:
+      name: "Power Save"
+      icon: "mdi:wifi"
+    # scan_results:
+    #   name: "Scan"
+    #   icon: "mdi:wifi"
+  # Titel des aktuellen Tracks
+  - platform: homeassistant
+    id: media_title
+    entity_id: ${media_player_entity_id}
+    attribute: media_title
+    on_value:
+      then:
+        - lambda: 'id(media_artist).state = "";'
+        - logger.log:
+            format: "media_title='%s'"
+            args: [ id(media_title).state.c_str() ]
+        - script.execute: update_data            
+  # Interpret
+  - platform: homeassistant
+    id: media_artist
+    entity_id: ${media_player_entity_id}
+    attribute: media_artist
+    on_value:
+      then:
+        - logger.log:
+            format: "media_artist='%s'"
+            args: [ id(media_artist).state.c_str() ]
+        - script.execute: update_data
+  # Channel
+  - platform: homeassistant
+    id: media_channel
+    entity_id: ${media_player_entity_id}
+    attribute: media_channel
+    on_value:
+      then:
+        - logger.log:
+            format: "media_channel='%s'"
+            args: [ id(media_channel).state.c_str() ]
+        - script.execute: update_data
+  # Channel
+  - platform: homeassistant
+    id: media_album_name
+    entity_id: ${media_player_entity_id}
+    attribute: media_album_name
+    on_value:
+      then:
+        - logger.log:
+            format: "media_album_name='%s'"
+            args: [ id(media_album_name).state.c_str() ]
+        - script.execute: update_data
+
+# Icons - look in https://pictogrammers.com/library/mdi/
+image:
+  - file: "https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg"
+    id: logo_esphome
+    type: binary
+    resize: 46x46
+    invert_alpha: false
+  - file: "mdi:wifi-strength-1"
+    id: symbol_wifi_1
+    type: binary
+    resize: 16x16
+  - file: "mdi:wifi-strength-2"
+    id: symbol_wifi_2
+    type: binary
+    resize: 16x16
+  - file: "mdi:wifi-strength-3"
+    id: symbol_wifi_3
+    type: binary
+    resize: 16x16
+  - file: "mdi:wifi-strength-4"
+    id: symbol_wifi_4
+    type: binary
+    resize: 16x16
+  - file: "mdi:home-assistant"
+    id: symbol_api
+    type: binary
+    resize: 16x16
+  - file: "mdi:account-voice"
+    id: symbol_va
+    type: binary
+    resize: 16x16
+  - file: "mdi:speaker"
+    id: symbol_mp_idle
+    type: binary
+    resize: 16x16
+  - file: "mdi:play"
+    id: symbol_mp_play
+    type: binary
+    resize: 16x16
+  - file: "mdi:pause"
+    id: symbol_mp_pause
+    type: binary
+    resize: 16x16
+  - file: "mdi:bullhorn"
+    id: symbol_mp_announce
+    type: binary
+    resize: 16x16
+  - file: "mdi:volume-off"
+    id: symbol_mute
+    type: binary
+    resize: 16x16
+  - file: "mdi:microphone-off"
+    id: symbol_deaf
+    type: binary
+    resize: 16x16
+  ####################################
+  - file: "https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg"
+    id: icon_boot
+    type: binary
+    resize: 46x46
+    invert_alpha: false
+  - file: "mdi:play"
+    id: icon_play
+    type: binary
+    resize: 32x32
+  - file: "mdi:pause"
+    id: icon_pause
+    type: binary
+    resize: 32x32
+  - file: "mdi:ear-hearing"
+    id: icon_listen
+    type: binary
+    resize: 32x32
+  - file: "mdi:thought-bubble-outline"
+    id: icon_think
+    type: binary
+    resize: 32x32
+  - file: "mdi:help"
+    id: icon_unknown
+    type: binary
+    resize: 32x32
+  ####################################
+  - file: "mdi:knob"
+    id: icon_volume
+    type: binary
+    resize: 32x32
+  - file: "mdi:alert-circle-outline"
+    id: icon_error
+    type: binary
+    resize: 32x32
+  - file: "mdi:alarm"
+    id: icon_alarm
+    type: binary
+    resize: 32x32
+  - file: "mdi:bullhorn"
+    id: icon_announce
+    type: binary
+    resize: 32x32
+
+font:
+  - id: font_small
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 10
+    glyphs:
+      - äöüÄÖÜß°
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: font_medium
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 14
+    glyphs:
+      - äöüÄÖÜß°
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: font_large
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 21
+    glyphs:
+      - äöüÄÖÜß°
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: font_huge
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 28
+    glyphs:
+      - äöüÄÖÜß°
+    glyphsets:
+      - GF_Latin_Kernel
+    
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    id: display_id
+    address: 0x3c
+    update_interval: 50ms
+    lambda: |-
+      // -------------------------------------------------------
+      // 1a. GELBER HEADER-BEREICH (Pixel 0–15)
+      // -------------------------------------------------------
+      
+      // Symbole rechts (jeweils 16x16)
+      for (int i = 0; i < 4; i++) {
+        auto* img = id(status_symbols)[i];
+        
+        // Prüft penibel, ob der Zeiger existiert UND nicht die Standard-Leeradresse 0x0 ist
+        if (img != nullptr && img != 0) {
+          it.image(112 - (i * 16), 0, img);
+        }
+      }
+
+      // -------------------------------------------------------
+      // 1b. BLAUER CONTENT-BEREICH (Pixel 16–63)
+      // -------------------------------------------------------
+      // Trennlinie zwischen GELB (oben) und BLAU (unten)
+      it.line(0,15,127,15);
+      //it.rectangle(0, 16, 128, 48);
+
+      int cx = 64;
+      int cy = 40;
+      int width = 128;
+      
+      // Titel links
+      it.print(0, 0, id(font_medium), id(title_text).c_str());
+      
+      if (id(image_icon) != nullptr) {
+        it.image(1, 21, id(image_icon));
+        cx+=16;
+        width-=32;
+      }
+
+      auto scroll_marquee = [&](int cx, int cy, int width, display::BaseFont *font, const std::string &text) {
+        // Textbreite messen
+        int tx, ty, tw, th;
+        it.get_text_bounds(cx, cy, text.c_str(), font, TextAlign::CENTER, &tx, &ty, &tw, &th);
+      
+        int tw2 = tw / 2;
+        int w2 = width / 2;
+        tx = cx - w2;   
+        tw = width;
+      
+        // Clipping-Bereich setzen
+        it.start_clipping(tx, ty, tx + tw, ty + th);
+      
+        if (tw2 > w2) {
+            float max_amplitude = tw2 - w2; 
+            
+            // OPTISCHE FEINEINSTELLUNG:
+            const float DURATION_MOVE_MS = 3000.0f; // Zeit für eine Richtung (3 Sek. = sehr entspannt)
+            const float DURATION_PAUSE_MS = 1200.0f; // Standzeit am Rand in Millisekunden
+            
+            // Ein kompletter Zyklus (Hinweg + Pause + Rückweg + Pause)
+            float total_cycle_ms = (DURATION_MOVE_MS * 2.0f) + (DURATION_PAUSE_MS * 2.0f);
+            float current_time = fmodf(millis(), total_cycle_ms);
+            
+            float offset = 0.0f;
+            
+            if (current_time < DURATION_PAUSE_MS) {
+                // 1. Pause am linken Rand
+                offset = -max_amplitude;
+            } 
+            else if (current_time < DURATION_PAUSE_MS + DURATION_MOVE_MS) {
+                // 2. Weiche Bewegung von links nach rechts (Ease-In-Out)
+                float t = (current_time - DURATION_PAUSE_MS) / DURATION_MOVE_MS; // Fortschritt 0.0 bis 1.0
+                
+                // Offizielle Smoothstep-Formel: Erzeugt perfekte Beschleunigung und Bremsung
+                float smooth_t = t * t * (3.0f - 2.0f * t); 
+                
+                offset = -max_amplitude + (smooth_t * max_amplitude * 2.0f);
+            } 
+            else if (current_time < (DURATION_PAUSE_MS * 2.0f) + DURATION_MOVE_MS) {
+                // 3. Pause am rechten Rand
+                offset = max_amplitude;
+            } 
+            else {
+                // 4. Weiche Bewegung von rechts nach links (Ease-In-Out)
+                float t = (current_time - (DURATION_PAUSE_MS * 2.0f) - DURATION_MOVE_MS) / DURATION_MOVE_MS;
+                float smooth_t = t * t * (3.0f - 2.0f * t);
+                
+                offset = max_amplitude - (smooth_t * max_amplitude * 2.0f);
+            }
+            
+            // Zeichnet den Text perfekt ausbalanciert
+            it.print(cx - offset, cy, font, TextAlign::CENTER, text.c_str());
+        } else {
+            it.print(cx, cy, font, TextAlign::CENTER, text.c_str());
+        }
+      
+        // Clipping beenden
+        it.end_clipping();
+      };
+
+
+      // DIE ANZEIGE-WEICHE (Übergibt jetzt "width" statt "w2")
+      if (!id(idle_message0).empty()) {
+        // Variante A: Einzeilige, große Darstellung
+        scroll_marquee(cx, cy, width, id(font_huge), id(idle_message0));
+      } else {
+        // Variante B: Dreizeilige Darstellung
+        scroll_marquee(cx, cy - 12, width, id(font_medium), id(idle_message1));
+        scroll_marquee(cx, cy,      width, id(font_medium), id(idle_message2));
+        scroll_marquee(cx, cy + 12, width, id(font_medium), id(idle_message3));
+      }
+
+######################################################################################
+      
+# interval für page messages
+interval:
+  - id: update_timer
+    interval: 15s
+    then:
+      # Phase 1: Display-Texte aktualisieren
+      - script.execute: update_data
+
+      # Phase 2: Die permanent gesammelten Peaks der letzten 15s an HA senden
+      - lambda: |-
+          id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
+          id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
+          
+          ESP_LOGI("mic_test", "15s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
+          
+          // Werte sofort nullen, um für die nächsten 15 Sekunden neu zu sammeln
+          id(mic_peak_left) = 0;
+          id(mic_peak_right) = 0;
+
+# I2S Audio Bus
+i2s_audio:
+  # Eingang (Stereo INMP441)
+  - id: i2s_bus_in
+    i2s_lrclk_pin: GPIO4      # WS
+    i2s_bclk_pin: GPIO5       # sck
+
+  # Ausgang (Stereo MAX98357)
+  - id: i2s_bus_out
+    i2s_lrclk_pin: GPIO11
+    i2s_bclk_pin: GPIO10
+   
+# Microphone INMP441
+microphone:
+  - platform: i2s_audio
+    id: hw_microphone
+    i2s_audio_id: i2s_bus_in
+    adc_type: external
+    i2s_din_pin: GPIO6        # sd
+    pdm: false
+    bits_per_sample: 32bit
+    sample_rate: 16000
+    mclk_multiple: 256
+    channel: stereo
+    num_channels: 2
+    i2s_mode: primary
+    on_data:
+      - lambda: |-
+          if (x.empty()) return;
+
+          size_t total_bytes = x.size();
+          int32_t max_l = 0;
+          int32_t max_r = 0;
+
+          // Ein kompletter Stereo-Frame (Links 4 Bytes + Rechts 4 Bytes) benötigt genau 8 Bytes.
+          for (size_t i = 0; i + 7 < total_bytes; i += 8) {
+            
+            // Ihr funktionierender Little-Endian-Zusammenbau für den LINKEN Kanal
+            int32_t l_val = (int32_t)((x[i + 3] << 24) | (x[i + 2] << 16) | (x[i + 1] << 8) | x[i]);
+            
+            // Ihr funktionierender Little-Endian-Zusammenbau für den RECHTEN Kanal
+            int32_t r_val = (int32_t)((x[i + 7] << 24) | (x[i + 6] << 16) | (x[i + 5] << 8) | x[i + 4]);
+
+            // Absolutwerte für die Peak-Messung
+            int32_t abs_l = std::abs(l_val);
+            int32_t abs_r = std::abs(r_val);
+
+            if (abs_l > max_l) max_l = abs_l;
+            if (abs_r > max_r) max_r = abs_r;
+          }
+
+          // Skalierung auf den 16-Bit-Bereich (>> 16) wie in Ihrem Original
+          int16_t peak_l_16 = (int16_t)(max_l >> 16);
+          int16_t peak_r_16 = (int16_t)(max_r >> 16);
+
+          // Zuweisung an Ihre aktuellen globalen Peak-Speicher
+          if (peak_l_16 > id(mic_peak_left))  id(mic_peak_left) = peak_l_16;
+          if (peak_r_16 > id(mic_peak_right)) id(mic_peak_right) = peak_r_16;
+
+          
+# Amplifier MAX 98357
+speaker:
+  # A) Der physische I2S Hardware-Lautsprecher (Ausgang)
+  - platform: i2s_audio
+    id: hw_speaker
+    i2s_audio_id: i2s_bus_out
+    dac_type: external
+    i2s_dout_pin: GPIO9
+    bits_per_sample: 32bit
+    sample_rate: 48000
+    mclk_multiple: 256
+    channel: stereo
+    num_channels: 2
+    buffer_duration: 500ms
+    i2s_mode: primary
+
+  # B) Der digitale Audio-Mixer
+  - platform: mixer
+    id: audio_mixer
+    output_speaker: hw_speaker
+    num_channels: 2
+    source_speakers:
+      - id: media_mixing_input
+        timeout: never
+      - id: announcement_mixing_input
+        timeout: never
+
+  # C) Virtueller Resampler für Musik-Medien
+  - platform: resampler
+    id: media_source_speaker
+    output_speaker: media_mixing_input
+
+  # D) Virtueller Resampler für Durchsagen (Announcements)
+  - platform: resampler
+    id: announcement_source_speaker
+    output_speaker: announcement_mixing_input
+
+audio:
+  codecs:
+    flac:
+    mp3:
+    wav:
+      
+media_player:
+  - platform: speaker
+    id: media_player_id
+    name: Audio Player
+    buffer_size: 4000000
+    icon: "mdi:speaker-message"
+    task_stack_in_psram: true
+    volume_initial: 50%
+    volume_increment: 5%
+    volume_min: 0%
+    volume_max: 100%
+    files:
+      - id: snd_boot
+        file: "sounds/boot.flac"
+      - id: snd_va_chime_up
+        file: "sounds/va_chime_up.flac"
+      - id: snd_va_chime_down
+        file: "sounds/va_chime_down.flac"
+      - id: snd_error
+        file: "sounds/error.flac"
+      - id: snd_success
+        file: "sounds/success.flac"
+      - id: snd_va_wake
+        file: "sounds/va_wake.flac"
+      - id: snd_single_click
+        file: "sounds/single_click.flac"
+      - id: snd_double_click
+        file: "sounds/double_click.flac"
+      - id: snd_long_click
+        file: "sounds/long_click.flac"
+
+    media_pipeline:
+      speaker: media_source_speaker
+      num_channels: 2
+      sample_rate: 48000
+      format: 'NONE'
+    announcement_pipeline:
+      speaker: announcement_source_speaker
+      sample_rate: 16000
+      num_channels: 1
+      format: FLAC
+
+    on_announcement:
+      - logger.log:
+          level: INFO
+          format: "Ducking enabled"
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 16
+          duration: 0.3s
+      - if:
+          condition:
+            lambda: 'return id(skip_next_announcement);'
+          then:
+            # Skip aktiv → nur zurücksetzen (Lokaler Klickton abgefangen)
+            - lambda: 'id(skip_next_announcement) = false;'
+          else:
+            # Skip NICHT aktiv → regulär ausführen (Echtes HA-Announcement)
+            - script.execute: on_media_player_announcement
+    on_play:
+      - logger.log:
+          level: INFO
+          format: "Micro Wake Word stopped"
+      - micro_wake_word.stop: 
+      - logger.log:
+          level: INFO
+          format: "Ducking disabled"          
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 0
+          duration: 0.3s
+      - script.execute: on_media_player_play
+    on_pause:
+      - if:
+          condition:
+            lambda: 'return !id(mww).is_running();'
+          then:
+            - logger.log:
+                level: INFO
+                format: "Micro Wake Word started (pause)"
+            - micro_wake_word.start: 
+      - script.execute: on_media_player_pause
+
+    on_idle:      
+      - if:
+          condition:
+            lambda: 'return !id(mww).is_running();'
+          then:
+            - logger.log:
+                level: INFO
+                format: "Micro Wake Word started (idle)"
+            - micro_wake_word.start: 
+      - script.execute: on_media_player_idle
+        
+    on_turn_on:
+      - script.execute: on_media_player_turn_on
+    on_turn_off:
+      - script.execute: on_media_player_turn_off
+    on_mute:
+      - script.execute: on_media_player_mute
+    on_unmute:
+      - script.execute: on_media_player_unmute
+    on_volume:
+      - script.execute: on_media_player_volume
+    on_state:
+      - script.execute: on_media_player_state
+
+voice_assistant:
+  id: va
+  micro_wake_word: 
+  use_wake_word: false
+  microphone:
+    - channels: ["0"]
+      microphone: hw_microphone
+    - channels: ["1"]
+      microphone: hw_microphone
+  media_player: media_player_id
+  auto_gain: 15dBFS
+  conversation_timeout: 300s
+  noise_suppression_level: 2
+  volume_multiplier: 4
+
+  on_client_connected: 
+    - script.execute: on_voice_assistant_client_connected
+  on_client_disconnected: 
+    - script.execute: on_voice_assistant_client_disconnected
+  on_idle: 
+    - script.execute: on_voice_assistant_idle
+  on_listening: 
+    - script.execute: on_voice_assistant_listening
+  on_start: 
+    - script.execute: on_voice_assistant_start
+    - globals.set: 
+        id: command_message
+        value: !lambda return "";
+    - globals.set: 
+        id: announce_message
+        value: !lambda return "";
+    - globals.set: 
+        id: url_message
+        value: !lambda return "";
+    - globals.set: 
+        id: error_code
+        value: !lambda return "";
+    - globals.set: 
+        id: error_message
+        value: !lambda return "";
+    - globals.set: 
+        id: intent_message
+        value: !lambda return "";
+      
+  on_stt_end: 
+    - globals.set: 
+        id: command_message
+        value: !lambda return x;
+    - logger.log: 
+        level: INFO
+        format: "Command %s"
+        args: [ id(command_message).c_str() ]
+    - script.execute: on_voice_assistant_stt_end
+  on_stt_vad_start:
+    - script.execute: on_voice_assistant_stt_vad_start
+  on_stt_vad_end:
+    - script.execute: on_voice_assistant_stt_vad_end
+      
+  on_tts_start:
+    - globals.set: 
+        id: announce_message
+        value: !lambda return x;    
+    - logger.log: 
+        level: INFO
+        format: "Announce %s"
+        args: [ id(announce_message).c_str() ]
+    - script.execute: on_voice_assistant_tts_start
+  on_tts_end: 
+    - globals.set: 
+        id: url_message
+        value: !lambda return x;    
+    - logger.log:
+        level: INFO
+        format: "URL %s"
+        args: [ id(url_message).c_str() ]
+    - script.execute: on_voice_assistant_tts_end
+  on_end: 
+    - script.execute: on_voice_assistant_end
+    - script.wait: on_voice_assistant_end
+  on_error: 
+    - globals.set: 
+        id: error_code
+        value: !lambda return code;
+    - globals.set: 
+        id: error_message
+        value: !lambda return message;
+    - script.execute: on_voice_assistant_error
+    - script.wait: on_voice_assistant_error
+  # on_intent_start:
+  on_intent_progress:
+    - globals.set: 
+        id: intent_message
+        value: !lambda return x;
+    - logger.log:
+        level: INFO
+        format: "Intent %s"
+        args: [ id(intent_message).c_str() ]
+    - script.execute: on_voice_assistant_intent
+  # on_intent_end:
+    
+micro_wake_word:
+  id: mww
+  task_stack_in_psram: true
+  vad:
+    model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json
+    probability_cutoff: 80%
+    sliding_window_size: 10
+  models:
+    - model: okay_nabu
+    - model: hey_jarvis
+    - model: alexa
+  on_wake_word_detected:
+    then:
+      - script.execute:
+          id: on_micro_wake_word_on_wake_word_detected
+          ww: !lambda 'return wake_word;'
+
+        
+###################################### Automation
+
+number:
+  - platform: template
+    id: page_info_duration
+    name: "Info Speed"
+    entity_category: config
+    min_value: 15
+    max_value: 300
+    step: 15
+    initial_value: 60
+    optimistic: true
+    restore_value: True
+  
+  - platform: template
+    id: content_mode_select
+    name: "Content Mode"
+    entity_category: diagnostic
+    min_value: 0
+    max_value: 5
+    step: 1    
+    initial_value: "${CONTENT_BOOT}"
+    optimistic: True
+    set_action:
+      - lambda: |-
+          id(set_content_mode).execute(x);
+  - platform: template
+    id: overlay_mode_select
+    name: "Overlay Mode"
+    entity_category: diagnostic
+    min_value: 0
+    max_value: 4
+    step: 1
+    initial_value: "${OVERLAY_NONE}"
+    set_action:
+      - lambda: |-
+          id(set_overlay_mode).execute(x);
+
+script:
+####################### functions
+  - id: update_data
+    then:
+      - lambda: |-
+          id(status_symbols)[0] =
+            !id(wifi_id).is_connected() ? nullptr :
+            id(wifi_rssi).state > -55   ? id(symbol_wifi_4) :
+            id(wifi_rssi).state > -65   ? id(symbol_wifi_3) :
+            id(wifi_rssi).state > -75   ? id(symbol_wifi_2) : 
+                                          id(symbol_wifi_1);
+          
+          id(status_symbols)[1] =
+            !id(api_id).is_connected()              ? nullptr :
+            id(va).get_api_connection() != nullptr ? id(symbol_va) : 
+                                                      id(symbol_api);
+          
+          id(status_symbols)[2] = 
+            id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING ? id(symbol_mp_announce) :
+            id(hw_speaker)->get_mute_state()                                         ? id(symbol_mute) :
+            id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_PLAYING    ? id(symbol_mp_play) :
+            id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_PAUSED     ? id(symbol_mp_pause) :
+            id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_IDLE       ? id(symbol_mp_idle) :
+                                                                                       nullptr;
+          
+          id(status_symbols)[3] =
+            id(hw_microphone)->get_mute_state() ? id(symbol_deaf) : 
+                                                  nullptr;
+
+
+          // 1. ZENTRALER RESET (Failsafe)
+          // Setzt alle Texte standardmäßig leer. Ein case schreibt nur noch, was er wirklich braucht.
+          id(idle_message0) = "";
+          id(idle_message1) = "";
+          id(idle_message2) = "";
+          id(idle_message3) = "";
+          
+          // 2. CONTENT MODES (Nur wenn kein Overlay aktiv ist)
+          if (id(overlay_mode) == ${OVERLAY_NONE}) {
+            id(title_text) = id(content_mode_text)[id(content_mode)];
+          
+            switch (id(content_mode)) {
+              case ${CONTENT_BOOT}:
+                id(image_icon)    = id(logo_esphome);
+                id(idle_message1) = "${version}";
+                #include <esp_idf_version.h>
+                id(idle_message2) = IDF_VER;
+                break;
+          
+              case ${CONTENT_IDLE}: {
+                id(image_icon) = nullptr;
+                static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+                auto now = id(esptime).now();
+                
+                int page_duration = id(page_info_duration).state * 1000;
+                int idx = (millis() / page_duration) % 6;
+                
+                switch (idx) {
+                  case 0: id(idle_message0) = str_snprintf("%02d:%02d", 32, now.hour, now.minute); break;
+                  case 1: id(idle_message0) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
+                  case 2: id(idle_message1) = str_snprintf("%s", 32, weekdays[now.day_of_week - 1]);
+                          id(idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
+                  case 3: id(idle_message0) = str_snprintf("%.1f °C", 32, id(room_temp).state); break;
+                  case 4: id(idle_message0) = str_snprintf("%.0f%% rF", 32, id(room_hum).state); break;
+                  case 5: id(idle_message0) = str_snprintf("%.0f hPa", 32, id(room_press).state); break;
+                }
+                break;
+              }
+          
+              case ${CONTENT_PLAY}:
+              case ${CONTENT_PAUSE}: // Zusammengefasst, da textlich identisch
+                //id(image_icon)    = (id(content_mode) == ${CONTENT_PLAY}) ? id(icon_play) : id(icon_pause);
+                id(image_icon) = nullptr;
+                id(idle_message1) = id(media_album_name).state;
+                id(idle_message2) = id(media_title).state;
+                id(idle_message3) = id(media_artist).state;
+                break;
+          
+              case ${CONTENT_LISTEN}:
+                id(image_icon)    = id(icon_listen);
+                id(idle_message0) = "Ja bitte";
+                break;
+          
+              case ${CONTENT_THINK}:
+                id(image_icon)    = id(icon_think);
+                id(idle_message1) = id(command_message).empty() ? "denke ..." : id(command_message);
+                break;
+            }
+          }
+          
+          // 3. OVERLAY MODES (Überschreiben ggf. Titel, Icon und Texte)
+          switch (id(overlay_mode)) {
+            case ${OVERLAY_VOLUME}:
+              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+              id(idle_message0) = id(media_player_id).is_muted() ? "MUTE" : str_snprintf(" VOL %.0f", 32, id(media_player_id).volume * 100.0f);
+              break;
+          
+            case ${OVERLAY_ERROR}:
+              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+              id(image_icon)    = id(icon_error);
+              id(idle_message1) = id(error_code);
+              id(idle_message2) = id(error_message);
+              break;
+          
+            case ${OVERLAY_ALARM}:
+              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+              id(image_icon)    = id(icon_alarm);
+              break;
+              
+            case ${OVERLAY_ANNOUNCE}: // Zusammengefasst, da identische Logik
+              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+              id(image_icon)    = id(icon_announce);
+              id(idle_message1) = id(command_message);
+              id(idle_message2) = id(announce_message);
+              break;
+          }
+          
+          // 4. DISPLAY DIREKT AKTUALISIEREN
+          id(display_id).update();
+
+          
+  - id: set_content_mode
+    parameters: 
+      mode: int
+    then:
+      - logger.log:
+          level: INFO
+          format: "script set_content_mode %d"
+          args: [ mode ]
+      - lambda: |-
+          // in der Bootphase wird nix geschaltet
+          if (id(is_booting)) return;
+
+          // Mode setzen
+          id(content_mode) = mode;
+          // mit HA synchronisieren
+          id(content_mode_select).publish_state(mode);
+
+          if (id(overlay_mode) != ${OVERLAY_NONE}) return;
+
+          // LED-Effekt auswählen -- CONTENT_MODE
+          std::string effect = "Effect CONTENT_" + std::to_string(mode);
+          id(ledstrip_id).turn_on().set_effect(effect).perform();
+
+          id(update_data).execute();
+  - id: set_overlay_mode
+    parameters:
+      mode: int
+    then:
+      - logger.log:
+          level: INFO
+          format: "script set_overlay_mode %d"
+          args: [ mode ]
+      - lambda: |-
+          // in der Bootphase wird nix geschaltet
+          if (id(is_booting)) return;
+
+          // Mode setzen
+          id(overlay_mode) = mode;
+          // mit HA synchronisieren
+          id(overlay_mode_select).publish_state(mode);
+
+          if(id(overlay_mode) == ${OVERLAY_NONE}) {
+            mode = id(content_mode);
+            // LED-Effekt auswählen -- CONTENT_MODE
+            std::string effect = "Effect CONTENT_" + std::to_string(mode);
+            id(ledstrip_id).turn_on().set_effect(effect).perform();
+          } else {
+            // LED-Effekt auswählen -- OVERLAY_MODE
+            std::string effect = "Effect OVERLAY_" + std::to_string(mode);
+            id(ledstrip_id).turn_on().set_effect(effect).perform();
+          }
+
+          id(update_data).execute();
+          
+  - id: show_volume_overlay
+    mode: restart
+    then:
+      - logger.log:
+          level: INFO
+          format: "script show_volume_overlay"
+      - lambda: |-
+          id(set_overlay_mode).execute(${OVERLAY_VOLUME});
+      - delay: 5s
+      - lambda: |-
+          id(set_overlay_mode).execute(${OVERLAY_NONE});
+
+  - id: show_error_overlay
+    mode: restart
+    then:
+      - logger.log:          
+          level: INFO
+          format: "script show_error_overlay"
+      - lambda: |-
+          id(set_overlay_mode).execute(${OVERLAY_ERROR});
+      - delay: 5s
+      - lambda: |-
+          id(set_overlay_mode).execute(${OVERLAY_NONE});
+  - id: show_announce_overlay
+    mode: restart
+    then:
+      - logger.log:
+          level: INFO
+          format: "script show_announce_overlay"
+      - lambda: |-
+          id(set_overlay_mode).execute(${OVERLAY_ANNOUNCE});
+
+      # Warten bis Announcement wirklich gestartet ist
+      - wait_until:
+          condition:
+            media_player.is_announcing: media_player_id
+
+      # Warten bis Announcement vorbei ist
+      - wait_until:
+          condition:
+            not:
+              media_player.is_announcing: media_player_id
+
+      - lambda: |-
+          // Overlay ausschalten
+          id(set_overlay_mode).execute(${OVERLAY_NONE});
+
+
+
+####################### trigger  
+  # ESP
+  # sensors up
+  - id: on_esp_boot_600
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_esp_boot_600"
+      - script.execute:
+          id: set_content_mode
+          mode: ${CONTENT_BOOT}
+  # wifi up
+  - id: on_esp_boot_250
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_esp_boot_250"  
+  # network up
+  - id: on_esp_boot_200
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_esp_boot_200"  
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file: 
+          media_file: snd_boot
+          announcement: true
+          enqueue: true
+  # everthing up
+  - id: on_esp_boot_minus100
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_esp_boot_minus100"  
+      
+  # Time
+  - id: on_time_time_sync
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_time_time_sync"
+      - if:
+          condition:
+            lambda: 'return id(is_booting);'
+          then:
+            - globals.set:
+                id: is_booting
+                value: "false"      
+            - script.execute:
+                id: set_content_mode
+                mode: ${CONTENT_IDLE}
+
+  # Wifi
+  - id: on_wifi_connect
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_wifi_connect"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      # - media_player.speaker.play_on_device_media_file:
+      #    media_file: snd_wifi_connect
+      #    announcement: true
+      #    enqueue: true
+      - script.execute: update_data
+  - id: on_wifi_disconnect
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_wifi_disconnect"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      # - media_player.speaker.play_on_device_media_file:
+      #    media_file: snd_wifi_disconnect
+      #    announcement: true
+      #    enqueue: true
+      - script.execute: update_data
+
+# Api
+  - id: on_api_client_connect
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_api_client_connect"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      # - media_player.speaker.play_on_device_media_file:
+      #    media_file: snd_api_connect
+      #    announcement: true
+      #    enqueue: true
+      - script.execute: update_data
+  - id: on_api_client_disconnect
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_api_client_disconnect"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      #- media_player.speaker.play_on_device_media_file:
+      #    media_file: snd_api_disconnect
+      #    announcement: true
+      #    enqueue: true
+      - script.execute: update_data
+    
+  # Media Player
+  - id: on_media_player_announcement
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_announcement"
+      - script.execute: 
+          id: show_announce_overlay
+  - id: on_media_player_play
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_play"
+      - script.execute: 
+          id: set_content_mode
+          mode: ${CONTENT_PLAY}
+
+  - id: on_media_player_pause
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_pause"
+      - script.execute: 
+          id: set_content_mode
+          mode: ${CONTENT_PAUSE}
+
+  - id: on_media_player_idle
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_idle"
+      - wait_until:
+          not:
+            voice_assistant.is_running: 
+      - script.execute:
+          id: set_content_mode
+          mode: ${CONTENT_IDLE}
+          
+  - id: on_media_player_turn_on
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_turn_on"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      # - media_player.speaker.play_on_device_media_file: 
+      #    media_file: snd_turn_on
+      #    announcement: true
+      #    enqueue: true
+      - script.execute: update_data
+
+  - id: on_media_player_turn_off
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_turn_off"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      # - media_player.speaker.play_on_device_media_file: 
+      #     media_file: snd_turn_off
+      #     announcement: true
+      #     enqueue: true
+      - script.execute: update_data
+
+  - id: on_media_player_mute
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_mute"
+      - script.execute: 
+          id: show_volume_overlay
+
+  - id: on_media_player_unmute
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_unmute"
+      - script.execute: 
+          id: show_volume_overlay
+
+  - id: on_media_player_volume
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_volume"
+      - script.execute: 
+          id: show_volume_overlay
+
+  - id: on_media_player_state
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_media_player_state: %s"
+          args: [ 'media_player::media_player_state_to_string(id(media_player_id).state)' ]
+
+# Voice Assistant
+  - id: on_voice_assistant_client_connected
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_client_connected"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file: 
+          media_file: snd_va_chime_up
+          announcement: true
+          enqueue: true
+      - micro_wake_word.start:           
+  - id: on_voice_assistant_client_disconnected
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_client_disconnected"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file: 
+          media_file: snd_va_chime_down
+          announcement: true
+          enqueue: true
+  - id: on_voice_assistant_idle
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_idle"
+      - micro_wake_word.start:           
+  - id: on_voice_assistant_start
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_start"
+  - id: on_voice_assistant_listening
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_listening"
+      - script.execute: 
+          id: set_content_mode
+          mode: ${CONTENT_LISTEN}
+          
+  - id: on_voice_assistant_stt_vad_start
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_stt_vad_start"
+  - id: on_voice_assistant_stt_vad_end
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_stt_vad_end"
+      - script.execute: 
+          id: set_content_mode
+          mode: ${CONTENT_THINK}
+
+  - id: on_voice_assistant_stt_end
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_stt_end %s"
+          args: [ id(command_message).c_str() ]
+      - script.execute: update_data
+
+        
+  - id: on_voice_assistant_tts_start
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_tts_start %s"
+          args: [ id(announce_message).c_str() ]
+      - script.execute: update_data
+  - id: on_voice_assistant_tts_end
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_tts_end"
+
+  - id: on_voice_assistant_end
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_end"
+      # - globals.set:
+      #    id: skip_next_announcement
+      #    value: "true"
+      # - media_player.speaker.play_on_device_media_file: 
+      #    media_file: snd_success
+      #    announcement: true
+      #    enqueue: true
+      - if:
+          condition:
+            - micro_wake_word.is_running:                 
+          then: 
+            - logger.log:
+                level: ERROR
+                format: "mww läuft schon"
+          else:
+            - micro_wake_word.start: 
+  - id: on_voice_assistant_error
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_error %s:%s"
+          args: [ id(error_code).c_str(), id(error_message).c_str()]
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file: 
+          media_file: snd_error
+          announcement: true
+          enqueue: true
+      - script.execute: 
+          id: set_content_mode
+          mode: ${CONTENT_IDLE}
+      - script.execute: 
+          id: show_error_overlay
+      - if:
+          condition:
+            - micro_wake_word.is_running:
+          then: 
+            - logger.log:
+                level: ERROR
+                format: "mww läuft schon"
+          else:
+            - micro_wake_word.start: 
+  - id: on_voice_assistant_intent
+    then:
+      - logger.log:
+          level: INFO
+          format: "on_voice_assistant_intent %s"
+          args: [ id(intent_message).c_str() ]
+                
+  # Micro_wake_word
+  - id: on_micro_wake_word_on_wake_word_detected
+    parameters: 
+      ww: string
+    then: 
+      - logger.log:
+          level: INFO
+          format: "micro_wake_word_on_wake_word_detected %s"
+          args: 
+            - !lambda ww.c_str()
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file: 
+          media_file: snd_va_wake
+          announcement: true
+          enqueue: true
+      - voice_assistant.start: 
+          wake_word: !lambda return ww;
+      
+
+  # Touchbuttons
+  - id: on_btn_1_single_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_1_single_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_single_click
+          announcement: true
+          enqueue: true
+  - id: on_btn_1_double_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_1_double_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_double_click
+          announcement: true
+          enqueue: true
+  - id: on_btn_1_long_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_1_long_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_long_click
+          announcement: true
+          enqueue: true
+      - if:
+          condition:
+            - media_player.is_off: 
+          then:
+            - media_player.turn_on: 
+          else:
+            - media_player.turn_off: 
+
+  - id: on_btn_2_single_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_2_single_click"
+      - media_player.toggle: 
+        
+  - id: on_btn_2_double_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_2_double_click"
+  - id: on_btn_2_long_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_2_long_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_long_click
+          announcement: true
+          enqueue: true
+  - id: on_btn_3_single_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_3_single_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_single_click
+          announcement: true
+          enqueue: true
+      - media_player.volume_down: 
+  - id: on_btn_3_double_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_3_double_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_double_click
+          announcement: true
+          enqueue: true
+  - id: on_btn_3_long_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_3_long_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_long_click
+          announcement: true
+          enqueue: true
+      - lambda: |-
+          if (id(hw_speaker)->get_mute_state()) {
+            id(hw_speaker).set_mute_state(false);
+          } else {
+            id(hw_speaker).set_mute_state(true);
+          }
+      - script.execute: update_data
+  - id: on_btn_4_single_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_4_single_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_single_click
+          announcement: true
+          enqueue: true
+      - media_player.volume_up: 
+  - id: on_btn_4_double_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_4_double_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_double_click
+          announcement: true
+          enqueue: true
+  - id: on_btn_4_long_click
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_4_long_click"
+      - globals.set:
+          id: skip_next_announcement
+          value: "true"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: snd_long_click
+          announcement: true
+          enqueue: true
+      - lambda: |-
+          if (id(hw_microphone)->get_mute_state()) {
+            id(hw_microphone).set_mute_state(false);
+          } else {
+            id(hw_microphone).set_mute_state(true);
+          }
+      - script.execute: update_data
+        

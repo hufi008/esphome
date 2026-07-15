@@ -8,7 +8,7 @@ packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-esp32.yaml
   # Holt die Funktionalität
-  # environment: !include common/bme280.yaml
   functions: !include common/voice-satellite.yaml
+  # environment: !include common/bme280.yaml
   scripts: !include common/scripts.yaml
 

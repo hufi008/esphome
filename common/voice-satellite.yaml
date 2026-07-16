@@ -8,7 +8,7 @@ substitutions:
   # Amp Max98357
   amp_lrclk_pin:  "GPIO11"   # LEFT / RIGHT CLOCK
   amp_bclk_pin:   "GPIO10"   # Bit CLOCK
-  amp_din_pin:    "GPIO09"   # DATA IN
+  amp_dout_pin:   "GPIO09"   # DATA OUT
   # VCC: 5V
   # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
   # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
@@ -137,9 +137,6 @@ globals:
   - id: image_icon
     type: 'image::Image*'
     initial_value: '&id(icon_think)'
-  - id: idle_message0
-    type: std::string
-    initial_value: "\"00:00\""
   - id: idle_message1
     type: std::string
     initial_value: "\"Hallo\""
@@ -173,9 +170,6 @@ globals:
     initial_value: "\"error\""
 
 ########################## Components
-psram:
-  mode: octal
-  speed: 80MHz
 
 time:
   - platform: homeassistant
@@ -187,16 +181,9 @@ time:
 deep_sleep:
   id: deep_sleep_id
   wakeup_pin: 
-    number: GPIO15
+    number: ${btn_1_pin}
     allow_other_uses: true
   wakeup_pin_mode: INVERT_WAKEUP
-  #esp32_ext1_wakeup :
-  #  pins: 
-  #    - GPIO15
-  #    - GPIO16
-  #    - GPIO17
-  #    - GPIO18
-  #  mode: ANY_LOW
   
 button:
   - platform: restart
@@ -218,7 +205,7 @@ binary_sensor:
   - platform: gpio
     id: btn_up_id
     pin:
-      number: GPIO15
+      number: ${btn_1_pin}
       allow_other_uses: true
     filters:
       - delayed_on: 50ms
@@ -248,7 +235,7 @@ binary_sensor:
   - platform: gpio
     id: btn_down_id
     pin:
-      number: GPIO16
+      number: ${btn_2_pin}
       allow_other_uses: false
     filters:
       - delayed_on: 50ms
@@ -278,7 +265,7 @@ binary_sensor:
   - platform: gpio
     id: btn_left_id
     pin:
-      number: GPIO17
+      number: ${btn_3_pin}
       allow_other_uses: false
     filters:
       - delayed_on: 50ms
@@ -308,7 +295,7 @@ binary_sensor:
   - platform: gpio
     id: btn_right_id
     pin:
-      number: GPIO18
+      number: ${btn_4_pin}
       allow_other_uses: false
     filters:
       - delayed_on: 50ms
@@ -339,16 +326,15 @@ binary_sensor:
 light:
   - platform: esp32_rmt_led_strip
     id: ledstrip_id
-    name: LED Status
-    pin: GPIO8
+    name: "LED Status"
     chipset: WS2812
-    num_leds: 10
+    pin: ${led_din_pin}
+    num_leds: ${led_count}
     rgb_order: GRB
     restore_mode: RESTORE_AND_ON
     icon: "mdi:led-strip"
-    max_refresh_rate: 30ms
     use_dma: true
-    rmt_symbols: 48
+    rmt_symbols: 192
     use_psram: true
     effects:
       - addressable_scan:
@@ -366,6 +352,7 @@ light:
       - addressable_color_wipe:
           name: Color Wipe
           add_led_interval: 0.1s
+          
       # Content Mode Effects
       # Effect CONTENT_BOOT
       - addressable_lambda:
@@ -373,7 +360,7 @@ light:
           update_interval: 50ms
           lambda: |-
             // Definiert die Geschwindigkeit und zwingt den Wert in eine Endlosschleife von 0 bis 255
-            int wave_time = (millis() / 20) % 256;
+            int wave_time = (millis() / 12) % 256;
 
             for (int i = 0; i < it.size(); i++) {
               // Berechnet den Helligkeitsverlauf basierend auf der LED-Position
@@ -388,11 +375,18 @@ light:
       # Effect CONTENT_IDLE
       - addressable_lambda:
           name: "Effect CONTENT_1" # IDLE
-          update_interval: 30ms
+          update_interval: 16ms
           lambda: |-
+            auto color = id(ledstrip_id).remote_values;
+
+            uint8_t r = color.get_red() * 255;
+            uint8_t g = color.get_green() * 255;
+            uint8_t b = color.get_blue() * 255;
+
             for (int i = 0; i < it.size(); i++) {
-              it[i] = Color(0, 0, 0);
+              it[i] = Color(r, g, b);
             }
+
       # Effect CONTENT_PLAY
       - addressable_rainbow:
           name: "Effect CONTENT_2" # PLAY
@@ -518,8 +512,8 @@ light:
           
 i2c:
   - id: i2c_bus
-    sda: GPIO1
-    scl: GPIO2
+    sda: ${i2c_sda_pin}
+    scl: ${i2c_scl_pin}
     scan: true
     frequency: 400kHz
 
@@ -581,11 +575,10 @@ text_sensor:
   # Titel des aktuellen Tracks
   - platform: homeassistant
     id: media_title
-    entity_id: ${media_player_entity_id}
+    entity_id: ${media_player_entity_id}_2
     attribute: media_title
     on_value:
       then:
-        - lambda: 'id(media_artist).state = "";'
         - logger.log:
             format: "media_title='%s'"
             args: [ id(media_title).state.c_str() ]
@@ -593,7 +586,7 @@ text_sensor:
   # Interpret
   - platform: homeassistant
     id: media_artist
-    entity_id: ${media_player_entity_id}
+    entity_id: ${media_player_entity_id}_2
     attribute: media_artist
     on_value:
       then:
@@ -601,21 +594,10 @@ text_sensor:
             format: "media_artist='%s'"
             args: [ id(media_artist).state.c_str() ]
         - script.execute: update_data
-  # Channel
-  - platform: homeassistant
-    id: media_channel
-    entity_id: ${media_player_entity_id}
-    attribute: media_channel
-    on_value:
-      then:
-        - logger.log:
-            format: "media_channel='%s'"
-            args: [ id(media_channel).state.c_str() ]
-        - script.execute: update_data
-  # Channel
+  # Albumname
   - platform: homeassistant
     id: media_album_name
-    entity_id: ${media_player_entity_id}
+    entity_id: ${media_player_entity_id}_2
     attribute: media_album_name
     on_value:
       then:
@@ -868,12 +850,17 @@ display:
       };
 
 
-      // DIE ANZEIGE-WEICHE (Übergibt jetzt "width" statt "w2")
-      if (!id(idle_message0).empty()) {
-        // Variante A: Einzeilige, große Darstellung
-        scroll_marquee(cx, cy, width, id(font_huge), id(idle_message0));
+      if (id(idle_message3).empty() && id(idle_message2).empty()) {
+        // --- FALL 1: Nur die erste Zeile ist befüllt -> Maximal groß ---
+        scroll_marquee(cx, cy, width, id(font_huge), id(idle_message1));
+
+      } else if (id(idle_message3).empty()) {
+        // --- FALL 2: Zeile 1 und 2 sind befüllt -> Große Schrift ---
+        scroll_marquee(cx, cy - 9, width, id(font_large), id(idle_message1));
+        scroll_marquee(cx, cy + 9, width, id(font_large), id(idle_message2));
+
       } else {
-        // Variante B: Dreizeilige Darstellung
+        // --- FALL 3: Alle 3 Zeilen sind befüllt -> Mittlere Schrift ---
         scroll_marquee(cx, cy - 12, width, id(font_medium), id(idle_message1));
         scroll_marquee(cx, cy,      width, id(font_medium), id(idle_message2));
         scroll_marquee(cx, cy + 12, width, id(font_medium), id(idle_message3));
@@ -904,13 +891,13 @@ interval:
 i2s_audio:
   # Eingang (Stereo INMP441)
   - id: i2s_bus_in
-    i2s_lrclk_pin: GPIO4      # WS
-    i2s_bclk_pin: GPIO5       # sck
+    i2s_lrclk_pin: ${mic_ws_pin}
+    i2s_bclk_pin: ${mic_sck_pin}
 
   # Ausgang (Stereo MAX98357)
   - id: i2s_bus_out
-    i2s_lrclk_pin: GPIO11
-    i2s_bclk_pin: GPIO10
+    i2s_lrclk_pin: ${amp_lrclk_pin}
+    i2s_bclk_pin: ${amp_bclk_pin}
    
 # Microphone INMP441
 microphone:
@@ -918,7 +905,7 @@ microphone:
     id: hw_microphone
     i2s_audio_id: i2s_bus_in
     adc_type: external
-    i2s_din_pin: GPIO6        # sd
+    i2s_din_pin: ${mic_sd_pin}
     pdm: false
     bits_per_sample: 32bit
     sample_rate: 16000
@@ -967,7 +954,7 @@ speaker:
     id: hw_speaker
     i2s_audio_id: i2s_bus_out
     dac_type: external
-    i2s_dout_pin: GPIO9
+    i2s_dout_pin: ${amp_dout_pin}
     bits_per_sample: 32bit
     sample_rate: 48000
     mclk_multiple: 256

@@ -1,9 +1,23 @@
 {
+  "version": "2.0.0",
   "tasks": [
     {
-      "type": "esphome",
-      "problemMatcher": [],
-      "label": "ESPHome: Upload OTA"
+      "label": "Save All Files",
+      "type": "shell",
+      // Ruft den internen VSCode-Befehl zum Speichern aller Dateien auf
+      "command": "${command:workbench.action.files.saveAll}"
+    },
+    {
+      "label": "ESPHome OTA Hauptgeraet",
+      "type": "shell",
+      "command": "esphome run speaker_4.yaml --device OTA",
+      "group": {"kind": "build", "isDefault": true},
+      // Diese Zeile zwingt VSCode, die obige "Save All"-Task zuerst auszuführen:
+      "dependsOn": "Save All Files",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     }
   ]
 }

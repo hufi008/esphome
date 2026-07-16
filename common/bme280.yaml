@@ -11,6 +11,9 @@ substitutions:
   # sda, scl vom i2c_bus
 
 sensor:
+  - id: !remove room_temp
+  - id: !remove room_hum
+  - id: !remove room_press
   - platform: bme280_i2c
     id: envir_id
     address: 0x76

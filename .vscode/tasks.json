@@ -4,19 +4,28 @@
     {
       "label": "Save All Files",
       "type": "shell",
-      // Ruft den internen VSCode-Befehl zum Speichern aller Dateien auf
       "command": "${command:workbench.action.files.saveAll}"
     },
     {
-      "label": "ESPHome OTA Hauptgeraet",
+      "label": "ESPHome RUN Mainfile OTA",
       "type": "shell",
-      "command": "esphome run speaker_4.yaml --device OTA",
+      "command": "esphome run ${config:esphome.mainfile} --device OTA --no-states",
       "group": {"kind": "build", "isDefault": true},
-      // Diese Zeile zwingt VSCode, die obige "Save All"-Task zuerst auszuführen:
-      "dependsOn": "Save All Files",
+      
+      // 1. Zwingt VS Code, die Abhängigkeiten nacheinander (sequentiell) abzuarbeiten
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Save All Files"
+      ],
+      
       "presentation": {
         "reveal": "always",
-        "panel": "new"
+        // 2. Nutzt ein fest zugeordnetes Panel für diese Task
+        "panel": "dedicated",
+        // 3. Löscht den alten Text im Terminal vor dem Neustart
+        "clear": true,
+        // 4. Verhindert die nervige "Terminal will be reused" Meldung
+        "showReuseMessage": false
       }
     }
   ]

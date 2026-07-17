@@ -125,6 +125,7 @@ script:
               break;
               
             case ${OVERLAY_ANNOUNCE}: // Zusammengefasst, da identische Logik
+              ESP_LOGD("custom", "show_announce_overlay: \"%s\" : \"%s\"", id(command_message).c_str(), id(announce_message).c_str());
               id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
               id(image_icon)    = id(icon_announce);
               id(idle_message1) = id(command_message);
@@ -133,7 +134,9 @@ script:
           }
           
           // 4. DISPLAY DIREKT AKTUALISIEREN
-          id(display_id).update();
+          if (id(display_id) != nullptr) {
+              id(display_id)->update();
+          }
 
           
   - id: set_content_mode
@@ -383,9 +386,6 @@ script:
       - logger.log:
           level: INFO
           format: "on_media_player_idle"
-      - wait_until:
-          not:
-            voice_assistant.is_running: 
       - script.execute:
           id: set_content_mode
           mode: ${CONTENT_IDLE}
@@ -446,7 +446,7 @@ script:
     then:
       - logger.log:
           level: INFO
-          format: "on_media_player_state: %s"
+          format: "on_media_player_state: \"%s\""
           args: [ 'media_player::media_player_state_to_string(id(media_player_id).state)' ]
 
 # Voice Assistant
@@ -513,7 +513,7 @@ script:
     then:
       - logger.log:
           level: INFO
-          format: "on_voice_assistant_stt_end %s"
+          format: "on_voice_assistant_stt_end \"%s\""
           args: [ id(command_message).c_str() ]
       - script.execute: update_data
 
@@ -522,7 +522,7 @@ script:
     then:
       - logger.log:
           level: INFO
-          format: "on_voice_assistant_tts_start %s"
+          format: "on_voice_assistant_tts_start \"%s\""
           args: [ id(announce_message).c_str() ]
       - script.execute: update_data
   - id: on_voice_assistant_tts_end
@@ -556,7 +556,7 @@ script:
     then:
       - logger.log:
           level: INFO
-          format: "on_voice_assistant_error %s:%s"
+          format: "on_voice_assistant_error \"%s\" : \"%s\""
           args: [ id(error_code).c_str(), id(error_message).c_str()]
       - globals.set:
           id: skip_next_announcement
@@ -583,7 +583,7 @@ script:
     then:
       - logger.log:
           level: INFO
-          format: "on_voice_assistant_intent %s"
+          format: "on_voice_assistant_intent \"%s\""
           args: [ id(intent_message).c_str() ]
                 
   # Micro_wake_word
@@ -593,7 +593,7 @@ script:
     then: 
       - logger.log:
           level: INFO
-          format: "micro_wake_word_on_wake_word_detected %s"
+          format: "micro_wake_word_on_wake_word_detected \"%s\""
           args: 
             - !lambda ww.c_str()
       - globals.set:

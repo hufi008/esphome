@@ -2,7 +2,7 @@
 ######################### Configuration
 
 substitutions:
-  version: "0.6.1"
+  version: "0.6.3"
 
   ### Pin-Belegung
   # Amp Max98357
@@ -88,17 +88,6 @@ wifi:
     - script.execute: on_wifi_connect
   on_disconnect:
     - script.execute: on_wifi_disconnect
-# Enable logging
-logger:
-  level: DEBUG
-
-# SSL-Zertifikatsprüfung für Streams abschalten (schont Heap-Memory & CPU)
-http_request:
-  verify_ssl: false
-
-# High-Performance Netzwerk-Puffer drosseln (verhindert Buffer-Overflows im File-Reader)
-network:
-  enable_high_performance: false
 
 globals:
   - id: is_booting
@@ -120,6 +109,9 @@ globals:
   - id: overlay_mode
     type: int
     initial_value: "0"
+  - id: idle_color
+    type: esphome::Color
+    initial_value: 'Color(127, 0, 255)'
   - id: content_mode_text
     type: std::vector<std::string>
     initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE"}'  
@@ -200,6 +192,39 @@ button:
               light.is_off: ledstrip_id
         - delay: 100ms
         - deep_sleep.enter: deep_sleep_id
+
+text:
+  - platform: template
+    name: "Idle Farbe HEX"
+    id: idle_color_hex
+    optimistic: false
+    min_length: 6
+    max_length: 7
+    initial_value: "000000"
+    restore_value: true
+    mode: text
+    on_value: 
+      then:
+        - lambda: |-
+            unsigned long hex_value = std::strtoul(x.c_str(), nullptr, 16);
+                        
+            uint8_t r = (hex_value >> 16) & 0xFF;
+            uint8_t g = (hex_value >> 8)  & 0xFF;
+            uint8_t b = hex_value         & 0xFF;
+            
+            id(idle_color) = esphome::Color(r, g, b);
+            ESP_LOGD("init", "idle_color: RGB: (%d, %d, %d)", r, g, b);
+    set_action:
+      then:
+        - lambda: |-
+            std::string hex = x;
+            
+            if (!hex.empty() && hex[0] == '#') { hex = hex.substr(1); }
+            if (hex.length() != 6) { return; }
+            for (char c : hex) { if (!isxdigit(c)) { return; } }
+            
+            // Eingabe ist valide -> Zustand akzeptieren
+            id(idle_color_hex).publish_state(hex);
 
 binary_sensor:
   - platform: gpio
@@ -377,14 +402,10 @@ light:
           name: "Effect CONTENT_1" # IDLE
           update_interval: 16ms
           lambda: |-
-            auto color = id(ledstrip_id).remote_values;
-
-            uint8_t r = color.get_red() * 255;
-            uint8_t g = color.get_green() * 255;
-            uint8_t b = color.get_blue() * 255;
+            auto color = id(idle_color);
 
             for (int i = 0; i < it.size(); i++) {
-              it[i] = Color(r, g, b);
+              it[i] = color;
             }
 
       # Effect CONTENT_PLAY
@@ -1045,6 +1066,9 @@ media_player:
             lambda: 'return id(skip_next_announcement);'
           then:
             # Skip aktiv → nur zurücksetzen (Lokaler Klickton abgefangen)
+            - logger.log:
+                level: INFO
+                format: "Announcement skipped"
             - lambda: 'id(skip_next_announcement) = false;'
           else:
             # Skip NICHT aktiv → regulär ausführen (Echtes HA-Announcement)
@@ -1054,18 +1078,11 @@ media_player:
           level: INFO
           format: "Micro Wake Word stopped"
       - micro_wake_word.stop: 
-      - logger.log:
-          level: INFO
-          format: "Ducking disabled"          
-      - mixer_speaker.apply_ducking:
-          id: media_mixing_input
-          decibel_reduction: 0
-          duration: 0.3s
       - script.execute: on_media_player_play
     on_pause:
       - if:
           condition:
-            lambda: 'return !id(mww).is_running();'
+            lambda: 'return (!id(mww).is_running()) && (!id(va).is_running());'
           then:
             - logger.log:
                 level: INFO
@@ -1073,16 +1090,32 @@ media_player:
             - micro_wake_word.start: 
       - script.execute: on_media_player_pause
 
-    on_idle:      
+    on_idle:
       - if:
           condition:
-            lambda: 'return !id(mww).is_running();'
+            lambda: 'return !id(va).is_running();'
           then:
             - logger.log:
                 level: INFO
-                format: "Micro Wake Word started (idle)"
-            - micro_wake_word.start: 
-      - script.execute: on_media_player_idle
+                format: "Ducking disabled"          
+            - mixer_speaker.apply_ducking:
+                id: media_mixing_input
+                decibel_reduction: 0
+                duration: 0.3s
+            - if:
+                condition:
+                  lambda: 'return !id(mww).is_running();'
+                then:
+                  - logger.log:
+                      level: INFO
+                      format: "Micro Wake Word started (idle)"
+                  - micro_wake_word.start: 
+            - script.execute: on_media_player_idle
+          else:
+            - logger.log:
+                level: INFO
+                format: "on_idle skipped (VA is running)"
+
         
     on_turn_on:
       - script.execute: on_media_player_turn_on
@@ -1174,6 +1207,13 @@ voice_assistant:
         args: [ id(url_message).c_str() ]
     - script.execute: on_voice_assistant_tts_end
   on_end: 
+    - logger.log:
+        level: INFO
+        format: "VA End"
+    - wait_until: 
+        condition:
+          - not:
+            - voice_assistant.is_running:
     - script.execute: on_voice_assistant_end
     - script.wait: on_voice_assistant_end
   on_error: 

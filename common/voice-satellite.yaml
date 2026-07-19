@@ -25,7 +25,7 @@ substitutions:
   led_din_pin:   "GPIO08"    # DATA IN
   led_count:     "10"        # Number of LEDs
   # VCC: 5V
-  # din mit Levelshifter auf 5V heben
+  # din mit Levelshifter auf 5V heben oder mit 100Ω Widerstand an 3V3 lassen (bei kurzen Strip-Längen)
 
   # I2C Bus
   i2c_sda_pin:   "GPIO01"    # SERIAL DATA
@@ -220,10 +220,17 @@ text:
             std::string hex = x;
             
             if (!hex.empty() && hex[0] == '#') { hex = hex.substr(1); }
-            if (hex.length() != 6) { return; }
-            for (char c : hex) { if (!isxdigit(c)) { return; } }
+            if (hex.length() != 6) {
+              id(idle_color_hex).status_set_error(LOG_STR("Use XXXXXX for HEX-Color"));
+              return;
+            }
+            for (char c : hex) { if (!isxdigit(c)) { 
+                id(idle_color_hex).status_set_error(LOG_STR("Use XXXXXX for HEX-Color"));
+                return; 
+            } }
             
             // Eingabe ist valide -> Zustand akzeptieren
+            id(idle_color_hex).status_clear_error();
             id(idle_color_hex).publish_state(hex);
 
 binary_sensor:
@@ -674,12 +681,24 @@ image:
     id: symbol_mp_announce
     type: binary
     resize: 16x16
-  - file: "mdi:volume-off"
+  - file: "mdi:speaker-off"
     id: symbol_mute
     type: binary
     resize: 16x16
   - file: "mdi:microphone-off"
     id: symbol_deaf
+    type: binary
+    resize: 16x16
+  - file: "mdi:alert-box-outline"
+    id: symbol_error
+    type: binary
+    resize: 16x16
+  - file: "mdi:alarm"
+    id: symbol_alarm
+    type: binary
+    resize: 16x16
+  - file: "mdi:timer-outline"
+    id: symbol_timer
     type: binary
     resize: 16x16
   ####################################
@@ -708,6 +727,10 @@ image:
     id: icon_unknown
     type: binary
     resize: 32x32
+  - file: "mdi:timer"
+    id: icon_timer
+    type: binary
+    resize: 32x32
   ####################################
   - file: "mdi:knob"
     id: icon_volume
@@ -727,16 +750,6 @@ image:
     resize: 32x32
 
 font:
-  - id: font_small
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 10
-    glyphs:
-      - äöüÄÖÜß°
-    glyphsets:
-      - GF_Latin_Kernel
   - id: font_medium
     file:
       type: gfonts
@@ -877,14 +890,14 @@ display:
 
       } else if (id(idle_message3).empty()) {
         // --- FALL 2: Zeile 1 und 2 sind befüllt -> Große Schrift ---
-        scroll_marquee(cx, cy - 9, width, id(font_large), id(idle_message1));
-        scroll_marquee(cx, cy + 9, width, id(font_large), id(idle_message2));
+        scroll_marquee(cx, cy - 10, width, id(font_large), id(idle_message1));
+        scroll_marquee(cx, cy + 10, width, id(font_large), id(idle_message2));
 
       } else {
         // --- FALL 3: Alle 3 Zeilen sind befüllt -> Mittlere Schrift ---
-        scroll_marquee(cx, cy - 12, width, id(font_medium), id(idle_message1));
+        scroll_marquee(cx, cy - 13, width, id(font_medium), id(idle_message1));
         scroll_marquee(cx, cy,      width, id(font_medium), id(idle_message2));
-        scroll_marquee(cx, cy + 12, width, id(font_medium), id(idle_message3));
+        scroll_marquee(cx, cy + 13, width, id(font_medium), id(idle_message3));
       }
 
 ######################################################################################
@@ -928,6 +941,7 @@ microphone:
     adc_type: external
     i2s_din_pin: ${mic_sd_pin}
     pdm: false
+    correct_dc_offset: true
     bits_per_sample: 32bit
     sample_rate: 16000
     mclk_multiple: 256
@@ -1025,22 +1039,28 @@ media_player:
     files:
       - id: snd_boot
         file: "sounds/boot.flac"
-      - id: snd_va_chime_up
-        file: "sounds/va_chime_up.flac"
-      - id: snd_va_chime_down
-        file: "sounds/va_chime_down.flac"
+      - id: snd_chime_up
+        file: "sounds/chime_up.flac"
+      - id: snd_chime_down
+        file: "sounds/chime_down.flac"
       - id: snd_error
         file: "sounds/error.flac"
       - id: snd_success
         file: "sounds/success.flac"
-      - id: snd_va_wake
-        file: "sounds/va_wake.flac"
+      - id: snd_wake
+        file: "sounds/wake.flac"
       - id: snd_single_click
         file: "sounds/single_click.flac"
       - id: snd_double_click
         file: "sounds/double_click.flac"
       - id: snd_long_click
         file: "sounds/long_click.flac"
+      - id: snd_timer_alarm
+        file: "sounds/timer_alarm.flac"
+      - id: snd_connect
+        file: "sounds/api_connect.flac"
+      - id: snd_disconnect
+        file: "sounds/api_disconnect.flac"
 
     media_pipeline:
       speaker: media_source_speaker
@@ -1077,7 +1097,7 @@ media_player:
       - logger.log:
           level: INFO
           format: "Micro Wake Word stopped"
-      - micro_wake_word.stop: 
+      # - micro_wake_word.stop: 
       - script.execute: on_media_player_play
     on_pause:
       - if:
@@ -1087,7 +1107,7 @@ media_player:
             - logger.log:
                 level: INFO
                 format: "Micro Wake Word started (pause)"
-            - micro_wake_word.start: 
+            # - micro_wake_word.start: 
       - script.execute: on_media_player_pause
 
     on_idle:
@@ -1102,14 +1122,14 @@ media_player:
                 id: media_mixing_input
                 decibel_reduction: 0
                 duration: 0.3s
-            - if:
-                condition:
-                  lambda: 'return !id(mww).is_running();'
-                then:
-                  - logger.log:
-                      level: INFO
-                      format: "Micro Wake Word started (idle)"
-                  - micro_wake_word.start: 
+            # - if:
+            #     condition:
+            #       lambda: 'return !id(mww).is_running();'
+            #     then:
+            #       - logger.log:
+            #           level: INFO
+            #           format: "Micro Wake Word started (idle)"
+            #       - micro_wake_word.start: 
             - script.execute: on_media_player_idle
           else:
             - logger.log:
@@ -1140,9 +1160,9 @@ voice_assistant:
     - channels: ["1"]
       microphone: hw_microphone
   media_player: media_player_id
-  auto_gain: 15dBFS
+  auto_gain: 23dBFS
   conversation_timeout: 300s
-  noise_suppression_level: 2
+  noise_suppression_level: 1
   volume_multiplier: 4
 
   on_client_connected: 
@@ -1225,7 +1245,8 @@ voice_assistant:
         value: !lambda return message;
     - script.execute: on_voice_assistant_error
     - script.wait: on_voice_assistant_error
-  # on_intent_start:
+  on_intent_start:
+    - script.execute: on_voice_assistant_intent_start
   on_intent_progress:
     - globals.set: 
         id: intent_message
@@ -1234,8 +1255,55 @@ voice_assistant:
         level: INFO
         format: "Intent %s"
         args: [ id(intent_message).c_str() ]
-    - script.execute: on_voice_assistant_intent
-  # on_intent_end:
+    - script.execute: on_voice_assistant_intent_progress
+  on_intent_end:
+    - script.execute: on_voice_assistant_intent_end
+
+  on_timer_started:
+    - script.execute:
+        id: on_voice_assistant_timer_started
+        timer_id: !lambda 'return timer.id;'
+        timer_name: !lambda 'return timer.name;'
+        timer_total_seconds: !lambda 'return timer.total_seconds;'
+    - script.execute:
+        id: update_data
+  on_timer_finished:
+    - script.execute:
+        id: on_voice_assistant_timer_finished
+        timer_id: !lambda 'return timer.id;'
+        timer_name: !lambda 'return timer.name;'
+        timer_total_seconds: !lambda 'return timer.total_seconds;'
+    - script.execute:
+        id: update_data
+  on_timer_cancelled:
+    - script.execute:
+        id: on_voice_assistant_timer_cancelled
+        timer_id: !lambda 'return timer.id;'
+        timer_name: !lambda 'return timer.name;'
+        timer_total_seconds: !lambda 'return timer.total_seconds;'
+        timer_seconds_left: !lambda 'return timer.seconds_left;'
+    - script.execute:
+        id: update_data
+  on_timer_updated:
+    - script.execute:
+        id: on_voice_assistant_timer_updated
+        timer_id: !lambda 'return timer.id;'
+        timer_name: !lambda 'return timer.name;'
+        timer_is_active: !lambda 'return timer.is_active;'
+        timer_total_seconds: !lambda 'return timer.total_seconds;'
+        timer_seconds_left: !lambda 'return timer.seconds_left;'
+    - script.execute:
+        id: update_data
+  on_timer_tick:
+    - lambda: |-
+        for (const auto &t : timers) {
+          if (t.is_active) {
+            // Wir rufen das Skript für jeden aktiven Timer direkt aus C++ auf
+            id(on_voice_assistant_timer_tick).execute(t.id, t.name, t.total_seconds, t.seconds_left);
+          }
+        }  
+    - script.execute:
+        id: update_data
     
 micro_wake_word:
   id: mww

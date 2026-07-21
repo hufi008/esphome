@@ -2,8 +2,8 @@ substitutions:
   version: "0.0.7"
 
   # LED strip
-  ledstrip_pin: "GPIO8"
-  ledstrip_count: "10"
+  led_din_pin: "GPIO08"
+  led_count: "10"
   # VCC: 5V
 
   # Buttons
@@ -29,7 +29,7 @@ substitutions:
 esphome:
   min_version: 2026.6.5
   project:
-    name: "hufi.test0"
+    name: "hufi.test2"
     version: ${version}
   on_boot:
     priority: -100
@@ -42,15 +42,10 @@ light:
   - platform: esp32_rmt_led_strip
     id: ledstrip_id
     name: LED Status
-    pin: ${ledstrip_pin}
-    chipset: WS2812
-    num_leds: ${ledstrip_count}
+    pin: ${led_din_pin}
+    num_leds: ${led_count}
     rgb_order: GRB
-    restore_mode: RESTORE_AND_ON
-    icon: "mdi:led-strip"
-    max_refresh_rate: 30ms
-    use_dma: true
-    use_psram: true
+    chipset: WS2812
     effects:
       - addressable_scan:
           name: Scan slow
@@ -80,7 +75,7 @@ button:
 
 binary_sensor:
   - platform: gpio
-    id: btn_up_id
+    id: btn_1_id
     pin:
       number: ${btn_1_pin}
     on_multi_click:
@@ -106,7 +101,7 @@ binary_sensor:
         then:
           - logger.log: "on_btn_1_long_click"    
   - platform: gpio
-    id: btn_down_id
+    id: btn_2_id
     pin:
       number: ${btn_2_pin}
       allow_other_uses: false
@@ -134,7 +129,7 @@ binary_sensor:
         then:
           - logger.log: "on_btn_2_long_click"    
   - platform: gpio
-    id: btn_left_id
+    id: btn_3_id
     pin:
       number: ${btn_3_pin}
       allow_other_uses: false
@@ -161,7 +156,7 @@ binary_sensor:
         then:
           - logger.log: "on_btn_3_long_click"    
   - platform: gpio
-    id: btn_right_id
+    id: btn_4_id
     pin:
       number: ${btn_4_pin}
       allow_other_uses: false
@@ -234,24 +229,7 @@ sensor:
         return id(wifi_id).get_wifi_channel();
       return -1;    
     update_interval: 30s      
-  - platform: bme280_i2c
-    id: envir_id
-    address: ${bme_addr}
-    temperature:
-      id: room_temp
-      name: Temperature
-      device_class: temperature
-      state_class: measurement      
-    humidity:
-      id: room_hum
-      name: Humidity
-      device_class: humidity
-      state_class: measurement      
-    pressure:
-      id: room_press
-      name: Pressure
-      device_class: atmospheric_pressure
-      state_class: measurement
+
 
 ###### Video
 font:
@@ -293,4 +271,16 @@ display:
     address: ${ssd_addr}
     update_interval: 50ms
     lambda: |-
-      it.print(64, 40, id(font_medium), TextAlign::CENTER, "Jetzt gehts");
+      it.print(id(scroll_x), 40, id(font_medium), TextAlign::CENTER, "Jetzt gehts");
+
+      id(scroll_x) -= 2; 
+
+      if (id(scroll_x) < -50) {
+        id(scroll_x) = 128 + 50; 
+      }
+
+globals:
+  - id: scroll_x
+    type: int
+    restore_value: no
+    initial_value: "64"

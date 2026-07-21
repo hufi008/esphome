@@ -7,6 +7,8 @@ sensor:
     id: room_hum
   - platform: template
     id: room_press
+  - platform: template
+    id: room_heater
 
 script:
 ####################### functions
@@ -86,8 +88,14 @@ script:
                 int page_duration = id(page_info_duration).state * 1000;
 
                 int max_pages = 4;
-                #ifdef HAVE_ENVIRONMENT
-                max_pages += 3;
+                #ifdef HAVE_ENVIRONMENT_TEMP
+                max_pages ++;
+                #endif
+                #ifdef HAVE_ENVIRONMENT_HUM
+                max_pages ++;
+                #endif
+                #ifdef HAVE_ENVIRONMENT_PRESS
+                max_pages ++;
                 #endif
 
                 int idx = (millis() / page_duration) % max_pages;
@@ -181,7 +189,23 @@ script:
               id(display_id)->update();
           }
 
-          
+  - id: play_ui_sound
+    mode: parallel
+    parameters:
+      sound_file: "audio::AudioFile*"
+    then:      
+      - lambda: |-
+          std::string file_name = "Unbekannt";
+          for (const auto &nf : esphome::audio_file::get_named_audio_files()) {
+            if (nf.file == sound_file) {
+              file_name = nf.file_id;
+              break;
+            }
+          }      
+          ESP_LOGI("UI-Sound", "play '%s'", file_name.c_str());
+          id(skip_next_announcement) = true;
+          id(media_player_id).play_file(sound_file, true, true);
+
   - id: set_content_mode
     parameters: 
       mode: int
@@ -266,21 +290,13 @@ script:
           format: "script show_alarm_overlay"
       - lambda: |-
           id(set_overlay_mode).execute(${OVERLAY_ALARM});
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_boot
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_timer_alarm
       - delay: 3s
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_boot
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_timer_alarm
       - delay: 3s
       - lambda: |-
           id(set_overlay_mode).execute(${OVERLAY_NONE});
@@ -336,13 +352,9 @@ script:
       - logger.log:
           level: INFO
           format: "on_esp_boot_200"  
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_boot
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_boot
   # everthing up
   - id: on_esp_boot_minus100
     then: 
@@ -373,26 +385,18 @@ script:
       - logger.log:
           level: INFO
           format: "on_wifi_connect"
-      # - globals.set:
-      #    id: skip_next_announcement
-      #    value: "true"
-      # - media_player.speaker.play_on_device_media_file:
-      #    media_file: snd_wifi_connect
-      #    announcement: true
-      #    enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_connect
       - script.execute: update_data
   - id: on_wifi_disconnect
     then:
       - logger.log:
           level: INFO
           format: "on_wifi_disconnect"
-      # - globals.set:
-      #    id: skip_next_announcement
-      #    value: "true"
-      # - media_player.speaker.play_on_device_media_file:
-      #    media_file: snd_wifi_disconnect
-      #    announcement: true
-      #    enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_disconnect
       - script.execute: update_data
 
 # Api
@@ -401,26 +405,18 @@ script:
       - logger.log:
           level: INFO
           format: "on_api_client_connect"
-      # - globals.set:
-      #    id: skip_next_announcement
-      #    value: "true"
-      # - media_player.speaker.play_on_device_media_file:
-      #    media_file: snd_api_connect
-      #    announcement: true
-      #    enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_connect
       - script.execute: update_data
   - id: on_api_client_disconnect
     then:
       - logger.log:
           level: INFO
           format: "on_api_client_disconnect"
-      # - globals.set:
-      #    id: skip_next_announcement
-      #    value: "true"
-      #- media_player.speaker.play_on_device_media_file:
-      #    media_file: snd_api_disconnect
-      #    announcement: true
-      #    enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_disconnect
       - script.execute: update_data
     
   # Media Player
@@ -439,7 +435,6 @@ script:
       - script.execute: 
           id: set_content_mode
           mode: ${CONTENT_PLAY}
-
   - id: on_media_player_pause
     then:
       - logger.log:
@@ -448,7 +443,6 @@ script:
       - script.execute: 
           id: set_content_mode
           mode: ${CONTENT_PAUSE}
-
   - id: on_media_player_idle
     then:
       - logger.log:
@@ -463,27 +457,18 @@ script:
       - logger.log:
           level: INFO
           format: "on_media_player_turn_on"
-      # - globals.set:
-      #    id: skip_next_announcement
-      #    value: "true"
-      # - media_player.speaker.play_on_device_media_file: 
-      #    media_file: snd_turn_on
-      #    announcement: true
-      #    enqueue: true
+      # - script.execute:
+      #     id: play_ui_sound
+      #     sound_file: snd_turn_on
       - script.execute: update_data
-
   - id: on_media_player_turn_off
     then:
       - logger.log:
           level: INFO
           format: "on_media_player_turn_off"
-      # - globals.set:
-      #    id: skip_next_announcement
-      #    value: "true"
-      # - media_player.speaker.play_on_device_media_file: 
-      #     media_file: snd_turn_off
-      #     announcement: true
-      #     enqueue: true
+      # - script.execute:
+      #     id: play_ui_sound
+      #     sound_file: snd_turn_off
       - script.execute: update_data
 
   - id: on_media_player_mute
@@ -493,7 +478,6 @@ script:
           format: "on_media_player_mute"
       - script.execute: 
           id: show_volume_overlay
-
   - id: on_media_player_unmute
     then:
       - logger.log:
@@ -501,7 +485,6 @@ script:
           format: "on_media_player_unmute"
       - script.execute: 
           id: show_volume_overlay
-
   - id: on_media_player_volume
     then:
       - logger.log:
@@ -523,26 +506,18 @@ script:
       - logger.log:
           level: INFO
           format: "on_voice_assistant_client_connected"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_chime_up
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_chime_up
       - micro_wake_word.start:           
   - id: on_voice_assistant_client_disconnected
     then:
       - logger.log:
           level: INFO
           format: "on_voice_assistant_client_disconnected"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_chime_down
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_chime_down
   - id: on_voice_assistant_idle
     then:
       - logger.log:
@@ -604,13 +579,12 @@ script:
       - logger.log:
           level: INFO
           format: "on_voice_assistant_end"
-      - globals.set:
-         id: skip_next_announcement
-         value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-         media_file: snd_success
-         announcement: true
-         enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_success
+      - script.execute: 
+          id: set_content_mode
+          mode: ${CONTENT_IDLE}
       - if:
           condition:
             - micro_wake_word.is_running:                 
@@ -626,13 +600,9 @@ script:
           level: INFO
           format: "on_voice_assistant_error \"%s\" : \"%s\""
           args: [ id(error_code).c_str(), id(error_message).c_str()]
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_error
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_error
       - script.execute: 
           id: set_content_mode
           mode: ${CONTENT_IDLE}
@@ -767,13 +737,9 @@ script:
           format: "micro_wake_word_on_wake_word_detected \"%s\""
           args: 
             - !lambda ww.c_str()
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file: 
-          media_file: snd_wake
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_wake
       - voice_assistant.start: 
           wake_word: !lambda return ww;
       
@@ -784,37 +750,25 @@ script:
       - logger.log:
           level: INFO
           format: "on_btn_1_single_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_single_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_single_click
   - id: on_btn_1_double_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_1_double_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_double_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_double_click
   - id: on_btn_1_long_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_1_long_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_long_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_long_click
       - if:
           condition:
             - media_player.is_off: 
@@ -828,62 +782,51 @@ script:
       - logger.log:
           level: INFO
           format: "on_btn_2_single_click"
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_single_click
       - media_player.toggle: 
-        
   - id: on_btn_2_double_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_2_double_click"
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_double_click
   - id: on_btn_2_long_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_2_long_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_long_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_long_click
   - id: on_btn_3_single_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_3_single_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_single_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_single_click
       - media_player.volume_down: 
   - id: on_btn_3_double_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_3_double_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_double_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_double_click
   - id: on_btn_3_long_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_3_long_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_long_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_long_click
       - lambda: |-
           if (id(hw_speaker)->get_mute_state()) {
             id(hw_speaker).set_mute_state(false);
@@ -896,38 +839,26 @@ script:
       - logger.log:
           level: INFO
           format: "on_btn_4_single_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_single_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_single_click
       - media_player.volume_up: 
   - id: on_btn_4_double_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_4_double_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_double_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_double_click
   - id: on_btn_4_long_click
     then: 
       - logger.log:
           level: INFO
           format: "on_btn_4_long_click"
-      - globals.set:
-          id: skip_next_announcement
-          value: "true"
-      - media_player.speaker.play_on_device_media_file:
-          media_file: snd_long_click
-          announcement: true
-          enqueue: true
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_long_click
       - lambda: |-
           if (id(hw_microphone)->get_mute_state()) {
             id(hw_microphone).set_mute_state(false);

@@ -2,24 +2,25 @@
 ######################### Configuration
 
 substitutions:
-  version: "0.6.3"
+  version: "0.6.5"
 
   ### Pin-Belegung
-  # Amp Max98357
-  amp_lrclk_pin:  "GPIO11"   # LEFT / RIGHT CLOCK
-  amp_bclk_pin:   "GPIO10"   # Bit CLOCK
-  amp_dout_pin:   "GPIO09"   # DATA OUT
-  # VCC: 5V
-  # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
-  # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
-  
+  # Amp Max98357A
+  spk_lrc_pin:   "GPIO11"   # LEFT / RIGHT CLOCK
+  spk_bclk_pin:  "GPIO10"   # Bit CLOCK
+  spk_din_pin:   "GPIO09"   # DATA OUT
+  # spk_gain_pin:  100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
+  # spk_sd_pin:    nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
+  # spk_gnd_pin: GND
+  # spk_vin_pin: 5V
 
   # Microphone INMP441
   mic_ws_pin:    "GPIO04"   # WORD SELECT
   mic_sck_pin:   "GPIO05"   # SERIAL CLOCK
   mic_sd_pin:    "GPIO06"   # SERIAL DATA
-  # VCC: 3V3
-  # L/R: GND = Links, VCC = Rechts
+  # mic_vdd_pin:   3V3
+  # mic_gnd_PIN:   GND
+  # mic_l/r_pin: GND = Links, VCC = Rechts
 
   # LED Strip WS2812
   led_din_pin:   "GPIO08"    # DATA IN
@@ -30,18 +31,24 @@ substitutions:
   # I2C Bus
   i2c_sda_pin:   "GPIO01"    # SERIAL DATA
   i2c_scl_pin:   "GPIO02"    # SERIAL CLOCK
-  # VCC: 3V3
+  # i2c_gnd_pin:  GND
+  # i2c_vin_pin:  3V3
   
+  # Environment
+  # der BME/HTU kommt onboard und gibt damit die Reihenfolge von I2C VCC und GND vor.
   # Display OLED SSD1306
+  # Beim SSD1306 sind die Versorgungsleitungen umgekeht!!!
   ssd_addr:      "0x3C"
-  # VCC: 3V3 bis 5V
+  # ssd_vcc_pin: i2c_vin_pin
+  # sdd_gnd_pin: i2s_gnd_pin
 
   # Button TTP221
   btn_1_pin:     "GPIO15"
   btn_2_pin:     "GPIO16"
   btn_3_pin:     "GPIO17"
   btn_4_pin:     "GPIO18"
-  # VCC: 2V bis 5V5
+  # btn_vcc_pin:   3V3, sonst schrottest du den ESP
+  # btn_gnd_pin:   GND
 
   # Display Modes
   CONTENT_BOOT:     0
@@ -96,6 +103,9 @@ globals:
   - id: skip_next_announcement
     type: bool
     initial_value: "false"
+  - id: old_volume
+    type: float
+    initial_value: "0.5f"
   - id: mic_peak_left
     type: 'int32_t'
     initial_value: '0'
@@ -930,8 +940,8 @@ i2s_audio:
 
   # Ausgang (Stereo MAX98357)
   - id: i2s_bus_out
-    i2s_lrclk_pin: ${amp_lrclk_pin}
-    i2s_bclk_pin: ${amp_bclk_pin}
+    i2s_lrclk_pin: ${spk_lrc_pin}
+    i2s_bclk_pin: ${spk_bclk_pin}
    
 # Microphone INMP441
 microphone:
@@ -989,7 +999,7 @@ speaker:
     id: hw_speaker
     i2s_audio_id: i2s_bus_out
     dac_type: external
-    i2s_dout_pin: ${amp_dout_pin}
+    i2s_dout_pin: ${spk_din_pin}
     bits_per_sample: 32bit
     sample_rate: 48000
     mclk_multiple: 256
@@ -1019,68 +1029,73 @@ speaker:
     id: announcement_source_speaker
     output_speaker: announcement_mixing_input
 
+audio_file:
+  - id: snd_boot
+    file: "sounds/boot.wav"
+  - id: snd_chime_up
+    file: "sounds/chime_up.wav"
+  - id: snd_chime_down
+    file: "sounds/chime_down.wav"
+  - id: snd_error
+    file: "sounds/error.wav"
+  - id: snd_success
+    file: "sounds/success.wav"
+  - id: snd_wake
+    file: "sounds/wake.wav"
+  - id: snd_single_click
+    file: "sounds/single_click.wav"
+  - id: snd_double_click
+    file: "sounds/double_click.wav"
+  - id: snd_long_click
+    file: "sounds/long_click.wav"
+  - id: snd_timer_alarm
+    file: "sounds/timer_alarm.wav"
+  - id: snd_connect
+    file: "sounds/api_connect.wav"
+  - id: snd_disconnect
+    file: "sounds/api_disconnect.wav"
+
 audio:
   codecs:
-    flac:
     mp3:
     wav:
-      
+
 media_player:
   - platform: speaker
     id: media_player_id
     name: Audio Player
-    buffer_size: 4000000
     icon: "mdi:speaker-message"
+    buffer_size: 500000
     task_stack_in_psram: true
     volume_initial: 50%
     volume_increment: 5%
     volume_min: 0%
     volume_max: 100%
-    files:
-      - id: snd_boot
-        file: "sounds/boot.flac"
-      - id: snd_chime_up
-        file: "sounds/chime_up.flac"
-      - id: snd_chime_down
-        file: "sounds/chime_down.flac"
-      - id: snd_error
-        file: "sounds/error.flac"
-      - id: snd_success
-        file: "sounds/success.flac"
-      - id: snd_wake
-        file: "sounds/wake.flac"
-      - id: snd_single_click
-        file: "sounds/single_click.flac"
-      - id: snd_double_click
-        file: "sounds/double_click.flac"
-      - id: snd_long_click
-        file: "sounds/long_click.flac"
-      - id: snd_timer_alarm
-        file: "sounds/timer_alarm.flac"
-      - id: snd_connect
-        file: "sounds/api_connect.flac"
-      - id: snd_disconnect
-        file: "sounds/api_disconnect.flac"
+
 
     media_pipeline:
       speaker: media_source_speaker
       num_channels: 2
       sample_rate: 48000
-      format: 'NONE'
+      format: NONE
     announcement_pipeline:
       speaker: announcement_source_speaker
       sample_rate: 16000
       num_channels: 1
-      format: FLAC
+      format: WAV
 
     on_announcement:
       - logger.log:
           level: INFO
-          format: "Ducking enabled"
+          format: "Ducking enabled (Announcement)"
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
           decibel_reduction: 16
           duration: 0.3s
+      - lambda: |-
+          id(old_volume) = id(media_player_id).volume;
+          ESP_LOGW("custom", "save volume: %f", id(old_volume));
+          //id(media_player_id).volume = 0.5f;
       - if:
           condition:
             lambda: 'return id(skip_next_announcement);'
@@ -1094,21 +1109,45 @@ media_player:
             # Skip NICHT aktiv → regulär ausführen (Echtes HA-Announcement)
             - script.execute: on_media_player_announcement
     on_play:
-      - logger.log:
-          level: INFO
-          format: "Micro Wake Word stopped"
-      # - micro_wake_word.stop: 
-      - script.execute: on_media_player_play
-    on_pause:
       - if:
           condition:
-            lambda: 'return (!id(mww).is_running()) && (!id(va).is_running());'
+            lambda: 'return !id(va).is_running();'
           then:
             - logger.log:
                 level: INFO
-                format: "Micro Wake Word started (pause)"
-            # - micro_wake_word.start: 
-      - script.execute: on_media_player_pause
+                format: "Ducking disabled (Play)"          
+            - mixer_speaker.apply_ducking:
+                id: media_mixing_input
+                decibel_reduction: 0
+                duration: 0.3s
+            - lambda: |-
+                ESP_LOGW("custom", "load volume: %f", id(old_volume));
+                //id(media_player_id).volume = id(old_volume);
+            - script.execute: on_media_player_play
+          else:
+            - logger.log:
+                level: INFO
+                format: "on_idle skipped (VA is running)"
+    on_pause:
+      - if:
+          condition:
+            lambda: 'return !id(va).is_running();'
+          then:
+            - logger.log:
+                level: INFO
+                format: "Ducking disabled (Pause)"
+            - mixer_speaker.apply_ducking:
+                id: media_mixing_input
+                decibel_reduction: 0
+                duration: 0.3s
+            - lambda: |-
+                ESP_LOGW("custom", "load volume: %f", id(old_volume));
+                //id(media_player_id).volume = id(old_volume);
+            - script.execute: on_media_player_pause
+          else:
+            - logger.log:
+                level: INFO
+                format: "on_idle skipped (VA is running)"
 
     on_idle:
       - if:
@@ -1117,19 +1156,14 @@ media_player:
           then:
             - logger.log:
                 level: INFO
-                format: "Ducking disabled"          
+                format: "Ducking disabled (idle)"
             - mixer_speaker.apply_ducking:
                 id: media_mixing_input
                 decibel_reduction: 0
                 duration: 0.3s
-            # - if:
-            #     condition:
-            #       lambda: 'return !id(mww).is_running();'
-            #     then:
-            #       - logger.log:
-            #           level: INFO
-            #           format: "Micro Wake Word started (idle)"
-            #       - micro_wake_word.start: 
+            - lambda: |-
+                ESP_LOGW("custom", "load volume: %f", id(old_volume));
+                //id(media_player_id).volume = id(old_volume);
             - script.execute: on_media_player_idle
           else:
             - logger.log:

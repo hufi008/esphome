@@ -1,7 +1,7 @@
 substitutions:
-  version: "0.0.3"
+  version: "0.0.4"
   # LED strip
-  led_pin: "GPIO48"
+  led_din_pin: "GPIO48"
   led_count: "1"
   # Buttons
   btn_up_pin: "GPIO15"
@@ -15,24 +15,28 @@ substitutions:
 esphome:
   min_version: 2026.6.5
   project:
-    name: "hufi.test0"
+    name: "hufi.test1"
     version: ${version}
   on_boot:
     priority: -100
     then:
       - light.turn_on:
           id: onboard_led
-          effect: "Rainbow"
+          effect: "Scan"
 
 light:
   - platform: esp32_rmt_led_strip
     id: onboard_led
     name: "Onboard RGB"
-    pin: ${led_pin}
-    num_leds: ${led_count}
+    pin: GPIO48
+    num_leds: 1
     rgb_order: GRB
     chipset: WS2812
     effects:
+      - addressable_scan:
+          name: "Scan"
+          move_interval: 100ms
+          scan_width: 1    
       - addressable_rainbow:
           id: effect_rainbow
           name: "Rainbow"
@@ -50,9 +54,9 @@ button:
 
 binary_sensor:
   - platform: gpio
-    id: btn_up_id
+    id: btn_1_id
     pin:
-      number: GPIO15
+      number: ${btn_1_pin}
     on_multi_click:
      # --- EINFACHKLICK ---
       - timing:
@@ -76,9 +80,9 @@ binary_sensor:
         then:
           - logger.log: "on_btn_1_long_click"    
   - platform: gpio
-    id: btn_down_id
+    id: btn_2_id
     pin:
-      number: GPIO16
+      number: ${btn_2_pin}
       allow_other_uses: false
     
     on_multi_click:
@@ -104,9 +108,9 @@ binary_sensor:
         then:
           - logger.log: "on_btn_2_long_click"    
   - platform: gpio
-    id: btn_left_id
+    id: btn_3_id
     pin:
-      number: GPIO17
+      number: ${btn_3_pin}
       allow_other_uses: false
     on_multi_click:
      # --- EINFACHKLICK ---
@@ -131,9 +135,9 @@ binary_sensor:
         then:
           - logger.log: "on_btn_3_long_click"    
   - platform: gpio
-    id: btn_right_id
+    id: btn_4_id
     pin:
-      number: GPIO18
+      number: ${btn_4_pin}
       allow_other_uses: false
     on_multi_click:
      # --- EINFACHKLICK ---

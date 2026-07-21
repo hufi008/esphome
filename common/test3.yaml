@@ -3,9 +3,9 @@ substitutions:
 
   ### Pin-Belegung
   # Amp Max98357
-  amp_lrclk_pin:  "GPIO11"   # LEFT / RIGHT CLOCK
-  amp_bclk_pin:   "GPIO10"   # Bit CLOCK
-  amp_din_pin:    "GPIO09"   # DATA IN
+  spk_lrc_pin:  "GPIO11"   # LEFT / RIGHT CLOCK
+  spk_bclk_pin:   "GPIO10"   # Bit CLOCK
+  spk_din_pin:    "GPIO09"   # DATA IN
   # VCC: 5V
   # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
   # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
@@ -19,30 +19,28 @@ substitutions:
   # L/R: GND = Links, VCC = Rechts
 
   # LED strip
-  ledstrip_pin: "GPIO8"
-  ledstrip_count: "10"
+  led_din_pin: "GPIO8"
+  led_count: "10"
   # VCC: 5V
-
+  
   # Buttons
   btn_1_pin: "GPIO15"
   btn_2_pin: "GPIO16"
   btn_3_pin: "GPIO17"
   btn_4_pin: "GPIO18"
   # VCC: 3V3
-
+  
   # I2C bus
   i2c_sda_pin: "GPIO1"
   i2c_scl_pin: "GPIO2"  
   # VCC: 3V3
-
+  
   # Environment BME280
   bme_addr:      "0x76"
-  # VCC: 3V3 bis 5V
-
+  
   # Display OLED SSD1306
   ssd_addr:      "0x3C"
-  # VCC: 3V3 bis 5V
-
+  
 esphome:
   min_version: 2026.6.5
   project:
@@ -54,41 +52,39 @@ esphome:
       - light.turn_on:
           id: ledstrip_id
           effect: "Rainbow"
+      - microphone.capture: hw_microphone          
+      # - lambda: |-
+      #     id(media_player_id).play_file(snd_boot, true, true);
+      - media_player.speaker.play_on_device_media_file:
+          id: media_player_id
+          media_file: snd_boot
+          announcement: true
+          enqueue: true
+
+audio_file:
+  - id: snd_boot
+    file: "sounds/boot.wav"
 
 globals:
-  - id: is_booting
-    type: bool
-    initial_value: "true"
-  - id: skip_next_announcement
-    type: bool
-    initial_value: "false"
+  - id: scroll_x
+    type: int
+    restore_value: no
+    initial_value: "0"
   - id: mic_peak_left
     type: 'int32_t'
     initial_value: '0'
   - id: mic_peak_right
     type: 'int32_t'
     initial_value: '0'
-    
-  - id: content_mode
-    type: int
-    initial_value: "0"    
-  - id: overlay_mode
-    type: int
-    initial_value: "0"
-  - id: content_mode_text
-    type: std::vector<std::string>
-    initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE"}'  
-  - id: overlay_mode_text
-    type: std::vector<std::string>
-    initial_value: '{"NONE", "VOLUME", "ERROR", "ALARM", "ANNOUNCE"}'  
+
 
 light:
   - platform: esp32_rmt_led_strip
     id: ledstrip_id
     name: LED Status
-    pin: ${ledstrip_pin}
+    pin: ${led_din_pin}
     chipset: WS2812
-    num_leds: ${ledstrip_count}
+    num_leds: ${led_count}
     rgb_order: GRB
     restore_mode: RESTORE_AND_ON
     icon: "mdi:led-strip"
@@ -117,14 +113,11 @@ button:
     name: "Restart"
     on_press:
       then:
-        - lambda: |-
-            #ifdef USE_SAFE_MODE
-            global_safe_mode->clean_shutdown();
-            #endif
+        - safe_mode.mark_successful
 
 binary_sensor:
   - platform: gpio
-    id: btn_up_id
+    id: btn_1_id
     pin:
       number: ${btn_1_pin}
     on_multi_click:
@@ -150,7 +143,7 @@ binary_sensor:
         then:
           - logger.log: "on_btn_1_long_click"    
   - platform: gpio
-    id: btn_down_id
+    id: btn_2_id
     pin:
       number: ${btn_2_pin}
       allow_other_uses: false
@@ -178,7 +171,7 @@ binary_sensor:
         then:
           - logger.log: "on_btn_2_long_click"    
   - platform: gpio
-    id: btn_left_id
+    id: btn_3_id
     pin:
       number: ${btn_3_pin}
       allow_other_uses: false
@@ -205,7 +198,7 @@ binary_sensor:
         then:
           - logger.log: "on_btn_3_long_click"    
   - platform: gpio
-    id: btn_right_id
+    id: btn_4_id
     pin:
       number: ${btn_4_pin}
       allow_other_uses: false
@@ -278,24 +271,6 @@ sensor:
         return id(wifi_id).get_wifi_channel();
       return -1;    
     update_interval: 30s      
-  - platform: bme280_i2c
-    id: envir_id
-    address: ${bme_addr}
-    temperature:
-      id: room_temp
-      name: Temperature
-      device_class: temperature
-      state_class: measurement      
-    humidity:
-      id: room_hum
-      name: Humidity
-      device_class: humidity
-      state_class: measurement      
-    pressure:
-      id: room_press
-      name: Pressure
-      device_class: atmospheric_pressure
-      state_class: measurement
 
   - platform: template
     name: "Mic Left Peak"
@@ -351,7 +326,36 @@ display:
     address: ${ssd_addr}
     update_interval: 50ms
     lambda: |-
-      it.print(64, 40, id(font_medium), TextAlign::CENTER, "Jetzt gehts");
+      int len = 5; // Länge der Ecken-Striche in Pixeln
+      int w = it.get_width();
+      int h = it.get_height();
+
+      // 1. Oben Links (Top-Left)
+      it.horizontal_line(0, 0, len);
+      it.vertical_line(0, 0, len);
+
+      // 2. Oben Rechts (Top-Right)
+      it.horizontal_line(w - len, 0, len);
+      it.vertical_line(w - 1, 0, len);
+
+      // 3. Unten Links (Bottom-Left)
+      it.horizontal_line(0, h - 1, len);
+      it.vertical_line(0, h - len, len);
+
+      // 4. Unten Rechts (Bottom-Right)
+      it.horizontal_line(w - len, h - 1, len);
+      it.vertical_line(w - 1, h - len, len);      
+
+      int y = (millis() / 50) % h;
+
+      it.print(id(scroll_x), y, id(font_medium), TextAlign::CENTER, "Jetzt gehts");
+
+
+      id(scroll_x) -= 2; 
+
+      if (id(scroll_x) < -50) {
+        id(scroll_x) = w + 50; 
+      }
 
 ###### Audio
 # I2S Audio Bus
@@ -363,8 +367,8 @@ i2s_audio:
 
   # Ausgang (Stereo MAX98357)
   - id: i2s_bus_out
-    i2s_lrclk_pin: ${amp_lrclk_pin}
-    i2s_bclk_pin: ${amp_bclk_pin}
+    i2s_lrclk_pin: ${spk_lrc_pin}
+    i2s_bclk_pin: ${spk_bclk_pin}
    
 # Microphone INMP441
 microphone:
@@ -375,17 +379,22 @@ microphone:
     i2s_din_pin: ${mic_sd_pin}
     pdm: false
     bits_per_sample: 32bit
+    correct_dc_offset: true
     sample_rate: 16000
     mclk_multiple: 256
     channel: stereo
     num_channels: 2
     on_data:
       - lambda: |-
+          //ESP_LOGD("mic_test", "on_data: %d", x.size());
+
           if (x.empty()) return;
 
           size_t total_bytes = x.size();
           int32_t max_l = 0;
           int32_t max_r = 0;
+
+          //ESP_LOGD("mic_test", "data: %d, %d, %d, %d    %d, %d, %d, %d", x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7]);
 
           // Ein kompletter Stereo-Frame (Links 4 Bytes + Rechts 4 Bytes) benötigt genau 8 Bytes.
           for (size_t i = 0; i + 7 < total_bytes; i += 8) {
@@ -415,14 +424,14 @@ microphone:
 # interval für page messages
 interval:
   - id: update_timer
-    interval: 2s
+    interval: 1s
     then:
-      # Phase 2: Die permanent gesammelten Peaks der letzten 15s an HA senden
+      # Phase 2: Die permanent gesammelten Peaks an HA senden
       - lambda: |-
           id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
           id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
           
-          ESP_LOGI("mic_test", "15s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
+          ESP_LOGI("mic_test", "1s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
           
           // Werte sofort nullen, um für die nächsten 15 Sekunden neu zu sammeln
           id(mic_peak_left) = 0;
@@ -430,39 +439,17 @@ interval:
 
 # Amplifier MAX 98357
 speaker:
-  # A) Der physische I2S Hardware-Lautsprecher (Ausgang)
   - platform: i2s_audio
     id: hw_speaker
     i2s_audio_id: i2s_bus_out
     dac_type: external
-    i2s_dout_pin: ${amp_din_pin}
+    i2s_dout_pin: ${spk_din_pin}
     bits_per_sample: 32bit
-    sample_rate: 48000
+    sample_rate: 44100
     mclk_multiple: 256
     channel: stereo
     num_channels: 2
     buffer_duration: 100ms
-
-  # B) Der digitale Audio-Mixer
-  - platform: mixer
-    id: audio_mixer
-    output_speaker: hw_speaker
-    num_channels: 2
-    source_speakers:
-      - id: media_mixing_input
-        timeout: never
-      - id: announcement_mixing_input
-        timeout: never
-
-  # C) Virtueller Resampler für Musik-Medien
-  - platform: resampler
-    id: media_source_speaker
-    output_speaker: media_mixing_input
-
-  # D) Virtueller Resampler für Durchsagen (Announcements)
-  - platform: resampler
-    id: announcement_source_speaker
-    output_speaker: announcement_mixing_input
 
 media_player:
   - platform: speaker
@@ -475,13 +462,8 @@ media_player:
     volume_increment: 5%
     volume_min: 0%
     volume_max: 100%
-    media_pipeline:
-      speaker: media_source_speaker
-      num_channels: 2
-      sample_rate: 48000
-      format: MP3
     announcement_pipeline:
-      speaker: announcement_source_speaker
-      sample_rate: 16000
-      num_channels: 1
-      format: FLAC
+      speaker: hw_speaker
+      sample_rate: 44100
+      num_channels: 2
+      format: WAV

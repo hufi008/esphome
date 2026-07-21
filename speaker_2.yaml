@@ -1,0 +1,53 @@
+# speaker_2.yaml
+substitutions:
+  device_name: "esphome-web-f407a0"
+  friendly_name: "Smart Speaker 2"
+  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
+
+  ### Pin-Belegung
+  # Amp Max98357
+  spk_lrc_pin:   "GPIO40"   # LEFT / RIGHT CLOCK
+  spk_bclk_pin:  "GPIO39"   # Bit CLOCK
+  spk_din_pin:   "GPIO38"   # DATA OUT
+  # VCC: 5V
+  # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
+  # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
+  
+
+  # Microphone INMP441
+  mic_ws_pin:    "GPIO06"   # WORD SELECT
+  mic_sck_pin:   "GPIO05"   # SERIAL CLOCK
+  mic_sd_pin:    "GPIO04"   # SERIAL DATA
+  # VCC: 3V3
+  # L/R: GND = Links, VCC = Rechts
+
+  # LED Strip WS2812
+  led_din_pin:   "GPIO42"    # DATA IN
+  led_count:     "10"        # Number of LEDs
+  # VCC: 5V
+  # din mit Levelshifter auf 5V heben oder mit 100Ω Widerstand an 3V3 lassen (bei kurzen Strip-Längen)
+
+  # I2C Bus
+  i2c_sda_pin:   "GPIO17"    # SERIAL DATA
+  i2c_scl_pin:   "GPIO18"    # SERIAL CLOCK
+  # VCC: 3V3
+  
+  # Display OLED SSD1306
+  ssd_addr:      "0x3C"
+  # VCC: 3V3
+
+  # Button TTP221
+  btn_1_pin:     "GPIO11"
+  btn_2_pin:     "GPIO12"
+  btn_3_pin:     "GPIO13"
+  btn_4_pin:     "GPIO14"
+  # VCC: 3V3
+
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include common/base-esp32.yaml
+  test: !include common/test3.yaml
+  # Holt die Funktionalität
+  # functions: !include common/voice-satellite.yaml
+  # scripts: !include common/scripts.yaml
+  environment: !include common/htu21.yaml

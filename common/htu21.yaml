@@ -1,0 +1,66 @@
+# common/bme280.yaml
+
+esphome:
+  build_flags:
+    - "-DHAVE_ENVIRONMENT"
+    - "-DHAVE_ENVIRONMENT_TEMP"
+    - "-DHAVE_ENVIRONMENT_HUM"
+    - "-DHAVE_ENVIRONMENT_HEATER"
+
+substitutions:
+  # Environment HTU21
+  bme_addr:      "0x76"
+  # VCC: 3V3
+  # sda, scl vom i2c_bus
+
+sensor:
+  - id: !remove room_temp
+  - id: !remove room_hum
+  - id: !remove room_press
+  - id: !remove room_heater
+  - platform: htu21d
+    id: envir_id
+    update_interval: 60s
+    address: 0x40
+    temperature:
+      id: room_temp
+      name: "Temperature"
+      device_class: temperature
+      state_class: measurement
+    humidity:
+      id: room_hum
+      name: "Humidity"
+      device_class: humidity
+      state_class: measurement
+    heater:
+      id: room_heater
+      name: "Heater"
+      state_class: measurement
+
+
+# switch:
+#   - platform: template
+#     id: htu21_heater
+#     name: "htu21 freibrennen"
+#     icon: "mdi:fire"
+#     optimistic: true
+#     lambda: |-
+#       return id(envir_id).is_heater_enabled();
+#     turn_on_action:
+#       - logger.log: "htu21 Heater on"
+#       - lambda: |-
+#           id(envir_id).set_heater_level(4);
+#           id(envir_id).set_heater(true);
+#       # Wartet 5 Minuten (300 Sekunden)
+#       - delay: 30s
+#       - logger.log: "htu21 Heater off"
+#       - lambda: |-
+#           id(envir_id).set_heater_level(0);
+#           id(envir_id).set_heater(false);
+#       # Schaltet den Schalter im Dashboard wieder auf AUS
+#       - switch.turn_off: htu21_heater
+#     turn_off_action:
+#       - logger.log: "htu21 Heater off"
+#       - lambda: |-
+#           id(envir_id).set_heater_level(0);
+#           id(envir_id).set_heater(false);

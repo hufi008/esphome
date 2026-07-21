@@ -1,9 +1,13 @@
 # common/bme280.yaml
 
 esphome:
-  platformio_options:
-    build_flags: "-DHAVE_ENVIRONMENT"
-
+  build_flags:
+    - "-DHAVE_ENVIRONMENT"
+    - "-DHAVE_ENVIRONMENT_TEMP"
+    - "-DHAVE_ENVIRONMENT_HUM"
+    - "-DHAVE_ENVIRONMENT_PRESS"
+    - "-DHAVE_ENVIRONMENT_HEATER"
+  
 substitutions:
   # Environment BME280
   bme_addr:      "0x76"
@@ -14,8 +18,10 @@ sensor:
   - id: !remove room_temp
   - id: !remove room_hum
   - id: !remove room_press
+  - id: !remove room_heater
   - platform: bme280_i2c
     id: envir_id
+    update_interval: 60s
     address: 0x76
     temperature:
       id: room_temp

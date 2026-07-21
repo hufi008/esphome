@@ -1,13 +1,13 @@
 substitutions:
-  version: "0.0.3"
+  version: "0.0.4"
   # LED strip
-  led_pin: "GPIO48"
+  led_din_pin: "GPIO48"
   led_count: "1"
   # Buttons
-  btn_up_pin: "GPIO15"
-  btn_down_pin: "GPIO16"
-  btn_left_pin: "GPIO17"
-  btn_right_pin: "GPIO18"
+  btn_1_pin: "GPIO15"
+  btn_2_pin: "GPIO16"
+  btn_3_pin: "GPIO17"
+  btn_4_pin: "GPIO18"
   # I2C bus
   i2c_sda_pin: "GPIO1"
   i2c_scl_pin: "GPIO2"  
@@ -28,8 +28,8 @@ light:
   - platform: esp32_rmt_led_strip
     id: onboard_led
     name: "Onboard RGB"
-    pin: ${led_pin}
-    num_leds: ${led_count}
+    pin: GPIO48
+    num_leds: 1
     rgb_order: GRB
     chipset: WS2812
     effects:
@@ -50,9 +50,9 @@ button:
 
 binary_sensor:
   - platform: gpio
-    id: btn_up_id
+    id: btn_1_id
     pin:
-      number: GPIO15
+      number: ${btn_1_pin}
     on_multi_click:
      # --- EINFACHKLICK ---
       - timing:
@@ -76,9 +76,9 @@ binary_sensor:
         then:
           - logger.log: "on_btn_1_long_click"    
   - platform: gpio
-    id: btn_down_id
+    id: btn_2_id
     pin:
-      number: GPIO16
+      number: ${btn_2_pin}
       allow_other_uses: false
     
     on_multi_click:
@@ -104,9 +104,9 @@ binary_sensor:
         then:
           - logger.log: "on_btn_2_long_click"    
   - platform: gpio
-    id: btn_left_id
+    id: btn_3_id
     pin:
-      number: GPIO17
+      number: ${btn_3_pin}
       allow_other_uses: false
     on_multi_click:
      # --- EINFACHKLICK ---
@@ -131,9 +131,9 @@ binary_sensor:
         then:
           - logger.log: "on_btn_3_long_click"    
   - platform: gpio
-    id: btn_right_id
+    id: btn_4_id
     pin:
-      number: GPIO18
+      number: ${btn_4_pin}
       allow_other_uses: false
     on_multi_click:
      # --- EINFACHKLICK ---

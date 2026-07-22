@@ -125,9 +125,13 @@ script:
                         id(idle_message3) = str_sprintf("%d Timer", active_timer_count);
                     }
                     break;
-                #ifdef HAVE_ENVIRONMENT
+                #ifdef HAVE_ENVIRONMENT_TEMP
                   case 4: id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state); break;
+                #endif
+                #ifdef HAVE_ENVIRONMENT_HUM
                   case 5: id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state); break;
+                #endif
+                #ifdef HAVE_ENVIRONMENT_PRESS
                   case 6: id(idle_message1) = str_snprintf("%.0f hPa", 32, id(room_press).state); break;
                 #endif
                 }
@@ -203,8 +207,7 @@ script:
             }
           }      
           ESP_LOGI("UI-Sound", "play '%s'", file_name.c_str());
-          id(skip_next_announcement) = true;
-          id(media_player_id).play_file(sound_file, true, true);
+          id(ui_sound_player_id).play_file(sound_file, true, true);
 
   - id: set_content_mode
     parameters: 
@@ -339,7 +342,9 @@ script:
     then: 
       - logger.log:
           level: INFO
-          format: "on_esp_boot_250"  
+          format: "on_esp_boot_250"
+      - media_player.turn_on: media_player_id
+      - media_player.turn_on: ui_sound_player_id
       - script.execute:
           id: set_content_mode
           mode: ${CONTENT_BOOT}
@@ -548,6 +553,9 @@ script:
       - logger.log:
           level: INFO
           format: "on_voice_assistant_stt_vad_end"
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_thinking
       - script.execute: 
           id: set_content_mode
           mode: ${CONTENT_THINK}
@@ -745,6 +753,14 @@ script:
       
 
   # Touchbuttons
+  - id: on_btn_press
+    then: 
+      - logger.log:
+          level: INFO
+          format: "on_btn_press"
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_click
   - id: on_btn_1_single_click
     then: 
       - logger.log:
@@ -771,11 +787,11 @@ script:
           sound_file: snd_long_click
       - if:
           condition:
-            - media_player.is_off: 
+            - media_player.is_off: media_player_id
           then:
-            - media_player.turn_on: 
+            - media_player.turn_on: media_player_id
           else:
-            - media_player.turn_off: 
+            - media_player.turn_off: media_player_id
 
   - id: on_btn_2_single_click
     then: 
@@ -785,7 +801,7 @@ script:
       - script.execute:
           id: play_ui_sound
           sound_file: snd_single_click
-      - media_player.toggle: 
+      - media_player.toggle: media_player_id
   - id: on_btn_2_double_click
     then: 
       - logger.log:
@@ -810,7 +826,7 @@ script:
       - script.execute:
           id: play_ui_sound
           sound_file: snd_single_click
-      - media_player.volume_down: 
+      - media_player.volume_down: media_player_id
   - id: on_btn_3_double_click
     then: 
       - logger.log:
@@ -842,7 +858,7 @@ script:
       - script.execute:
           id: play_ui_sound
           sound_file: snd_single_click
-      - media_player.volume_up: 
+      - media_player.volume_up: media_player_id
   - id: on_btn_4_double_click
     then: 
       - logger.log:

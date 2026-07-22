@@ -16,7 +16,7 @@ substitutions:
 sensor:
   - id: !remove room_temp
   - id: !remove room_hum
-  - id: !remove room_press
+  # - id: !remove room_press
   - id: !remove room_heater
   - platform: htu21d
     id: envir_id

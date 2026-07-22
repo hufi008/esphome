@@ -40,19 +40,39 @@ def make_error():
     save_wav("error.wav", wave)
 
 # ---------------------------------------------------------
-# success.wav – Sci‑Fi Confirmation Chime
+# success.wav – Aufsteigender Sci‑Fi Confirmation Chime
 # ---------------------------------------------------------
 def make_success():
-    duration = 0.40
+    duration = 0.50  # Etwas länger für das Ausklingen
     t = np.linspace(0, duration, int(SR * duration), endpoint=False)
     
-    wave = 0.3 * tone(523.25, t)  # C5
-    wave += 0.2 * tone(659.25, t) # E5
-    wave += 0.2 * tone(783.99, t) # G5
-    wave += 0.15 * tone(1046.50, t) # C6
+    # Wir initialisieren eine leere Tonspur
+    wave = np.zeros_like(t)
     
-    wave *= (1.0 + 0.3 * np.sin(2 * np.pi * 35 * t))
-    wave *= exp_decay(t, 7)
+    # Die 4 Töne des Dur-Akkords (C5, E5, G5, C6)
+    frequencies = [523.25, 659.25, 783.99, 1046.50]
+    
+    # Zeitlicher Versatz (Delay) in Sekunden, wann der nächste Ton einsetzt
+    delays = [0.00, 0.06, 0.12, 0.18]
+    
+    # Lautstärke-Gewichtung für die einzelnen Stufen
+    volumes = [0.25, 0.25, 0.25, 0.35] # C6 am Ende am lautesten für Brillanz
+
+    for freq, delay, vol in zip(frequencies, delays, volumes):
+        # Maske erstellen: Ton existiert erst ab seinem individuellen Delay
+        mask = t >= delay
+        t_local = t[mask] - delay  # Lokale Zeitachse für diesen Ton ab Startpunkt
+        
+        # Ton generieren und zur Gesamtwelle addieren
+        # exp_decay(t_local, 8) sorgt dafür, dass jeder Ton für sich weich ausklingt
+        wave[mask] += vol * tone(freq, t_local) * exp_decay(t_local, 8)
+    
+    # Sanfteres Sci-Fi-Vibrato (6 Hz statt 35 Hz) für einen edlen "Schimmer"-Effekt
+    wave *= (1.0 + 0.15 * np.sin(2 * np.pi * 6 * t))
+    
+    # Gesamter linearer Fade-Out am Ende, um Knacken im Lautsprecher zu verhindern
+    wave *= lin_decay(t)
+    
     save_wav("success.wav", wave)
 
 # ---------------------------------------------------------
@@ -155,6 +175,23 @@ def make_pause():
     wave = 0.5 * tone(800, t) * exp_decay(t, 25)
 
     save_wav("pause.wav", wave)
+
+# ---------------------------------------------------------
+# click.wav – Kurzer Sci‑Fi UI-Klick / Quittungston
+# ---------------------------------------------------------
+def make_click():
+    # Sehr kurze Dauer (80 ms), damit der Ton nicht nachhinkt
+    duration = 0.08
+    t = np.linspace(0, duration, int(SR * duration), endpoint=False)
+    
+    # Ein schneller Frequenz-Sweep von 1200 Hz runter auf 800 Hz (gibt den "Sci-Fi"-Klickeffekt)
+    freq_sweep = np.linspace(1200, 800, len(t))
+    wave = 0.4 * np.sin(2 * np.pi * freq_sweep * t)
+    
+    # Harter, linearer Decay für ein sauberes, knackiges Ende ohne Knacken
+    wave *= lin_decay(t)
+    
+    save_wav("click.wav", wave)
 
 # ---------------------------------------------------------
 # single_click.wav – kurzer UI‑Click
@@ -328,6 +365,7 @@ if __name__ == "__main__":
     make_wake()
     make_notify()
     make_pause()
+    make_click()
     make_single_click()
     make_double_click()
     make_long_click()

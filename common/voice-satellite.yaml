@@ -100,9 +100,6 @@ globals:
   - id: is_booting
     type: bool
     initial_value: "false"
-  - id: skip_next_announcement
-    type: bool
-    initial_value: "false"
   - id: old_volume
     type: float
     initial_value: "0.5f"
@@ -136,6 +133,10 @@ globals:
     type: std::string
     initial_value: "\"title\""
 
+  - id: page_info_start_time
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
   - id: image_icon
     type: 'image::Image*'
     initial_value: '&id(icon_think)'
@@ -245,13 +246,15 @@ text:
 
 binary_sensor:
   - platform: gpio
-    id: btn_up_id
+    id: btn_1_id
     pin:
       number: ${btn_1_pin}
       allow_other_uses: true
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
+    on_press:
+      - lambda: 'id(on_btn_press).execute();'
     on_multi_click:
      # --- EINFACHKLICK ---
       - timing:
@@ -275,13 +278,15 @@ binary_sensor:
         then:
           - script.execute: "on_btn_1_long_click"    
   - platform: gpio
-    id: btn_down_id
+    id: btn_2_id
     pin:
       number: ${btn_2_pin}
       allow_other_uses: false
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
+    on_press:
+      - lambda: 'id(on_btn_press).execute();'
     on_multi_click:
      # --- EINFACHKLICK ---
       - timing:
@@ -305,13 +310,15 @@ binary_sensor:
         then:
           - script.execute: "on_btn_2_long_click"    
   - platform: gpio
-    id: btn_left_id
+    id: btn_3_id
     pin:
       number: ${btn_3_pin}
       allow_other_uses: false
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
+    on_press:
+      - lambda: 'id(on_btn_press).execute();'
     on_multi_click:
      # --- EINFACHKLICK ---
       - timing:
@@ -335,13 +342,15 @@ binary_sensor:
         then:
           - script.execute: "on_btn_3_long_click"    
   - platform: gpio
-    id: btn_right_id
+    id: btn_4_id
     pin:
       number: ${btn_4_pin}
       allow_other_uses: false
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
+    on_press:
+      - lambda: 'id(on_btn_press).execute();'
     on_multi_click:
      # --- EINFACHKLICK ---
       - timing:
@@ -525,7 +534,7 @@ light:
             uint8_t y = 60 + (uint8_t)(t * 120);
 
             for (int i = 0; i < it.size(); i++) {
-              it[i] = Color(y, 0, 0);  // Rot
+              it[i] = Color(0, y, 0);  // Rot
             }
       # Effect OVERLAY_ANNOUNCE
       - addressable_lambda:
@@ -910,6 +919,15 @@ display:
         scroll_marquee(cx, cy + 13, width, id(font_medium), id(idle_message3));
       }
 
+      if (id(page_info_start_time) > 0) {
+        uint32_t duration_ms = id(page_info_duration).state * 1000;
+        uint32_t progress_ms = millis() - id(page_info_start_time);
+        it.line(0, 63, (progress_ms * 127) / duration_ms, 63);
+      }
+      
+
+
+
 ######################################################################################
       
 # interval für page messages
@@ -991,7 +1009,51 @@ microphone:
           if (peak_l_16 > id(mic_peak_left))  id(mic_peak_left) = peak_l_16;
           if (peak_r_16 > id(mic_peak_right)) id(mic_peak_right) = peak_r_16;
 
-          
+
+#   [ HOME ASSISTANT / INTERNE AKTIONEN ]
+#        │                      │
+#        ▼                      ▼
+# ┌──────────────────┐  ┌──────────────────┐
+# │  Audio Player    │  │ UI Sound Player  │  <-- Die zwei Media Player (YAML)
+# │ (media_player_id)│  │(ui_sound_player_id)
+# └────────┬─────────┘  └────────┬─────────┘
+#          │                     │
+#    ┌─────┴────────┐            │
+#    │              │            │
+#    ▼ (Musik)      ▼ (TTS)      ▼ (Klicks)
+# [media_pipe]  [announce_pipe]  [announce_pipe] <-- Die drei Pipelines
+#    │              │            │
+#    │              │            │
+#    │              │            │
+#    ▼              ▼            ▼
+# ┌──────────────────────┐  ┌──────────────────────┐
+# │   on_announcement    │  │   (Keine Trigger!)   │ <-- Hier hängen deine Effekte
+# │  [ Startet Effekte ] │  │   [ Absolut ruhig ]  │
+# └──┬──────────────┬────┘  └──────────┬───────────┘
+#    │              │                  │
+#    ▼ (48kHz/Stereo)▼ (16kHz/Mono)    ▼ (16kHz/Mono)
+# ┌──────────────┐┌──────────────┐┌──────────────┐
+# │  Resampler   ││  Resampler   ││  Resampler   │
+# │(media_source_││(announcement_││(ui_source_   │ <-- Berechnen die Sampleraten
+# │   speaker)   ││source_speaker││   speaker)   │
+# └──────┬───────┘└──────┬───────┘└──────┬───────┘
+#        │               │               │
+#        ▼               ▼               ▼
+#  ┌───────────────┬───────────────┬───────────────┐
+#  │ media_mixing_ │ announcement_ │  ui_mixing_   │ <-- Die 3 Mixer-Eingänge
+#  │     input     │ mixing_input  │     input     │     (source_speakers)
+#  ├───────────────┴───────────────┴───────────────┤
+#  │                 audio_mixer                   │ <-- Dein digitaler Mixer
+#  └───────────────────────┬───────────────────────┘     (Nativ bis zu 8 Kanäle!)
+#                          │
+#                          ▼ (Gemischter I2S-Stream: 48kHz / 32bit / Stereo)
+#  ┌───────────────────────────────────────────────┐
+#  │                  hw_speaker                   │ <-- Hardware-Lautsprecher-Komponente
+#  └───────────────────────┬───────────────────────┘
+#                          │ (Physische Pins: DIN, BCLK, LRCLK)
+#                          ▼
+#              [ Verstärker: MAX 98357 ] ──> 🔊 Lautsprecher
+
 # Amplifier MAX 98357
 speaker:
   # A) Der physische I2S Hardware-Lautsprecher (Ausgang)
@@ -1018,6 +1080,8 @@ speaker:
         timeout: never
       - id: announcement_mixing_input
         timeout: never
+      - id: ui_mixing_input
+        timeout: never        
 
   # C) Virtueller Resampler für Musik-Medien
   - platform: resampler
@@ -1028,6 +1092,11 @@ speaker:
   - platform: resampler
     id: announcement_source_speaker
     output_speaker: announcement_mixing_input
+
+  # E) Virtueller Resampler für UI-Sounds
+  - platform: resampler
+    id: ui_source_speaker
+    output_speaker: ui_mixing_input
 
 audio_file:
   - id: snd_boot
@@ -1042,6 +1111,10 @@ audio_file:
     file: "sounds/success.wav"
   - id: snd_wake
     file: "sounds/wake.wav"
+  - id: snd_thinking
+    file: "sounds/thinking.wav"
+  - id: snd_click
+    file: "sounds/click.wav"
   - id: snd_single_click
     file: "sounds/single_click.wav"
   - id: snd_double_click
@@ -1063,7 +1136,7 @@ audio:
 media_player:
   - platform: speaker
     id: media_player_id
-    name: Audio Player
+    name: "Audio Player"
     icon: "mdi:speaker-message"
     buffer_size: 500000
     task_stack_in_psram: true
@@ -1071,7 +1144,7 @@ media_player:
     volume_increment: 5%
     volume_min: 0%
     volume_max: 100%
-
+    
 
     media_pipeline:
       speaker: media_source_speaker
@@ -1096,18 +1169,7 @@ media_player:
           id(old_volume) = id(media_player_id).volume;
           ESP_LOGW("custom", "save volume: %f", id(old_volume));
           //id(media_player_id).volume = 0.5f;
-      - if:
-          condition:
-            lambda: 'return id(skip_next_announcement);'
-          then:
-            # Skip aktiv → nur zurücksetzen (Lokaler Klickton abgefangen)
-            - logger.log:
-                level: INFO
-                format: "Announcement skipped"
-            - lambda: 'id(skip_next_announcement) = false;'
-          else:
-            # Skip NICHT aktiv → regulär ausführen (Echtes HA-Announcement)
-            - script.execute: on_media_player_announcement
+      - script.execute: on_media_player_announcement
     on_play:
       - if:
           condition:
@@ -1183,6 +1245,19 @@ media_player:
       - script.execute: on_media_player_volume
     on_state:
       - script.execute: on_media_player_state
+  - platform: speaker
+    id: ui_sound_player_id
+    # Da UI-Sounds kurz sind, reicht ein kleinerer Puffer, um RAM zu sparen
+    buffer_size: 64000 
+    task_stack_in_psram: true
+    volume_initial: 60% # UI-Klicks standardmäßig etwas leiser starten lassen
+
+
+    announcement_pipeline:
+      speaker: ui_source_speaker
+      num_channels: 1 # Monosounds reichen für Klicks meist aus
+      sample_rate: 16000 # Typische Rate für kleine lokale Sounddateien
+      format: WAV
 
 voice_assistant:
   id: va
@@ -1344,12 +1419,18 @@ micro_wake_word:
   task_stack_in_psram: true
   vad:
     model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json
-    probability_cutoff: 55%
-    sliding_window_size: 10
+    probability_cutoff: 40%
+    sliding_window_size: 5
   models:
-    - model: okay_nabu
-    - model: hey_jarvis
-    - model: alexa
+    - model: github://esphome/micro-wake-word-models/models/v2/okay_nabu.json
+      probability_cutoff: 45%
+    - model: github://esphome/micro-wake-word-models/models/v2/hey_jarvis.json
+      probability_cutoff: 40%
+    - model: github://esphome/micro-wake-word-models/models/v2/alexa.json
+      probability_cutoff: 50%
+    - model: github://esphome/micro-wake-word-models/models/v2/hey_mycroft.json
+      probability_cutoff: 50%
+    
   on_wake_word_detected:
     then:
       - script.execute:

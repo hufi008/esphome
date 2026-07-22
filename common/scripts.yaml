@@ -64,6 +64,7 @@ script:
 
           // 1. ZENTRALER RESET (Failsafe)
           // Setzt alle Texte standardmäßig leer. Ein case schreibt nur noch, was er wirklich braucht.
+          id(page_info_start_time) = 0;
           id(idle_message1) = "";
           id(idle_message2) = "";
           id(idle_message3) = "";
@@ -85,9 +86,7 @@ script:
                 static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
                 auto now = id(esptime).now();
                 
-                int page_duration = id(page_info_duration).state * 1000;
-
-                int max_pages = 4;
+                int max_pages = 3;
                 #ifdef HAVE_ENVIRONMENT_TEMP
                 max_pages ++;
                 #endif
@@ -98,14 +97,15 @@ script:
                 max_pages ++;
                 #endif
 
+                int page_duration = id(page_info_duration).state * 1000;
                 int idx = (millis() / page_duration) % max_pages;
+                if (active_timer_count > 0)
+                  idx = -1;
+                else
+                  id(page_info_start_time) = millis();
                 
                 switch (idx) {
-                  case 0: id(idle_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute); break;
-                  case 1: id(idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
-                  case 2: id(idle_message1) = str_snprintf("%s", 32, weekdays[now.day_of_week - 1]);
-                          id(idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
-                  case 3: 
+                  case -1: 
                     if (active_timer_count == 0) {
                         id(idle_message1) = "Keine Timer";
                     }
@@ -125,17 +125,21 @@ script:
                         id(idle_message3) = str_sprintf("%d Timer", active_timer_count);
                     }
                     break;
+                  case 0: id(idle_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute); break;
+                  case 1: id(idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
+                  case 2: id(idle_message1) = str_snprintf("%s", 32, weekdays[now.day_of_week - 1]);
+                          id(idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
                 #ifdef HAVE_ENVIRONMENT_TEMP
-                  case 4: id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state); break;
+                  case 3: id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state); break;
                 #endif
                 #ifdef HAVE_ENVIRONMENT_HUM
-                  case 5: id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state); break;
+                  case 4: id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state); break;
                 #endif
                 #ifdef HAVE_ENVIRONMENT_PRESS
-                  case 6: id(idle_message1) = str_snprintf("%.0f hPa", 32, id(room_press).state); break;
+                  case 5: id(idle_message1) = str_snprintf("%.0f hPa", 32, id(room_press).state); break;
                 #endif
                 }
-                break;
+                break;                
               }
           
               case ${CONTENT_PLAY}:
@@ -575,6 +579,9 @@ script:
           level: INFO
           format: "on_voice_assistant_tts_start \"%s\""
           args: [ id(announce_message).c_str() ]
+      - script.execute:
+          id: play_ui_sound
+          sound_file: snd_success
       - script.execute: update_data
   - id: on_voice_assistant_tts_end
     then:
@@ -587,9 +594,9 @@ script:
       - logger.log:
           level: INFO
           format: "on_voice_assistant_end"
-      - script.execute:
-          id: play_ui_sound
-          sound_file: snd_success
+      # - script.execute:
+      #     id: play_ui_sound
+      #     sound_file: snd_success
       - script.execute: 
           id: set_content_mode
           mode: ${CONTENT_IDLE}

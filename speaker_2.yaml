@@ -46,8 +46,8 @@ substitutions:
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-esp32.yaml
-  test: !include common/test3.yaml
   # Holt die Funktionalität
-  # functions: !include common/voice-satellite.yaml
-  # scripts: !include common/scripts.yaml
+  functions: !include common/voice-satellite.yaml
+  scripts: !include common/scripts.yaml
+  # environment: !include common/bme280.yaml
   environment: !include common/htu21.yaml

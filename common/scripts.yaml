@@ -111,15 +111,15 @@ script:
                     }
                     if (active_timer_count >= 1 && active_timers[0] != nullptr) {
                         std::string name1 = active_timers[0]->name.empty() ? "Timer" : active_timers[0]->name;
-                        id(idle_message1) = str_sprintf("%s: %u s", name1.c_str(), active_timers[0]->seconds_left);
+                        id(idle_message1) = str_sprintf("%s: %lu s", name1.c_str(), active_timers[0]->seconds_left);
                     }
                     if (active_timer_count >= 2 && active_timers[1] != nullptr) {
                         std::string name2 = active_timers[1]->name.empty() ? "Timer" : active_timers[1]->name;
-                        id(idle_message2) = str_sprintf("%s: %u s", name2.c_str(), active_timers[1]->seconds_left);
+                        id(idle_message2) = str_sprintf("%s: %lu s", name2.c_str(), active_timers[1]->seconds_left);
                     }
                     if (active_timer_count == 3 && active_timers[2] != nullptr) {
                         std::string name3 = active_timers[2]->name.empty() ? "Timer" : active_timers[2]->name;
-                        id(idle_message3) = str_sprintf("%s: %u s", name3.c_str(), active_timers[2]->seconds_left);
+                        id(idle_message3) = str_sprintf("%s: %lu s", name3.c_str(), active_timers[2]->seconds_left);
                     }
                     if (active_timer_count > 3) {
                         id(idle_message3) = str_sprintf("%d Timer", active_timer_count);
@@ -193,9 +193,7 @@ script:
           }
           
           // 4. DISPLAY DIREKT AKTUALISIEREN
-          if (id(display_id) != nullptr) {
-              id(display_id)->update();
-          }
+          id(display_id)->update();
 
   - id: play_ui_sound
     mode: parallel

@@ -2,53 +2,7 @@
 ######################### Configuration
 
 substitutions:
-  version: "0.6.5"
-
-  ### Pin-Belegung
-  # Amp Max98357A
-  spk_lrc_pin:   "GPIO11"   # LEFT / RIGHT CLOCK
-  spk_bclk_pin:  "GPIO10"   # Bit CLOCK
-  spk_din_pin:   "GPIO09"   # DATA OUT
-  # spk_gain_pin:  100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
-  # spk_sd_pin:    nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
-  # spk_gnd_pin: GND
-  # spk_vin_pin: 5V
-
-  # Microphone INMP441
-  mic_ws_pin:    "GPIO04"   # WORD SELECT
-  mic_sck_pin:   "GPIO05"   # SERIAL CLOCK
-  mic_sd_pin:    "GPIO06"   # SERIAL DATA
-  # mic_vdd_pin:   3V3
-  # mic_gnd_PIN:   GND
-  # mic_l/r_pin: GND = Links, VCC = Rechts
-
-  # LED Strip WS2812
-  led_din_pin:   "GPIO08"    # DATA IN
-  led_count:     "10"        # Number of LEDs
-  # VCC: 5V
-  # din mit Levelshifter auf 5V heben oder mit 100Ω Widerstand an 3V3 lassen (bei kurzen Strip-Längen)
-
-  # I2C Bus
-  i2c_sda_pin:   "GPIO01"    # SERIAL DATA
-  i2c_scl_pin:   "GPIO02"    # SERIAL CLOCK
-  # i2c_gnd_pin:  GND
-  # i2c_vin_pin:  3V3
-  
-  # Environment
-  # der BME/HTU kommt onboard und gibt damit die Reihenfolge von I2C VCC und GND vor.
-  # Display OLED SSD1306
-  # Beim SSD1306 sind die Versorgungsleitungen umgekeht!!!
-  ssd_addr:      "0x3C"
-  # ssd_vcc_pin: i2c_vin_pin
-  # sdd_gnd_pin: i2s_gnd_pin
-
-  # Button TTP221
-  btn_1_pin:     "GPIO15"
-  btn_2_pin:     "GPIO16"
-  btn_3_pin:     "GPIO17"
-  btn_4_pin:     "GPIO18"
-  # btn_vcc_pin:   3V3, sonst schrottest du den ESP
-  # btn_gnd_pin:   GND
+  version: "0.7.0"
 
   # Display Modes
   CONTENT_BOOT:     0
@@ -97,18 +51,12 @@ wifi:
     - script.execute: on_wifi_disconnect
 
 globals:
-  - id: is_booting
+  - id: is_ducking
     type: bool
     initial_value: "false"
   - id: old_volume
     type: float
     initial_value: "0.5f"
-  - id: mic_peak_left
-    type: 'int32_t'
-    initial_value: '0'
-  - id: mic_peak_right
-    type: 'int32_t'
-    initial_value: '0'
     
   - id: content_mode
     type: int
@@ -116,39 +64,12 @@ globals:
   - id: overlay_mode
     type: int
     initial_value: "0"
-  - id: idle_color
-    type: esphome::Color
-    initial_value: 'Color(127, 0, 255)'
   - id: content_mode_text
     type: std::vector<std::string>
     initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE"}'  
   - id: overlay_mode_text
     type: std::vector<std::string>
     initial_value: '{"NONE", "VOLUME", "ERROR", "ALARM", "ANNOUNCE"}'  
-
-  - id: status_symbols
-    type: 'image::Image*[4]'
-    initial_value: '{nullptr, nullptr, nullptr, nullptr}'
-  - id: title_text
-    type: std::string
-    initial_value: "\"title\""
-
-  - id: page_info_start_time
-    type: uint32_t
-    restore_value: no
-    initial_value: "0"
-  - id: image_icon
-    type: 'image::Image*'
-    initial_value: '&id(icon_think)'
-  - id: idle_message1
-    type: std::string
-    initial_value: "\"Hallo\""
-  - id: idle_message2
-    type: std::string
-    initial_value: "\"Welt\""
-  - id: idle_message3
-    type: std::string
-    initial_value: "\"Again\""
 
   - id: command_message
     type: std::string
@@ -181,229 +102,21 @@ time:
       then:
         - script.execute: on_time_time_sync
 
+sun:
+  id: sun_id
+  latitude: !secret latitude
+  longitude: !secret longitude
+
 deep_sleep:
   id: deep_sleep_id
   wakeup_pin: 
     number: ${btn_1_pin}
     allow_other_uses: true
   wakeup_pin_mode: INVERT_WAKEUP
-  
-button:
-  - platform: restart
-    name: "Restart"
-  - platform: template
-    name: "Shutdown"
-    on_press:
-      then:
-        # Display ausschalten
-        - lambda: 'id(display_id).turn_off();'
-        - media_player.mute: media_player_id
-        - light.turn_off: ledstrip_id
-        - wait_until:
-              light.is_off: ledstrip_id
-        - delay: 100ms
-        - deep_sleep.enter: deep_sleep_id
-
-text:
-  - platform: template
-    name: "Idle Farbe HEX"
-    id: idle_color_hex
-    optimistic: false
-    min_length: 6
-    max_length: 7
-    initial_value: "000000"
-    restore_value: true
-    mode: text
-    on_value: 
-      then:
-        - lambda: |-
-            unsigned long hex_value = std::strtoul(x.c_str(), nullptr, 16);
-                        
-            uint8_t r = (hex_value >> 16) & 0xFF;
-            uint8_t g = (hex_value >> 8)  & 0xFF;
-            uint8_t b = hex_value         & 0xFF;
-            
-            id(idle_color) = esphome::Color(r, g, b);
-            ESP_LOGD("init", "idle_color: RGB: (%d, %d, %d)", r, g, b);
-    set_action:
-      then:
-        - lambda: |-
-            std::string hex = x;
-            
-            if (!hex.empty() && hex[0] == '#') { hex = hex.substr(1); }
-            if (hex.length() != 6) {
-              id(idle_color_hex).status_set_error(LOG_STR("Use XXXXXX for HEX-Color"));
-              return;
-            }
-            for (char c : hex) { if (!isxdigit(c)) { 
-                id(idle_color_hex).status_set_error(LOG_STR("Use XXXXXX for HEX-Color"));
-                return; 
-            } }
-            
-            // Eingabe ist valide -> Zustand akzeptieren
-            id(idle_color_hex).status_clear_error();
-            id(idle_color_hex).publish_state(hex);
-
-binary_sensor:
-  - platform: gpio
-    id: btn_1_id
-    pin:
-      number: ${btn_1_pin}
-      allow_other_uses: true
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_1_single_click"
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_1_double_click"
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - script.execute: "on_btn_1_long_click"    
-  - platform: gpio
-    id: btn_2_id
-    pin:
-      number: ${btn_2_pin}
-      allow_other_uses: false
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_2_single_click"
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_2_double_click"
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - script.execute: "on_btn_2_long_click"    
-  - platform: gpio
-    id: btn_3_id
-    pin:
-      number: ${btn_3_pin}
-      allow_other_uses: false
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_3_single_click"
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_3_double_click"
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - script.execute: "on_btn_3_long_click"    
-  - platform: gpio
-    id: btn_4_id
-    pin:
-      number: ${btn_4_pin}
-      allow_other_uses: false
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_4_single_click"
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - script.execute: "on_btn_4_double_click"
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - script.execute: "on_btn_4_long_click"    
 
 light:
-  - platform: esp32_rmt_led_strip
-    id: ledstrip_id
-    name: "LED Status"
-    chipset: WS2812
-    pin: ${led_din_pin}
-    num_leds: ${led_count}
-    rgb_order: GRB
-    restore_mode: RESTORE_AND_ON
-    icon: "mdi:led-strip"
-    use_dma: true
-    rmt_symbols: 192
-    use_psram: true
+  - id: !extend ledstrip_id
     effects:
-      - addressable_scan:
-          name: Scan slow
-          move_interval: 0.2s
-          scan_width: 3
-      - addressable_rainbow:
-          speed: 8
-          width: 12
-          name: Rainbow
-      - addressable_twinkle:
-          name: Twinkle
-          progress_interval: 4ms
-          twinkle_probability: 5%
-      - addressable_color_wipe:
-          name: Color Wipe
-          add_led_interval: 0.1s
-          
       # Content Mode Effects
       # Effect CONTENT_BOOT
       - addressable_lambda:
@@ -555,607 +268,11 @@ light:
 
               it[i] = Color(b+75, b, b+75);  // Cyan-Blau
             }
-            
-          
-i2c:
-  - id: i2c_bus
-    sda: ${i2c_sda_pin}
-    scl: ${i2c_scl_pin}
-    scan: true
-    frequency: 400kHz
-
-sensor:
-  # Wifi Informationen
-  - platform: wifi_signal
-    id: wifi_rssi
-    name: "WiFi Signal dB"
-    update_interval: 30s
-  - platform: template
-    id: wifi_channel
-    name: "Channel"
-    icon: "mdi:wifi-marker"
-    entity_category: diagnostic
-    lambda: |-
-      if (id(wifi_id).is_connected())
-        return id(wifi_id).get_wifi_channel();
-      return -1;    
-    update_interval: 30s      
-
-  - platform: template
-    name: "Mic Left Peak"
-    id: sensor_mic_left_peak
-    unit_of_measurement: "amp"
-    accuracy_decimals: 0
-    update_interval: never
-  - platform: template
-    name: "Mic Right Peak"
-    id: sensor_mic_right_peak
-    unit_of_measurement: "amp"
-    accuracy_decimals: 0
-    update_interval: never
-    
-text_sensor:
-  # Wifi Informationen
-  - platform: wifi_info
-    id: wifi_info
-    ip_address:
-      name: "IP"
-      icon: "mdi:wifi"
-    ssid:
-      name: "SSID"
-      icon: "mdi:wifi"
-    bssid:
-      name: "BSSID"
-      icon: "mdi:wifi"
-    mac_address:
-      name: "Mac"
-      icon: "mdi:wifi"
-    dns_address:
-      name: "DNS"
-      icon: "mdi:wifi"
-    power_save_mode:
-      name: "Power Save"
-      icon: "mdi:wifi"
-    # scan_results:
-    #   name: "Scan"
-    #   icon: "mdi:wifi"
-  # Titel des aktuellen Tracks
-  - platform: homeassistant
-    id: media_title
-    entity_id: ${media_player_entity_id}_2
-    attribute: media_title
-    on_value:
-      then:
-        - logger.log:
-            format: "media_title='%s'"
-            args: [ id(media_title).state.c_str() ]
-        - script.execute: update_data            
-  # Interpret
-  - platform: homeassistant
-    id: media_artist
-    entity_id: ${media_player_entity_id}_2
-    attribute: media_artist
-    on_value:
-      then:
-        - logger.log:
-            format: "media_artist='%s'"
-            args: [ id(media_artist).state.c_str() ]
-        - script.execute: update_data
-  # Albumname
-  - platform: homeassistant
-    id: media_album_name
-    entity_id: ${media_player_entity_id}_2
-    attribute: media_album_name
-    on_value:
-      then:
-        - logger.log:
-            format: "media_album_name='%s'"
-            args: [ id(media_album_name).state.c_str() ]
-        - script.execute: update_data
-
-# Icons - look in https://pictogrammers.com/library/mdi/
-image:
-  - file: "https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg"
-    id: logo_esphome
-    type: binary
-    resize: 46x46
-    invert_alpha: false
-  - file: "mdi:wifi-strength-1"
-    id: symbol_wifi_1
-    type: binary
-    resize: 16x16
-  - file: "mdi:wifi-strength-2"
-    id: symbol_wifi_2
-    type: binary
-    resize: 16x16
-  - file: "mdi:wifi-strength-3"
-    id: symbol_wifi_3
-    type: binary
-    resize: 16x16
-  - file: "mdi:wifi-strength-4"
-    id: symbol_wifi_4
-    type: binary
-    resize: 16x16
-  - file: "mdi:home-assistant"
-    id: symbol_api
-    type: binary
-    resize: 16x16
-  - file: "mdi:account-voice"
-    id: symbol_va
-    type: binary
-    resize: 16x16
-  - file: "mdi:speaker"
-    id: symbol_mp_idle
-    type: binary
-    resize: 16x16
-  - file: "mdi:play"
-    id: symbol_mp_play
-    type: binary
-    resize: 16x16
-  - file: "mdi:pause"
-    id: symbol_mp_pause
-    type: binary
-    resize: 16x16
-  - file: "mdi:bullhorn"
-    id: symbol_mp_announce
-    type: binary
-    resize: 16x16
-  - file: "mdi:speaker-off"
-    id: symbol_mute
-    type: binary
-    resize: 16x16
-  - file: "mdi:microphone-off"
-    id: symbol_deaf
-    type: binary
-    resize: 16x16
-  - file: "mdi:alert-box-outline"
-    id: symbol_error
-    type: binary
-    resize: 16x16
-  - file: "mdi:alarm"
-    id: symbol_alarm
-    type: binary
-    resize: 16x16
-  - file: "mdi:timer-outline"
-    id: symbol_timer
-    type: binary
-    resize: 16x16
-  ####################################
-  - file: "https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg"
-    id: icon_boot
-    type: binary
-    resize: 46x46
-    invert_alpha: false
-  - file: "mdi:play"
-    id: icon_play
-    type: binary
-    resize: 32x32
-  - file: "mdi:pause"
-    id: icon_pause
-    type: binary
-    resize: 32x32
-  - file: "mdi:ear-hearing"
-    id: icon_listen
-    type: binary
-    resize: 32x32
-  - file: "mdi:thought-bubble-outline"
-    id: icon_think
-    type: binary
-    resize: 32x32
-  - file: "mdi:help"
-    id: icon_unknown
-    type: binary
-    resize: 32x32
-  - file: "mdi:timer"
-    id: icon_timer
-    type: binary
-    resize: 32x32
-  ####################################
-  - file: "mdi:knob"
-    id: icon_volume
-    type: binary
-    resize: 32x32
-  - file: "mdi:alert-circle-outline"
-    id: icon_error
-    type: binary
-    resize: 32x32
-  - file: "mdi:alarm"
-    id: icon_alarm
-    type: binary
-    resize: 32x32
-  - file: "mdi:bullhorn"
-    id: icon_announce
-    type: binary
-    resize: 32x32
-
-font:
-  - id: font_medium
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 14
-    glyphs:
-      - äöüÄÖÜß°
-    glyphsets:
-      - GF_Latin_Kernel
-  - id: font_large
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 21
-    glyphs:
-      - äöüÄÖÜß°
-    glyphsets:
-      - GF_Latin_Kernel
-  - id: font_huge
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 28
-    glyphs:
-      - äöüÄÖÜß°
-    glyphsets:
-      - GF_Latin_Kernel
-    
-display:
-  - platform: ssd1306_i2c
-    model: SSD1306_128X64
-    id: display_id
-    address: 0x3c
-    update_interval: 50ms
-    lambda: |-
-      // -------------------------------------------------------
-      // 1a. GELBER HEADER-BEREICH (Pixel 0–15)
-      // -------------------------------------------------------
-      
-      // Symbole rechts (jeweils 16x16)
-      for (int i = 0; i < 4; i++) {
-        auto* img = id(status_symbols)[i];
-        
-        // Prüft penibel, ob der Zeiger existiert UND nicht die Standard-Leeradresse 0x0 ist
-        if (img != nullptr && img != 0) {
-          it.image(112 - (i * 16), 0, img);
-        }
-      }
-
-      // -------------------------------------------------------
-      // 1b. BLAUER CONTENT-BEREICH (Pixel 16–63)
-      // -------------------------------------------------------
-      // Trennlinie zwischen GELB (oben) und BLAU (unten)
-      it.line(0,15,127,15);
-      //it.rectangle(0, 16, 128, 48);
-
-      int cx = 64;
-      int cy = 40;
-      int width = 128;
-      
-      // Titel links
-      it.print(0, 0, id(font_medium), id(title_text).c_str());
-      
-      if (id(image_icon) != nullptr) {
-        it.image(1, 21, id(image_icon));
-        cx+=16;
-        width-=32;
-      }
-
-      auto scroll_marquee = [&](int cx, int cy, int width, display::BaseFont *font, const std::string &text) {
-        // Textbreite messen
-        int tx, ty, tw, th;
-        it.get_text_bounds(cx, cy, text.c_str(), font, TextAlign::CENTER, &tx, &ty, &tw, &th);
-      
-        int tw2 = tw / 2;
-        int w2 = width / 2;
-        tx = cx - w2;   
-        tw = width;
-      
-        // Clipping-Bereich setzen
-        it.start_clipping(tx, ty, tx + tw, ty + th);
-      
-        if (tw2 > w2) {
-            float max_amplitude = tw2 - w2; 
-            
-            // OPTISCHE FEINEINSTELLUNG:
-            const float DURATION_MOVE_MS = 3000.0f; // Zeit für eine Richtung (3 Sek. = sehr entspannt)
-            const float DURATION_PAUSE_MS = 1200.0f; // Standzeit am Rand in Millisekunden
-            
-            // Ein kompletter Zyklus (Hinweg + Pause + Rückweg + Pause)
-            float total_cycle_ms = (DURATION_MOVE_MS * 2.0f) + (DURATION_PAUSE_MS * 2.0f);
-            float current_time = fmodf(millis(), total_cycle_ms);
-            
-            float offset = 0.0f;
-            
-            if (current_time < DURATION_PAUSE_MS) {
-                // 1. Pause am linken Rand
-                offset = -max_amplitude;
-            } 
-            else if (current_time < DURATION_PAUSE_MS + DURATION_MOVE_MS) {
-                // 2. Weiche Bewegung von links nach rechts (Ease-In-Out)
-                float t = (current_time - DURATION_PAUSE_MS) / DURATION_MOVE_MS; // Fortschritt 0.0 bis 1.0
-                
-                // Offizielle Smoothstep-Formel: Erzeugt perfekte Beschleunigung und Bremsung
-                float smooth_t = t * t * (3.0f - 2.0f * t); 
-                
-                offset = -max_amplitude + (smooth_t * max_amplitude * 2.0f);
-            } 
-            else if (current_time < (DURATION_PAUSE_MS * 2.0f) + DURATION_MOVE_MS) {
-                // 3. Pause am rechten Rand
-                offset = max_amplitude;
-            } 
-            else {
-                // 4. Weiche Bewegung von rechts nach links (Ease-In-Out)
-                float t = (current_time - (DURATION_PAUSE_MS * 2.0f) - DURATION_MOVE_MS) / DURATION_MOVE_MS;
-                float smooth_t = t * t * (3.0f - 2.0f * t);
-                
-                offset = max_amplitude - (smooth_t * max_amplitude * 2.0f);
-            }
-            
-            // Zeichnet den Text perfekt ausbalanciert
-            it.print(cx - offset, cy, font, TextAlign::CENTER, text.c_str());
-        } else {
-            it.print(cx, cy, font, TextAlign::CENTER, text.c_str());
-        }
-      
-        // Clipping beenden
-        it.end_clipping();
-      };
-
-
-      if (id(idle_message3).empty() && id(idle_message2).empty()) {
-        // --- FALL 1: Nur die erste Zeile ist befüllt -> Maximal groß ---
-        scroll_marquee(cx, cy, width, id(font_huge), id(idle_message1));
-
-      } else if (id(idle_message3).empty()) {
-        // --- FALL 2: Zeile 1 und 2 sind befüllt -> Große Schrift ---
-        scroll_marquee(cx, cy - 10, width, id(font_large), id(idle_message1));
-        scroll_marquee(cx, cy + 10, width, id(font_large), id(idle_message2));
-
-      } else {
-        // --- FALL 3: Alle 3 Zeilen sind befüllt -> Mittlere Schrift ---
-        scroll_marquee(cx, cy - 13, width, id(font_medium), id(idle_message1));
-        scroll_marquee(cx, cy,      width, id(font_medium), id(idle_message2));
-        scroll_marquee(cx, cy + 13, width, id(font_medium), id(idle_message3));
-      }
-
-      if (id(page_info_start_time) > 0) {
-        uint32_t duration_ms = id(page_info_duration).state * 1000;
-        uint32_t progress_ms = millis() - id(page_info_start_time);
-        it.line(0, 63, (progress_ms * 127) / duration_ms, 63);
-      }
-      
-
-
 
 ######################################################################################
-      
-# interval für page messages
-interval:
-  - id: update_timer
-    interval: 15s
-    then:
-      # Phase 1: Display-Texte aktualisieren
-      - script.execute: update_data
-
-      # Phase 2: Die permanent gesammelten Peaks der letzten 15s an HA senden
-      - lambda: |-
-          id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
-          id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
-          
-          //ESP_LOGI("mic_test", "15s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
-          
-          // Werte sofort nullen, um für die nächsten 15 Sekunden neu zu sammeln
-          id(mic_peak_left) = 0;
-          id(mic_peak_right) = 0;
-
-# I2S Audio Bus
-i2s_audio:
-  # Eingang (Stereo INMP441)
-  - id: i2s_bus_in
-    i2s_lrclk_pin: ${mic_ws_pin}
-    i2s_bclk_pin: ${mic_sck_pin}
-
-  # Ausgang (Stereo MAX98357)
-  - id: i2s_bus_out
-    i2s_lrclk_pin: ${spk_lrc_pin}
-    i2s_bclk_pin: ${spk_bclk_pin}
-   
-# Microphone INMP441
-microphone:
-  - platform: i2s_audio
-    id: hw_microphone
-    i2s_audio_id: i2s_bus_in
-    adc_type: external
-    i2s_din_pin: ${mic_sd_pin}
-    pdm: false
-    correct_dc_offset: true
-    bits_per_sample: 32bit
-    sample_rate: 16000
-    mclk_multiple: 256
-    channel: stereo
-    num_channels: 2
-    i2s_mode: primary
-    on_data:
-      - lambda: |-
-          if (x.empty()) return;
-
-          size_t total_bytes = x.size();
-          int32_t max_l = 0;
-          int32_t max_r = 0;
-
-          // Ein kompletter Stereo-Frame (Links 4 Bytes + Rechts 4 Bytes) benötigt genau 8 Bytes.
-          for (size_t i = 0; i + 7 < total_bytes; i += 8) {
-            
-            // Ihr funktionierender Little-Endian-Zusammenbau für den LINKEN Kanal
-            int32_t l_val = (int32_t)((x[i + 3] << 24) | (x[i + 2] << 16) | (x[i + 1] << 8) | x[i]);
-            
-            // Ihr funktionierender Little-Endian-Zusammenbau für den RECHTEN Kanal
-            int32_t r_val = (int32_t)((x[i + 7] << 24) | (x[i + 6] << 16) | (x[i + 5] << 8) | x[i + 4]);
-
-            // Absolutwerte für die Peak-Messung
-            int32_t abs_l = std::abs(l_val);
-            int32_t abs_r = std::abs(r_val);
-
-            if (abs_l > max_l) max_l = abs_l;
-            if (abs_r > max_r) max_r = abs_r;
-          }
-
-          // Skalierung auf den 16-Bit-Bereich (>> 16) wie in Ihrem Original
-          int16_t peak_l_16 = (int16_t)(max_l >> 16);
-          int16_t peak_r_16 = (int16_t)(max_r >> 16);
-
-          // Zuweisung an Ihre aktuellen globalen Peak-Speicher
-          if (peak_l_16 > id(mic_peak_left))  id(mic_peak_left) = peak_l_16;
-          if (peak_r_16 > id(mic_peak_right)) id(mic_peak_right) = peak_r_16;
-
-
-#   [ HOME ASSISTANT / INTERNE AKTIONEN ]
-#        │                      │
-#        ▼                      ▼
-# ┌──────────────────┐  ┌──────────────────┐
-# │  Audio Player    │  │ UI Sound Player  │  <-- Die zwei Media Player (YAML)
-# │ (media_player_id)│  │(ui_sound_player_id)
-# └────────┬─────────┘  └────────┬─────────┘
-#          │                     │
-#    ┌─────┴────────┐            │
-#    │              │            │
-#    ▼ (Musik)      ▼ (TTS)      ▼ (Klicks)
-# [media_pipe]  [announce_pipe]  [announce_pipe] <-- Die drei Pipelines
-#    │              │            │
-#    │              │            │
-#    │              │            │
-#    ▼              ▼            ▼
-# ┌──────────────────────┐  ┌──────────────────────┐
-# │   on_announcement    │  │   (Keine Trigger!)   │ <-- Hier hängen deine Effekte
-# │  [ Startet Effekte ] │  │   [ Absolut ruhig ]  │
-# └──┬──────────────┬────┘  └──────────┬───────────┘
-#    │              │                  │
-#    ▼ (48kHz/Stereo)▼ (16kHz/Mono)    ▼ (16kHz/Mono)
-# ┌──────────────┐┌──────────────┐┌──────────────┐
-# │  Resampler   ││  Resampler   ││  Resampler   │
-# │(media_source_││(announcement_││(ui_source_   │ <-- Berechnen die Sampleraten
-# │   speaker)   ││source_speaker││   speaker)   │
-# └──────┬───────┘└──────┬───────┘└──────┬───────┘
-#        │               │               │
-#        ▼               ▼               ▼
-#  ┌───────────────┬───────────────┬───────────────┐
-#  │ media_mixing_ │ announcement_ │  ui_mixing_   │ <-- Die 3 Mixer-Eingänge
-#  │     input     │ mixing_input  │     input     │     (source_speakers)
-#  ├───────────────┴───────────────┴───────────────┤
-#  │                 audio_mixer                   │ <-- Dein digitaler Mixer
-#  └───────────────────────┬───────────────────────┘     (Nativ bis zu 8 Kanäle!)
-#                          │
-#                          ▼ (Gemischter I2S-Stream: 48kHz / 32bit / Stereo)
-#  ┌───────────────────────────────────────────────┐
-#  │                  hw_speaker                   │ <-- Hardware-Lautsprecher-Komponente
-#  └───────────────────────┬───────────────────────┘
-#                          │ (Physische Pins: DIN, BCLK, LRCLK)
-#                          ▼
-#              [ Verstärker: MAX 98357 ] ──> 🔊 Lautsprecher
-
-# Amplifier MAX 98357
-speaker:
-  # A) Der physische I2S Hardware-Lautsprecher (Ausgang)
-  - platform: i2s_audio
-    id: hw_speaker
-    i2s_audio_id: i2s_bus_out
-    dac_type: external
-    i2s_dout_pin: ${spk_din_pin}
-    bits_per_sample: 32bit
-    sample_rate: 48000
-    mclk_multiple: 256
-    channel: stereo
-    num_channels: 2
-    buffer_duration: 500ms
-    i2s_mode: primary
-
-  # B) Der digitale Audio-Mixer
-  - platform: mixer
-    id: audio_mixer
-    output_speaker: hw_speaker
-    num_channels: 2
-    source_speakers:
-      - id: media_mixing_input
-        timeout: never
-      - id: announcement_mixing_input
-        timeout: never
-      - id: ui_mixing_input
-        timeout: never        
-
-  # C) Virtueller Resampler für Musik-Medien
-  - platform: resampler
-    id: media_source_speaker
-    output_speaker: media_mixing_input
-
-  # D) Virtueller Resampler für Durchsagen (Announcements)
-  - platform: resampler
-    id: announcement_source_speaker
-    output_speaker: announcement_mixing_input
-
-  # E) Virtueller Resampler für UI-Sounds
-  - platform: resampler
-    id: ui_source_speaker
-    output_speaker: ui_mixing_input
-
-audio_file:
-  - id: snd_boot
-    file: "sounds/boot.wav"
-  - id: snd_chime_up
-    file: "sounds/chime_up.wav"
-  - id: snd_chime_down
-    file: "sounds/chime_down.wav"
-  - id: snd_error
-    file: "sounds/error.wav"
-  - id: snd_success
-    file: "sounds/success.wav"
-  - id: snd_wake
-    file: "sounds/wake.wav"
-  - id: snd_thinking
-    file: "sounds/thinking.wav"
-  - id: snd_click
-    file: "sounds/click.wav"
-  - id: snd_single_click
-    file: "sounds/single_click.wav"
-  - id: snd_double_click
-    file: "sounds/double_click.wav"
-  - id: snd_long_click
-    file: "sounds/long_click.wav"
-  - id: snd_timer_alarm
-    file: "sounds/timer_alarm.wav"
-  - id: snd_connect
-    file: "sounds/api_connect.wav"
-  - id: snd_disconnect
-    file: "sounds/api_disconnect.wav"
-
-audio:
-  codecs:
-    mp3:
-    wav:
 
 media_player:
-  - platform: speaker
-    id: media_player_id
-    name: "Audio Player"
-    icon: "mdi:speaker-message"
-    buffer_size: 500000
-    task_stack_in_psram: true
-    volume_initial: 50%
-    volume_increment: 5%
-    volume_min: 0%
-    volume_max: 100%
-    
-
-    media_pipeline:
-      speaker: media_source_speaker
-      num_channels: 2
-      sample_rate: 48000
-      format: NONE
-    announcement_pipeline:
-      speaker: announcement_source_speaker
-      sample_rate: 16000
-      num_channels: 1
-      format: WAV
+  - id: !extend media_player_id
 
     on_announcement:
       - logger.log:
@@ -1166,6 +283,7 @@ media_player:
           decibel_reduction: 16
           duration: 0.3s
       - lambda: |-
+          id(is_ducking) = true;
           id(old_volume) = id(media_player_id).volume;
           ESP_LOGW("custom", "save volume: %f", id(old_volume));
           //id(media_player_id).volume = 0.5f;
@@ -1183,6 +301,7 @@ media_player:
                 decibel_reduction: 0
                 duration: 0.3s
             - lambda: |-
+                id(is_ducking) = false;
                 ESP_LOGW("custom", "load volume: %f", id(old_volume));
                 //id(media_player_id).volume = id(old_volume);
             - script.execute: on_media_player_play
@@ -1203,6 +322,7 @@ media_player:
                 decibel_reduction: 0
                 duration: 0.3s
             - lambda: |-
+                id(is_ducking) = false;
                 ESP_LOGW("custom", "load volume: %f", id(old_volume));
                 //id(media_player_id).volume = id(old_volume);
             - script.execute: on_media_player_pause
@@ -1224,6 +344,7 @@ media_player:
                 decibel_reduction: 0
                 duration: 0.3s
             - lambda: |-
+                id(is_ducking) = false;
                 ESP_LOGW("custom", "load volume: %f", id(old_volume));
                 //id(media_player_id).volume = id(old_volume);
             - script.execute: on_media_player_idle
@@ -1244,20 +365,34 @@ media_player:
     on_volume:
       - script.execute: on_media_player_volume
     on_state:
+      - lambda: |-
+          ESP_LOGW(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
+
+          if (id(media_player_id).state == esphome::media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
+            ESP_LOGW(__FILE__, "enable ducking!!!!");
+            //id(media_mixing_input).apply_ducking(16, 300);
+            id(is_ducking) = true;
+            id(old_volume) = id(media_player_id).volume;
+            ESP_LOGW("custom", "save volume: %f", id(old_volume));
+          } else
+          if (id(media_player_id).state == esphome::media_player::MEDIA_PLAYER_STATE_IDLE) {
+            ESP_LOGW(__FILE__, "disable ducking!!!!");
+            //id(media_mixing_input).apply_ducking(0, 300);
+            id(is_ducking) = false;
+            ESP_LOGW("custom", "load volume: %f", id(old_volume));
+            //id(media_player_id).volume = id(old_volume);
+          } else
+          if (id(media_player_id).state == esphome::media_player::MEDIA_PLAYER_STATE_PLAYING) {
+            ESP_LOGW(__FILE__, "disable ducking!!!!");
+            //id(media_mixing_input).apply_ducking(0, 300);
+            id(is_ducking) = false;
+            ESP_LOGW("custom", "load volume: %f", id(old_volume));
+            //id(media_player_id).volume = id(old_volume);
+          } else {
+            ESP_LOGW(__FILE__, "nothing");
+          }
+
       - script.execute: on_media_player_state
-  - platform: speaker
-    id: ui_sound_player_id
-    # Da UI-Sounds kurz sind, reicht ein kleinerer Puffer, um RAM zu sparen
-    buffer_size: 64000 
-    task_stack_in_psram: true
-    volume_initial: 60% # UI-Klicks standardmäßig etwas leiser starten lassen
-
-
-    announcement_pipeline:
-      speaker: ui_source_speaker
-      num_channels: 1 # Monosounds reichen für Klicks meist aus
-      sample_rate: 16000 # Typische Rate für kleine lokale Sounddateien
-      format: WAV
 
 voice_assistant:
   id: va
@@ -1430,7 +565,7 @@ micro_wake_word:
       probability_cutoff: 50%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_mycroft.json
       probability_cutoff: 50%
-    
+        
   on_wake_word_detected:
     then:
       - script.execute:
@@ -1441,17 +576,6 @@ micro_wake_word:
 ###################################### Automation
 
 number:
-  - platform: template
-    id: page_info_duration
-    name: "Info Speed"
-    entity_category: config
-    min_value: 15
-    max_value: 300
-    step: 15
-    initial_value: 60
-    optimistic: true
-    restore_value: True
-  
   - platform: template
     id: content_mode_select
     name: "Content Mode"

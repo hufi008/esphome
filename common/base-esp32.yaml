@@ -10,13 +10,9 @@ esp32:
   flash_size: 16MB
   cpu_frequency: 240mhz
   flash_mode: dio
-  # partitions: default_16MB  # large_spiffs_16MB.csv # Nutzt die vollen 16MB aus  
+  partitions: partitions_16MB.csv
   framework:
     type: esp-idf
-    sdkconfig_options:
-      CONFIG_ESPTOOLPY_FLASHSIZE_16MB: "y"
-      CONFIG_PARTITION_TABLE_CUSTOM: "y"
-      CONFIG_PARTITION_TABLE_CUSTOM_FILENAME: "partitions_singleapp_large.csv"
       
 api:
   id: api_id

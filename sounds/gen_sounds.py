@@ -334,21 +334,45 @@ def make_wifi_disconnect():
 # ---------------------------------------------------------
 def make_timer_alarm():
     duration = 0.60
+    SR = 44100  # Samplerate
     t = np.linspace(0, duration, int(SR * duration), endpoint=False)
     wave = np.zeros_like(t)
     
-    def alarm_pulse(t_clip):
-        f = 1200 + 400 * np.sin(2 * np.pi * 15 * t_clip)
-        return 0.4 * np.sin(2 * np.pi * f * t_clip) + 0.15 * np.sign(np.sin(2 * np.pi * 2400 * t_clip))
+    def wecker_puls(t_relative):
+        # Sci-Fi-Komponente: Frequenz fällt rasant von 2800Hz auf 2200Hz ab (Laser-Chirp)
+        f = 2200 + 600 * np.exp(-40 * t_relative)
+        
+        # Grundton + metallischer Oberton für den "Glocken"-Effekt
+        glocke = np.sin(2 * np.pi * f * t_relative)
+        glocke += 0.3 * np.sin(2 * np.pi * (f * 1.6) * t_relative)  # Unharmonischer Oberton = Metall
+        
+        # Wecker-Komponente: Schnelles Rattern (45 Hz Tremolo) simuliert den Klöppel
+        ratter_frequenz = 45
+        kloeppel = 0.5 + 0.5 * np.sin(2 * np.pi * ratter_frequenz * t_relative)
+        
+        # Kombinieren und weiche Hüllkurve für den Puls (gegen Knacken)
+        signal = glocke * kloeppel
+        envelope = np.hanning(len(t_relative))
+        return signal * envelope
 
-    m1 = (t >= 0.00) & (t < 0.15)
-    wave[m1] = alarm_pulse(t[m1]) * lin_decay(t[m1])
+    # Drei abgehackte Wecker-Gongs (jeweils 0.15 Sekunden lang)
+    pulse_len = int(SR * 0.15)
+    t_pulse = np.linspace(0, 0.15, pulse_len, endpoint=False)
+    pure_pulse = wecker_puls(t_pulse)
+
+    # Die Pulse präzise in die Zeitleiste einsetzen
+    idx1 = int(SR * 0.00)
+    wave[idx1:idx1+pulse_len] = pure_pulse
     
-    m2 = (t >= 0.20) & (t < 0.35)
-    wave[m2] = alarm_pulse(t[m2]) * lin_decay(t[m2])
+    idx2 = int(SR * 0.20)
+    wave[idx2:idx2+pulse_len] = pure_pulse
     
-    m3 = (t >= 0.40) & (t < 0.55)
-    wave[m3] = alarm_pulse(t[m3]) * lin_decay(t[m3])
+    idx3 = int(SR * 0.40)
+    wave[idx3:idx3+pulse_len] = pure_pulse
+
+    # Normalisieren auf maximale Lautstärke ohne Übersteuern
+    if np.max(np.abs(wave)) > 0:
+        wave = wave / np.max(np.abs(wave)) * 0.75
 
     save_wav("timer_alarm.wav", wave)
 

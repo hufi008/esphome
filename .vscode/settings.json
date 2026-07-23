@@ -1,3 +1,4 @@
 {
-  "esphome.mainfile": "speaker_2.yaml"
+  "esphome.mainfile": "speaker_2.yaml",
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }

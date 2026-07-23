@@ -318,12 +318,14 @@ script:
       - wait_until:
           condition:
             media_player.is_announcing: media_player_id
+          timeout: 5s
 
       # Warten bis Announcement vorbei ist
       - wait_until:
           condition:
             not:
               media_player.is_announcing: media_player_id
+          timeout: 25s
 
       - lambda: |-
           // Overlay ausschalten
@@ -619,6 +621,7 @@ script:
       - script.execute: 
           id: set_content_mode
           mode: ${CONTENT_IDLE}
+      - media_player.stop: media_player_id
       - script.execute: 
           id: show_error_overlay
       - if:

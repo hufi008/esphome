@@ -997,4 +997,21 @@ number:
     initial_value: 60
     optimistic: true
     restore_value: True
-  
+  - platform: template
+    name: "UI-Lautstärke"
+    id: ui_sound_volume
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.05
+    initial_value: 0.5
+    optimistic: true
+    restore_value: True
+    mode: slider
+    on_value:
+      then:
+        - lambda: |-
+            auto call = id(ui_sound_player_id).make_call();
+            call.set_announcement(true);
+            call.set_volume(x);
+            call.perform();            
+            ESP_LOGD(__FILE__, "UI-Sound-Pipeline Lautstärke per Slider geändert auf: %f", x);              

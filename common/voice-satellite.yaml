@@ -54,9 +54,6 @@ globals:
   - id: is_ducking
     type: bool
     initial_value: "false"
-  - id: old_volume
-    type: float
-    initial_value: "0.5f"
     
   - id: content_mode
     type: int
@@ -275,84 +272,14 @@ media_player:
   - id: !extend media_player_id
 
     on_announcement:
-      - logger.log:
-          level: INFO
-          format: "Ducking enabled (Announcement)"
-      - mixer_speaker.apply_ducking:
-          id: media_mixing_input
-          decibel_reduction: 16
-          duration: 0.3s
-      - lambda: |-
-          id(is_ducking) = true;
-          id(old_volume) = id(media_player_id).volume;
-          ESP_LOGW("custom", "save volume: %f", id(old_volume));
-          //id(media_player_id).volume = 0.5f;
       - script.execute: on_media_player_announcement
     on_play:
-      - if:
-          condition:
-            lambda: 'return !id(va).is_running();'
-          then:
-            - logger.log:
-                level: INFO
-                format: "Ducking disabled (Play)"          
-            - mixer_speaker.apply_ducking:
-                id: media_mixing_input
-                decibel_reduction: 0
-                duration: 0.3s
-            - lambda: |-
-                id(is_ducking) = false;
-                ESP_LOGW("custom", "load volume: %f", id(old_volume));
-                //id(media_player_id).volume = id(old_volume);
-            - script.execute: on_media_player_play
-          else:
-            - logger.log:
-                level: INFO
-                format: "on_idle skipped (VA is running)"
+      - script.execute: on_media_player_play
     on_pause:
-      - if:
-          condition:
-            lambda: 'return !id(va).is_running();'
-          then:
-            - logger.log:
-                level: INFO
-                format: "Ducking disabled (Pause)"
-            - mixer_speaker.apply_ducking:
-                id: media_mixing_input
-                decibel_reduction: 0
-                duration: 0.3s
-            - lambda: |-
-                id(is_ducking) = false;
-                ESP_LOGW("custom", "load volume: %f", id(old_volume));
-                //id(media_player_id).volume = id(old_volume);
-            - script.execute: on_media_player_pause
-          else:
-            - logger.log:
-                level: INFO
-                format: "on_idle skipped (VA is running)"
+      - script.execute: on_media_player_pause
 
     on_idle:
-      - if:
-          condition:
-            lambda: 'return !id(va).is_running();'
-          then:
-            - logger.log:
-                level: INFO
-                format: "Ducking disabled (idle)"
-            - mixer_speaker.apply_ducking:
-                id: media_mixing_input
-                decibel_reduction: 0
-                duration: 0.3s
-            - lambda: |-
-                id(is_ducking) = false;
-                ESP_LOGW("custom", "load volume: %f", id(old_volume));
-                //id(media_player_id).volume = id(old_volume);
-            - script.execute: on_media_player_idle
-          else:
-            - logger.log:
-                level: INFO
-                format: "on_idle skipped (VA is running)"
-
+      - script.execute: on_media_player_idle
         
     on_turn_on:
       - script.execute: on_media_player_turn_on
@@ -363,35 +290,45 @@ media_player:
     on_unmute:
       - script.execute: on_media_player_unmute
     on_volume:
-      - script.execute: on_media_player_volume
+      - if:
+          condition:
+            lambda: 'return !id(is_ducking);'
+          then:
+            - script.execute: on_media_player_volume
+          else:
+            logger.log: "on_media_player_volume: (skip while ducking)"
     on_state:
       - lambda: |-
           ESP_LOGW(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
 
-          if (id(media_player_id).state == esphome::media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
-            ESP_LOGW(__FILE__, "enable ducking!!!!");
-            //id(media_mixing_input).apply_ducking(16, 300);
-            id(is_ducking) = true;
-            id(old_volume) = id(media_player_id).volume;
-            ESP_LOGW("custom", "save volume: %f", id(old_volume));
-          } else
-          if (id(media_player_id).state == esphome::media_player::MEDIA_PLAYER_STATE_IDLE) {
-            ESP_LOGW(__FILE__, "disable ducking!!!!");
-            //id(media_mixing_input).apply_ducking(0, 300);
-            id(is_ducking) = false;
-            ESP_LOGW("custom", "load volume: %f", id(old_volume));
-            //id(media_player_id).volume = id(old_volume);
-          } else
-          if (id(media_player_id).state == esphome::media_player::MEDIA_PLAYER_STATE_PLAYING) {
-            ESP_LOGW(__FILE__, "disable ducking!!!!");
-            //id(media_mixing_input).apply_ducking(0, 300);
-            id(is_ducking) = false;
-            ESP_LOGW("custom", "load volume: %f", id(old_volume));
-            //id(media_player_id).volume = id(old_volume);
-          } else {
-            ESP_LOGW(__FILE__, "nothing");
+          switch (id(media_player_id).state) {
+            case media_player::MEDIA_PLAYER_STATE_ANNOUNCING: {
+              if (!id(is_ducking)) {
+                ESP_LOGW(__FILE__, "enable ducking!!!!");
+                id(media_mixing_input).apply_ducking(16, 300);
+                id(is_ducking) = true;
+              }
+              break;
+            }
+            case media_player::MEDIA_PLAYER_STATE_PLAYING:
+            case media_player::MEDIA_PLAYER_STATE_PAUSED:
+            case media_player::MEDIA_PLAYER_STATE_IDLE: {
+              if (id(is_ducking)) {
+                ESP_LOGW(__FILE__, "disable ducking!!!!");
+                id(media_mixing_input).apply_ducking(0, 300);
+                id(is_ducking) = false;
+              } else {
+                ESP_LOGW(__FILE__, "no ducking skipped");
+              }
+              break;
+            }
+            case media_player::MEDIA_PLAYER_STATE_NONE:
+            case media_player::MEDIA_PLAYER_STATE_OFF:
+            case media_player::MEDIA_PLAYER_STATE_ON: {
+              ESP_LOGW(__FILE__, "nothing");
+              break;
+            }
           }
-
       - script.execute: on_media_player_state
 
 voice_assistant:

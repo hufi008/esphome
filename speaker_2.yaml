@@ -43,10 +43,14 @@ substitutions:
   btn_4_pin:     "GPIO14"
   # VCC: 3V3
 
+logger:
+  level: DEBUG
+
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-esp32.yaml
   # Holt die Funktionalität
+  hardware: !include common/hardware.yaml
   functions: !include common/voice-satellite.yaml
   scripts: !include common/scripts.yaml
   # environment: !include common/bme280.yaml

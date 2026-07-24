@@ -177,10 +177,19 @@ binary_sensor:
               // ESP_LOGW(__FILE__, "ui_sound_player_id        volume %f", id(ui_sound_player_id).volume );
 
           - lambda: |-
-              ESP_LOGI(__FILE__, "voice_assist start by button");
-              id(play_ui_sound).execute(snd_wake);
-          - voice_assistant.start:
-              wake_word: "Okay Nabu"
+              ESP_LOGI(__FILE__, "voice_assist control by button");
+          - if:
+              condition:
+                lambda: 'return id(va).is_running();'
+              then:
+                - lambda: 'ESP_LOGI(__FILE__, "voice_assist stop");'
+                - lambda: 'id(play_ui_sound).execute(snd_success);'
+                - voice_assistant.stop:
+              else:
+                - lambda: 'ESP_LOGI(__FILE__, "voice_assist start");'
+                - lambda: 'id(play_ui_sound).execute(snd_wake);'
+                - voice_assistant.start:
+                    wake_word: "Okay Nabu"
       # --- LANGER KLICK ---
       - timing:
           - ON for at least 1.0s

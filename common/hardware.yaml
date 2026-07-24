@@ -89,6 +89,15 @@ globals:
     
 ########################## Components
 
+time:
+  - platform: homeassistant
+    id: esptime
+
+sun:
+  id: sun_id
+  latitude: !secret latitude
+  longitude: !secret longitude
+
 deep_sleep:
   id: deep_sleep_id
   wakeup_pin: 
@@ -161,30 +170,6 @@ binary_sensor:
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_1_single_click).execute();'
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_1_double_click).execute();'
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - lambda: 'id(on_btn_1_long_click).execute();'
   - platform: gpio
     id: btn_2_id
     pin:
@@ -193,30 +178,6 @@ binary_sensor:
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_2_single_click).execute();'
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_2_double_click).execute();'
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - lambda: 'id(on_btn_2_long_click).execute();'
   - platform: gpio
     id: btn_3_id
     pin:
@@ -225,30 +186,6 @@ binary_sensor:
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_3_single_click).execute();'
-
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_3_double_click).execute();'
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - lambda: 'id(on_btn_3_long_click).execute();'
   - platform: gpio
     id: btn_4_id
     pin:
@@ -257,30 +194,7 @@ binary_sensor:
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
-    on_press:
-      - lambda: 'id(on_btn_press).execute();'
-    on_multi_click:
-     # --- EINFACHKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_4_single_click).execute();'
 
-      # --- DOPPELKLICK ---
-      - timing:
-          - ON for at most 0.5s
-          - OFF for at most 0.5s
-          - ON for at most 0.5s
-          - OFF for at least 0.5s
-        then:
-          - lambda: 'id(on_btn_4_double_click).execute();'
-
-      # --- LANGER KLICK ---
-      - timing:
-          - ON for at least 1.0s
-        then:
-          - lambda: 'id(on_btn_4_long_click).execute();'
 
 light:
   - platform: esp32_rmt_led_strip

@@ -23,32 +23,58 @@ esphome:
     name: "hufi.smart_speaker"
     version: ${version}
   on_boot:
-    - priority: 600
-      then:
-        - script.execute: on_esp_boot_600
     - priority: 250
       then:
-        - script.execute: on_esp_boot_250
+        # - media_player.turn_on: media_player_id
+        # - media_player.turn_on: ui_sound_player_id
+        # - media_player.volume_set:
+        #     id: media_player_id
+        #     volume: 20%
+        # - media_player.volume_set:
+        #     id: ui_sound_player_id
+        #     volume: 30%
+        # - speaker.volume_set:
+        #     id: media_mixing_input
+        #     volume: 15%
+        # - speaker.volume_set:
+        #     id: announcement_mixing_input
+        #     volume: 25%
+        # - speaker.volume_set:
+        #     id: ui_mixing_input
+        #     volume: 35%
+        - lambda: |-
+            id(set_content_mode).execute(${CONTENT_BOOT});
+            id(is_booting) = true;
     - priority: 200
       then:
-        - script.execute: on_esp_boot_200
-    - priority: -100
-      then:
-        - script.execute: on_esp_boot_minus100
+        - lambda: |-
+            id(play_ui_sound).execute(snd_boot);
             
     
 # Enable Home Assistant API
 api:
   on_client_connected:
-    - script.execute: on_api_client_connect
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_api_client_connected");
+        id(play_ui_sound).execute(snd_connect);
+        id(update_data).execute();
   on_client_disconnected:
-    - script.execute: on_api_client_disconnect
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_api_client_disconnected");
+        id(play_ui_sound).execute(snd_disconnect);
+        id(update_data).execute();
 
 wifi:
   on_connect:
-    - script.execute: on_wifi_connect
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_wifi_connect");
+        id(play_ui_sound).execute(snd_connect);
+        id(update_data).execute();
   on_disconnect:
-    - script.execute: on_wifi_disconnect
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_wifi_disconnect");
+        id(play_ui_sound).execute(snd_disconnect);
+        id(update_data).execute();
 
 globals:
   - id: is_ducking
@@ -93,23 +119,170 @@ globals:
 ########################## Components
 
 time:
-  - platform: homeassistant
-    id: esptime
-    on_time_sync: 
-      then:
-        - script.execute: on_time_time_sync
+  - id: !extend esptime
+    on_time_sync:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_time_time_sync");
 
-sun:
-  id: sun_id
-  latitude: !secret latitude
-  longitude: !secret longitude
+          if (id(is_booting)) {        
+            id(is_booting) = false;
+            id(set_content_mode).execute(${CONTENT_IDLE});
+          }
 
-deep_sleep:
-  id: deep_sleep_id
-  wakeup_pin: 
-    number: ${btn_1_pin}
-    allow_other_uses: true
-  wakeup_pin_mode: INVERT_WAKEUP
+number:
+  - platform: template
+    id: content_mode_select
+    name: "Content Mode"
+    entity_category: diagnostic
+    min_value: 0
+    max_value: 5
+    step: 1    
+    initial_value: "${CONTENT_BOOT}"
+    optimistic: True
+    set_action:
+      - lambda: |-
+          id(set_content_mode).execute(x);
+  - platform: template
+    id: overlay_mode_select
+    name: "Overlay Mode"
+    entity_category: diagnostic
+    min_value: 0
+    max_value: 4
+    step: 1
+    initial_value: "${OVERLAY_NONE}"
+    set_action:
+      - lambda: |-
+          id(set_overlay_mode).execute(x);
+
+binary_sensor:
+  - id: !extend btn_1_id
+    on_press:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_btn_1_press");
+          id(play_ui_sound).execute(snd_click);
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_1_single_click");
+              id(play_ui_sound).execute(snd_single_click);
+              // ESP_LOGW(__FILE__, "hw_speaker                volume %f", id(hw_speaker).get_volume() );
+              // ESP_LOGW(__FILE__, "media_mixing_input        volume %f", id(media_mixing_input).get_volume() );
+              // ESP_LOGW(__FILE__, "announcement_mixing_input volume %f", id(announcement_mixing_input).get_volume() );
+              // ESP_LOGW(__FILE__, "ui_mixing_input           volume %f", id(ui_mixing_input).get_volume() );
+              // ESP_LOGW(__FILE__, "media_player_id           volume %f", id(media_player_id).volume );
+              // ESP_LOGW(__FILE__, "ui_sound_player_id        volume %f", id(ui_sound_player_id).volume );
+
+          - lambda: |-
+              ESP_LOGI(__FILE__, "voice_assist start by button");
+              id(play_ui_sound).execute(snd_wake);
+          - voice_assistant.start:
+              wake_word: "Okay Nabu"
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_1_long_click");
+              id(play_ui_sound).execute(snd_long_click);
+          - if:
+              condition:
+                - media_player.is_off: media_player_id
+              then:
+                - media_player.turn_on: media_player_id
+              else:
+                - media_player.turn_off: media_player_id
+
+  - id: !extend btn_2_id
+    on_press:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_btn_2_press");
+          id(play_ui_sound).execute(snd_click);
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_2_single_click");
+              id(play_ui_sound).execute(snd_single_click);
+          - media_player.toggle: media_player_id
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_2_long_click");
+              id(play_ui_sound).execute(snd_long_click);
+          - media_player.stop: media_player_id
+
+  - id: !extend btn_3_id
+    on_press:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_btn_3_press");
+          id(play_ui_sound).execute(snd_click);
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_3_single_click");
+              id(play_ui_sound).execute(snd_single_click);
+          - media_player.volume_down: media_player_id
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_3_long_click");
+              id(play_ui_sound).execute(snd_long_click);
+          - lambda: |-
+              if (id(hw_speaker)->get_mute_state()) {
+                id(hw_speaker).set_mute_state(false);
+              } else {
+                id(hw_speaker).set_mute_state(true);
+              }
+              ESP_LOGI(__FILE__, "hw_speaker mute state: %d", id(hw_speaker)->get_mute_state());
+          - script.execute: update_data
+
+  - id: !extend btn_4_id
+    on_press:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_btn_4_press");
+          id(play_ui_sound).execute(snd_click);
+    on_multi_click:
+     # --- EINFACHKLICK ---
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_4_single_click");
+              id(play_ui_sound).execute(snd_single_click);
+          - media_player.volume_up: media_player_id
+
+      # --- LANGER KLICK ---
+      - timing:
+          - ON for at least 1.0s
+        then:
+          - lambda: |-
+              ESP_LOGI(__FILE__, "on_btn_4_long_click");
+              id(play_ui_sound).execute(snd_long_click);
+          - lambda: |-
+              if (id(hw_microphone)->get_mute_state()) {
+                id(hw_microphone).set_mute_state(false);
+              } else {
+                id(hw_microphone).set_mute_state(true);
+              }
+          - script.execute: update_data
+
 
 light:
   - id: !extend ledstrip_id
@@ -272,39 +445,54 @@ media_player:
   - id: !extend media_player_id
 
     on_announcement:
-      - script.execute: on_media_player_announcement
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_announcement");
+        id(show_announce_overlay).execute();
     on_play:
-      - script.execute: on_media_player_play
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_play");
+        id(set_content_mode).execute(${CONTENT_PLAY});
     on_pause:
-      - script.execute: on_media_player_pause
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_pause");
+        id(set_content_mode).execute(${CONTENT_PAUSE});
 
     on_idle:
-      - script.execute: on_media_player_idle
-        
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_idle");
+        id(set_content_mode).execute(${CONTENT_IDLE});
+
     on_turn_on:
-      - script.execute: on_media_player_turn_on
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_turn_on");
+        id(update_data).execute();
     on_turn_off:
-      - script.execute: on_media_player_turn_off
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_turn_off");
+        id(update_data).execute();
+
     on_mute:
-      - script.execute: on_media_player_mute
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_unmute");
+        id(show_volume_overlay).execute();
     on_unmute:
-      - script.execute: on_media_player_unmute
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_unmute");
+        id(show_volume_overlay).execute();
+
     on_volume:
-      - if:
-          condition:
-            lambda: 'return !id(is_ducking);'
-          then:
-            - script.execute: on_media_player_volume
-          else:
-            logger.log: "on_media_player_volume: (skip while ducking)"
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_media_player_volume");
+        id(show_volume_overlay).execute();
+
     on_state:
       - lambda: |-
-          ESP_LOGW(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
+          ESP_LOGI(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
 
           switch (id(media_player_id).state) {
             case media_player::MEDIA_PLAYER_STATE_ANNOUNCING: {
               if (!id(is_ducking)) {
-                ESP_LOGW(__FILE__, "enable ducking!!!!");
+                ESP_LOGI(__FILE__, "enable ducking!!!!");
                 id(media_mixing_input).apply_ducking(16, 300);
                 id(is_ducking) = true;
               }
@@ -314,11 +502,11 @@ media_player:
             case media_player::MEDIA_PLAYER_STATE_PAUSED:
             case media_player::MEDIA_PLAYER_STATE_IDLE: {
               if (id(is_ducking)) {
-                ESP_LOGW(__FILE__, "disable ducking!!!!");
+                ESP_LOGI(__FILE__, "disable ducking!!!!");
                 id(media_mixing_input).apply_ducking(0, 300);
                 id(is_ducking) = false;
               } else {
-                ESP_LOGW(__FILE__, "no ducking skipped");
+                ESP_LOGI(__FILE__, "no ducking skipped");
               }
               break;
             }
@@ -329,183 +517,189 @@ media_player:
               break;
             }
           }
-      - script.execute: on_media_player_state
 
 voice_assistant:
+  on_wake_word_detected:                         # wird im local-mode nie aufgerufen
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_wake_word_detected");
+  on_idle:                                       # wird im local-mode nie aufgerufen
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_idle");
 
   on_client_connected: 
-    - script.execute: on_voice_assistant_client_connected
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_client_connected");
+        id(play_ui_sound).execute(snd_chime_up);
+    - micro_wake_word.start:           
   on_client_disconnected: 
-    - script.execute: on_voice_assistant_client_disconnected
-  on_idle: 
-    - script.execute: on_voice_assistant_idle
-  on_listening: 
-    - script.execute: on_voice_assistant_listening
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_client_disconnected");
+        id(play_ui_sound).execute(snd_chime_down);
+
   on_start: 
-    - script.execute: on_voice_assistant_start
-    - globals.set: 
-        id: command_message
-        value: !lambda return "";
-    - globals.set: 
-        id: announce_message
-        value: !lambda return "";
-    - globals.set: 
-        id: url_message
-        value: !lambda return "";
-    - globals.set: 
-        id: error_code
-        value: !lambda return "";
-    - globals.set: 
-        id: error_message
-        value: !lambda return "";
-    - globals.set: 
-        id: intent_message
-        value: !lambda return "";
-      
-  on_stt_end: 
-    - globals.set: 
-        id: command_message
-        value: !lambda return x;
-    - logger.log: 
-        level: INFO
-        format: "Command %s"
-        args: [ id(command_message).c_str() ]
-    - script.execute: on_voice_assistant_stt_end
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_start");
+        id(command_message) = "";
+        id(announce_message) = "";
+        id(url_message) = "";
+        id(error_code) = "";
+        id(error_message) = "";
+        id(intent_message) = "";
+
+  on_listening: 
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_listening");
+        id(set_content_mode).execute(${CONTENT_LISTEN});
+
+  on_stt_end:
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_stt_end \"%s\"", x.c_str() );
+        id(command_message) = x;
+        id(update_data).execute();
+
   on_stt_vad_start:
-    - script.execute: on_voice_assistant_stt_vad_start
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_start");
   on_stt_vad_end:
-    - script.execute: on_voice_assistant_stt_vad_end
-      
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_end");
+        id(play_ui_sound).execute(snd_thinking);
+        id(set_content_mode).execute(${CONTENT_THINK});
+
   on_tts_start:
-    - globals.set: 
-        id: announce_message
-        value: !lambda return x;    
-    - logger.log: 
-        level: INFO
-        format: "Announce %s"
-        args: [ id(announce_message).c_str() ]
-    - script.execute: on_voice_assistant_tts_start
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_tts_start \"%s\"", x.c_str() );
+        id(announce_message) = x;
+        id(play_ui_sound).execute(snd_success);
+        id(update_data).execute();
   on_tts_end: 
-    - globals.set: 
-        id: url_message
-        value: !lambda return x;    
-    - logger.log:
-        level: INFO
-        format: "URL %s"
-        args: [ id(url_message).c_str() ]
-    - script.execute: on_voice_assistant_tts_end
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_tts_end \"%s\"", x.c_str() );
+        id(url_message) = x;
+
   on_end: 
-    - logger.log:
-        level: INFO
-        format: "VA End"
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_end");
     - wait_until: 
         condition:
           - not:
             - voice_assistant.is_running:
-    - script.execute: on_voice_assistant_end
-    - script.wait: on_voice_assistant_end
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_finished");
+
+    - script.execute: 
+        id: set_content_mode
+        mode: ${CONTENT_IDLE}
+    - if:
+        condition:
+          - micro_wake_word.is_running:                 
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW already running!");
+        else:
+          - micro_wake_word.start: 
+
   on_error: 
-    - globals.set: 
-        id: error_code
-        value: !lambda return code;
-    - globals.set: 
-        id: error_message
-        value: !lambda return message;
-    - script.execute: on_voice_assistant_error
-    - script.wait: on_voice_assistant_error
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_error \"%s\" : \"%s\"", code.c_str(), message.c_str() );
+        id(error_code) = code;
+        id(error_message) = message;
+        id(play_ui_sound).execute(snd_error);
+    - script.execute: 
+        id: set_content_mode
+        mode: ${CONTENT_IDLE}
+    # - media_player.stop: media_player_id
+    - script.execute: 
+        id: show_error_overlay
+    - if:
+        condition:
+          - micro_wake_word.is_running:
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW already running!");
+        else:
+          - micro_wake_word.start: 
+
   on_intent_start:
-    - script.execute: on_voice_assistant_intent_start
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_intent_start");
   on_intent_progress:
-    - globals.set: 
-        id: intent_message
-        value: !lambda return x;
-    - logger.log:
-        level: INFO
-        format: "Intent %s"
-        args: [ id(intent_message).c_str() ]
-    - script.execute: on_voice_assistant_intent_progress
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_intent_progress \"%s\"", x.c_str() );
+        id(intent_message) = x;
   on_intent_end:
-    - script.execute: on_voice_assistant_intent_end
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_intent_end");
 
   on_timer_started:
-    - script.execute:
-        id: on_voice_assistant_timer_started
-        timer_id: !lambda 'return timer.id;'
-        timer_name: !lambda 'return timer.name;'
-        timer_total_seconds: !lambda 'return timer.total_seconds;'
-    - script.execute:
-        id: update_data
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_timer_started");
+        ESP_LOGI(__FILE__, "=== TIMER GESTARTET ===");
+        ESP_LOGI(__FILE__, "  Name:       %s", timer.name.c_str());
+        ESP_LOGI(__FILE__, "  ID:         %s", timer.id.c_str());
+        ESP_LOGI(__FILE__, "  Dauer (s):  %lu", timer.total_seconds);
+        id(update_data).execute();
   on_timer_finished:
-    - script.execute:
-        id: on_voice_assistant_timer_finished
-        timer_id: !lambda 'return timer.id;'
-        timer_name: !lambda 'return timer.name;'
-        timer_total_seconds: !lambda 'return timer.total_seconds;'
-    - script.execute:
-        id: update_data
+    - lambda: |-
+        ESP_LOGW(__FILE__, "on_voice_assistant_timer_finished");
+        ESP_LOGW(__FILE__, "=== TIMER FERTIG ===");
+        ESP_LOGI(__FILE__, "  Name:       %s", timer.name.c_str());
+        ESP_LOGI(__FILE__, "  ID:         %s", timer.id.c_str());
+        ESP_LOGI(__FILE__, "  Dauer (s):  %lu", timer.total_seconds);
+        id(update_data).execute();
+    - script.execute: 
+        id: show_alarm_overlay
+    # - homeassistant.service:
+    #     service: tts.speak
+    #     data:
+    #       entity_id: tts.piper  # Deine TTS-Engine in HA (z.B. tts.piper oder tts.google_de)
+    #       # Wir schicken den Ton zurück an diesen Satelliten:
+    #       media_player_entity_id: ${media_player_entity_id}
+    #       message: !lambda |-
+    #         if (timer_name.empty()) {
+    #           return std::string("Ein Timer ist abgelaufen!");
+    #         } else {
+    #           return "Dein " + timer_name + " Timer ist abgelaufen!";
+    #         }          
   on_timer_cancelled:
-    - script.execute:
-        id: on_voice_assistant_timer_cancelled
-        timer_id: !lambda 'return timer.id;'
-        timer_name: !lambda 'return timer.name;'
-        timer_total_seconds: !lambda 'return timer.total_seconds;'
-        timer_seconds_left: !lambda 'return timer.seconds_left;'
-    - script.execute:
-        id: update_data
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_timer_cancelled");
+        ESP_LOGI(__FILE__, "=== TIMER ABGEBROCHEN ===");
+        ESP_LOGI(__FILE__, "  Name:       %s", timer.name.c_str());
+        ESP_LOGI(__FILE__, "  ID:         %s", timer.id.c_str());
+        ESP_LOGI(__FILE__, "  Dauer (s):  %lu", timer.total_seconds);
+        ESP_LOGI(__FILE__, "  Restzeit:   %lu s", timer.seconds_left);
+        id(update_data).execute();
   on_timer_updated:
-    - script.execute:
-        id: on_voice_assistant_timer_updated
-        timer_id: !lambda 'return timer.id;'
-        timer_name: !lambda 'return timer.name;'
-        timer_is_active: !lambda 'return timer.is_active;'
-        timer_total_seconds: !lambda 'return timer.total_seconds;'
-        timer_seconds_left: !lambda 'return timer.seconds_left;'
-    - script.execute:
-        id: update_data
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_timer_updated");
+        ESP_LOGI(__FILE__, "=== TIMER AKTUALISIERT ===");
+        ESP_LOGI(__FILE__, "  Name:       %s", timer.name.c_str());
+        ESP_LOGI(__FILE__, "  ID:         %s", timer.id.c_str());
+        ESP_LOGI(__FILE__, "  Status:     %s", timer.is_active ? "Aktiv/Läuft" : "Pausiert");
+        ESP_LOGI(__FILE__, "  Dauer (s):  %lu", timer.total_seconds);
+        ESP_LOGI(__FILE__, "  Restzeit:   %lu s", timer.seconds_left);
+        id(update_data).execute();
   on_timer_tick:
     - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_timer_tick" );
+        ESP_LOGI(__FILE__, "=== TIMER TICK ===");
         for (const auto &t : timers) {
           if (t.is_active) {
             // Wir rufen das Skript für jeden aktiven Timer direkt aus C++ auf
-            id(on_voice_assistant_timer_tick).execute(t.id, t.name, t.total_seconds, t.seconds_left);
+            ESP_LOGD(__FILE__, "- Timer '%s': %lu von %lu Sekunden", t.name.c_str(), t.seconds_left, t.total_seconds);
           }
-        }  
-    - script.execute:
-        id: update_data
+        }
+        id(update_data).execute();
     
 micro_wake_word:
-        
   on_wake_word_detected:
     then:
-      - script.execute:
-          id: on_micro_wake_word_on_wake_word_detected
-          ww: !lambda 'return wake_word;'
-
+      - lambda: |-
+          ESP_LOGI(__FILE__, "micro_wake_word_on_wake_word_detected \"%s\"", wake_word.c_str() );
+          id(play_ui_sound).execute(snd_wake);
+      - voice_assistant.start: 
+          wake_word: !lambda return wake_word;
         
-###################################### Automation
 
-number:
-  - platform: template
-    id: content_mode_select
-    name: "Content Mode"
-    entity_category: diagnostic
-    min_value: 0
-    max_value: 5
-    step: 1    
-    initial_value: "${CONTENT_BOOT}"
-    optimistic: True
-    set_action:
-      - lambda: |-
-          id(set_content_mode).execute(x);
-  - platform: template
-    id: overlay_mode_select
-    name: "Overlay Mode"
-    entity_category: diagnostic
-    min_value: 0
-    max_value: 4
-    step: 1
-    initial_value: "${OVERLAY_NONE}"
-    set_action:
-      - lambda: |-
-          id(set_overlay_mode).execute(x);
 

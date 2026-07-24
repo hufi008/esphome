@@ -243,13 +243,13 @@ binary_sensor:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_3_long_click");
               id(play_ui_sound).execute(snd_long_click);
-          - lambda: |-
-              if (id(hw_speaker)->get_mute_state()) {
-                id(hw_speaker).set_mute_state(false);
-              } else {
-                id(hw_speaker).set_mute_state(true);
-              }
-              ESP_LOGI(__FILE__, "hw_speaker mute state: %d", id(hw_speaker)->get_mute_state());
+          - if:
+              condition:
+                media_player.is_muted: media_player_id
+              then:
+                media_player.unmute: media_player_id
+              else:
+                media_player.mute: media_player_id
           - script.execute: update_data
 
   - id: !extend btn_4_id

@@ -48,8 +48,6 @@ script:
             id(va).get_api_connection() != nullptr ? id(symbol_va) : 
                                                       id(symbol_api);
           
-          ESP_LOGI(__FILE__, "UD hw_speaker mute state: %d", id(hw_speaker)->get_mute_state());
-
           id(status_symbols)[2] = 
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING ? id(symbol_mp_announce) :
             id(hw_speaker)->get_mute_state()                                         ? id(symbol_mute) :

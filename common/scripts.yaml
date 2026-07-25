@@ -117,6 +117,13 @@ script:
                 id(image_icon)    = id(icon_think);
                 id(idle_message1) = id(command_message).empty() ? "denke ..." : id(command_message);
                 break;
+
+              case ${CONTENT_ANNOUNCE}: 
+                id(image_icon)    = id(icon_announce);
+                id(idle_message1) = id(command_message);
+                id(idle_message2) = id(announce_message);
+                break;
+
             }
           }
           
@@ -138,14 +145,6 @@ script:
               id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
               id(image_icon)    = id(icon_alarm);
               id(idle_message1) = "Timer beendet";
-              break;
-              
-            case ${OVERLAY_ANNOUNCE}: // Zusammengefasst, da identische Logik
-              ESP_LOGD("custom", "show_announce_overlay: \"%s\" : \"%s\"", id(command_message).c_str(), id(announce_message).c_str());
-              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
-              id(image_icon)    = id(icon_announce);
-              id(idle_message1) = id(command_message);
-              id(idle_message2) = id(announce_message);
               break;
           }
           
@@ -262,31 +261,7 @@ script:
       - delay: 3s
       - lambda: |-
           id(set_overlay_mode).execute(${OVERLAY_NONE});
-  - id: show_announce_overlay
-    mode: restart
-    then:
-      - logger.log:
-          level: INFO
-          format: "script show_announce_overlay"
-      - lambda: |-
-          id(set_overlay_mode).execute(${OVERLAY_ANNOUNCE});
 
-      # Warten bis Announcement wirklich gestartet ist
-      - wait_until:
-          condition:
-            media_player.is_announcing: va_player_id
-          timeout: 5s
-
-      # Warten bis Announcement vorbei ist
-      - wait_until:
-          condition:
-            not:
-              media_player.is_announcing: va_player_id
-          timeout: 25s
-
-      - lambda: |-
-          // Overlay ausschalten
-          id(set_overlay_mode).execute(${OVERLAY_NONE});
 
           
 

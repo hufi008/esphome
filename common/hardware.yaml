@@ -335,6 +335,17 @@ text_sensor:
     type: sunset
     format: "%H:%M"
 
+  # Sender
+  - platform: homeassistant
+    id: media_content_id
+    entity_id: ${media_player_entity_id}_2
+    attribute: media_content_id
+    on_value:
+      then:
+        - logger.log:
+            format: "media_content_id='%s'"
+            args: [ id(media_content_id).state.c_str() ]
+        - script.execute: update_data            
   # Titel des aktuellen Tracks
   - platform: homeassistant
     id: media_title
@@ -873,12 +884,13 @@ media_player:
     id: media_player_id
     name: "Audio Player"
     icon: "mdi:speaker-message"
-    buffer_size: 1000000
+    buffer_size: 4000000
     task_stack_in_psram: true
     volume_initial: 50%
     volume_increment: 5%
     volume_min: 0%
     volume_max: 100%
+
 
     media_pipeline:
       speaker: mp_media_speaker
@@ -927,10 +939,6 @@ media_player:
     id: va_player_id
     buffer_size: 25000
     task_stack_in_psram: true
-    volume_initial: 50%
-    volume_increment: 5%
-    volume_min: 0%
-    volume_max: 100%
     internal: true
 
     media_pipeline:

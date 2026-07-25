@@ -9,12 +9,13 @@ substitutions:
   CONTENT_PAUSE:    3
   CONTENT_LISTEN:   4
   CONTENT_THINK:    5
+  CONTENT_ANNOUNCE: 6
+  CONTENT_SHUTDOWN: 7
 
   OVERLAY_NONE:     0
   OVERLAY_VOLUME:   1
   OVERLAY_ERROR:    2
   OVERLAY_ALARM:    3
-  OVERLAY_ANNOUNCE: 4
 
 esphome:
   project:
@@ -70,7 +71,7 @@ globals:
     initial_value: "0"
   - id: content_mode_text
     type: std::vector<std::string>
-    initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE"}'  
+    initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE", "SHUTDOWN"}'  
   - id: overlay_mode_text
     type: std::vector<std::string>
     initial_value: '{"NONE", "VOLUME", "ERROR", "ALARM", "ANNOUNCE"}'  
@@ -191,7 +192,10 @@ binary_sensor:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_2_single_click");
               id(play_ui_sound).execute(snd_single_click);
-          - media_player.toggle: media_player_id
+          - homeassistant.service:
+              service: media_player.media_play_pause
+              data:
+                entity_id: ${media_player_entity_id}_2
       # --- LANGER KLICK ---
       - timing:
           - ON for at least 1.0s
@@ -199,7 +203,10 @@ binary_sensor:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_2_long_click");
               id(play_ui_sound).execute(snd_long_click);
-          - media_player.stop: media_player_id
+          - homeassistant.service:
+              service: media_player.media_stop
+              data:
+                entity_id: ${media_player_entity_id}_2
 
   - id: !extend btn_3_id
     on_press:
@@ -346,7 +353,27 @@ light:
               int b = max(0, 150 - d * 40);
               it[i] = Color(b, 0, b);
             }
+      # Effect CONTENT_ANNOUNCE
+      - addressable_lambda:
+          name: "Effect CONTENT_6"
+          update_interval: 20ms
+          lambda: |-
+            const int count = it.size();
 
+            // Position des Scans (läuft von 0 bis count-1)
+            int pos = (millis() / 40) % count;
+
+            for (int i = 0; i < count; i++) {
+              // Abstand zur Scan-Position
+              int d = abs(i - pos);
+
+              // Helligkeit abhängig vom Abstand (weicher Abfall)
+              int b = max(0, 120 - d * 40);  // 120 = hell, 40 = Abfall pro LED
+
+              it[i] = Color(b+75, b, b+75);  // Cyan-Blau
+            }
+      
+      
       # Overlay Mode Effects
       # Effect OVERLAY_NONE
       - addressable_lambda:
@@ -424,31 +451,31 @@ media_player:
   - id: !extend va_player_id
 
     on_announcement:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_va_player_announcement");
-        id(show_announce_overlay).execute();
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_announcement");
+          id(set_content_mode).execute(${CONTENT_ANNOUNCE});
     on_play:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_va_player_play");
-        // id(set_content_mode).execute(${CONTENT_PLAY});
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_play");
+          // id(set_content_mode).execute(${CONTENT_PLAY});
     on_pause:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_va_player_pause");
-        // id(set_content_mode).execute(${CONTENT_PAUSE});
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_pause");
+          // id(set_content_mode).execute(${CONTENT_PAUSE});
 
     on_idle:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_va_player_idle");
-        // id(set_content_mode).execute(${CONTENT_IDLE});
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_idle");
+          // id(set_content_mode).execute(${CONTENT_IDLE});
 
     on_turn_on:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_va_player_turn_on");
-        // id(update_data).execute();
+      - lambda: |-          
+          // ESP_LOGI(__FILE__, "on_va_player_turn_on");
+          // id(update_data).execute();
     on_turn_off:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_va_player_turn_off");
-        // id(update_data).execute();
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_turn_off");
+          // id(update_data).execute();
 
     on_mute:
     - lambda: |-
@@ -501,36 +528,45 @@ media_player:
 
   - id: !extend media_player_id
     on_idle:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_idle");
-        id(set_content_mode).execute(${CONTENT_IDLE});
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_idle");
+          id(set_content_mode).execute(${CONTENT_IDLE});
 
     on_announcement:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_announcement");
-        id(show_announce_overlay).execute();
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_announcement");
+          id(set_content_mode).execute(${CONTENT_ANNOUNCE});
     on_play:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_play");
-        id(set_content_mode).execute(${CONTENT_PLAY});
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_play");
+          id(set_content_mode).execute(${CONTENT_PLAY});
     on_pause:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_pause");
-        id(set_content_mode).execute(${CONTENT_PAUSE});
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_pause");
+          id(set_content_mode).execute(${CONTENT_PAUSE});
 
     on_mute:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_unmute");
-        id(show_volume_overlay).execute();
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_unmute");
+          id(show_volume_overlay).execute();
     on_unmute:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_unmute");
-        id(show_volume_overlay).execute();
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_unmute");
+          id(show_volume_overlay).execute();
 
     on_volume:
-    - lambda: |-
-        // ESP_LOGI(__FILE__, "on_media_player_volume");
-        id(show_volume_overlay).execute();
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_media_player_volume");
+          id(show_volume_overlay).execute();
+
+    on_turn_on:
+      - lambda: |-          
+          // ESP_LOGI(__FILE__, "on_va_player_turn_on");
+          // id(update_data).execute();
+    on_turn_off:
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_turn_off");
+          // id(update_data).execute();
 
 
 
@@ -610,6 +646,13 @@ voice_assistant:
   on_end: 
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_end");
+        if (id(is_ducking)) {
+          ESP_LOGI(__FILE__, "disable ducking!");
+          id(mp_media_resampler).apply_ducking(0, 300);
+          id(is_ducking) = false;
+        } else {
+          ESP_LOGI(__FILE__, "ducking was not enabled!!!!");
+        }
     - wait_until: 
         condition:
           - not:
@@ -635,6 +678,13 @@ voice_assistant:
         id(error_code) = code;
         id(error_message) = message;
         id(play_ui_sound).execute(snd_error);
+        if (id(is_ducking)) {
+          ESP_LOGI(__FILE__, "disable ducking!");
+          id(mp_media_resampler).apply_ducking(0, 300);
+          id(is_ducking) = false;
+        } else {
+          ESP_LOGI(__FILE__, "ducking was not enabled!!!!");
+        }
     - script.execute: 
         id: set_content_mode
         mode: ${CONTENT_IDLE}

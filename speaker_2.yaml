@@ -53,5 +53,5 @@ packages:
   hardware: !include common/hardware.yaml
   functions: !include common/voice-satellite.yaml
   scripts: !include common/scripts.yaml
-  # environment: !include common/bme280.yaml
-  environment: !include common/htu21.yaml
+  # climate: !include common/bme280.yaml
+  climate: !include common/htu21.yaml

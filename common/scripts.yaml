@@ -87,13 +87,13 @@ script:
                 auto now = id(esptime).now();
                 
                 int max_pages = 3;
-                #ifdef HAVE_ENVIRONMENT_TEMP
+                #ifdef HAVE_CLIMATE_TEMP
                 max_pages ++;
                 #endif
-                #ifdef HAVE_ENVIRONMENT_HUM
+                #ifdef HAVE_CLIMATE_HUM
                 max_pages ++;
                 #endif
-                #ifdef HAVE_ENVIRONMENT_PRESS
+                #ifdef HAVE_CLIMATE_PRESS
                 max_pages ++;
                 #endif
 
@@ -129,13 +129,13 @@ script:
                   case 1: id(idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
                   case 2: id(idle_message1) = str_snprintf("%s", 32, weekdays[now.day_of_week - 1]);
                           id(idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
-                #ifdef HAVE_ENVIRONMENT_TEMP
+                #ifdef HAVE_CLIMATE_TEMP
                   case 3: id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state); break;
                 #endif
-                #ifdef HAVE_ENVIRONMENT_HUM
+                #ifdef HAVE_CLIMATE_HUM
                   case 4: id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state); break;
                 #endif
-                #ifdef HAVE_ENVIRONMENT_PRESS
+                #ifdef HAVE_CLIMATE_PRESS
                   case 5: id(idle_message1) = str_snprintf("%.0f hPa", 32, id(room_press).state); break;
                 #endif
                 }

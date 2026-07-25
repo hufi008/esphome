@@ -209,7 +209,7 @@ sensor:
       return -1;    
     update_interval: 30s      
   - platform: bme280_i2c
-    id: envir_id
+    id: climate_id
     address: 0x76
     temperature:
       id: room_temp

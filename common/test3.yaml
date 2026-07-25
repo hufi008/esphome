@@ -35,7 +35,7 @@ substitutions:
   i2c_scl_pin: "GPIO2"  
   # VCC: 3V3
   
-  # Environment BME280
+  # Climate BME280
   bme_addr:      "0x76"
   
   # Display OLED SSD1306

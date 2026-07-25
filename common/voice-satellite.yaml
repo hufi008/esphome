@@ -2,7 +2,7 @@
 ######################### Configuration
 
 substitutions:
-  version: "0.7.0"
+  version: "0.8.1"
 
   # Display Modes
   CONTENT_BOOT:     0
@@ -169,13 +169,6 @@ binary_sensor:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_1_single_click");
               id(play_ui_sound).execute(snd_single_click);
-              // ESP_LOGW(__FILE__, "hw_speaker                volume %f", id(hw_speaker).get_volume() );
-              // ESP_LOGW(__FILE__, "media_mixing_input        volume %f", id(media_mixing_input).get_volume() );
-              // ESP_LOGW(__FILE__, "announcement_mixing_input volume %f", id(announcement_mixing_input).get_volume() );
-              // ESP_LOGW(__FILE__, "ui_mixing_input           volume %f", id(ui_mixing_input).get_volume() );
-              // ESP_LOGW(__FILE__, "media_player_id           volume %f", id(media_player_id).volume );
-              // ESP_LOGW(__FILE__, "ui_sound_player_id        volume %f", id(ui_sound_player_id).volume );
-
           - lambda: |-
               ESP_LOGI(__FILE__, "voice_assist control by button");
           - if:

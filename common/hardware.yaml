@@ -32,7 +32,7 @@ substitutions:
   # i2c_gnd_pin:  GND
   # i2c_vin_pin:  3V3
   
-  # Environment
+  # Climate
   # der BME/HTU kommt onboard und gibt damit die Reihenfolge von I2C VCC und GND vor.
   # Display OLED SSD1306
   # Beim SSD1306 sind die Versorgungsleitungen umgekeht!!!
@@ -343,6 +343,11 @@ image:
     resize: 46x46
     invert_alpha: false
   - platform: file
+    file: mdi:null
+    id: symbol_dummy
+    type: binary
+    resize: 16x16
+  - platform: file
     file: mdi:wifi-strength-1
     id: symbol_wifi_1
     type: binary
@@ -425,6 +430,11 @@ image:
     resize: 46x46
     invert_alpha: false
   - platform: file
+    file: mdi:null
+    id: icon_dummy
+    type: binary
+    resize: 32x32
+  - platform: file
     file: mdi:play
     id: icon_play
     type: binary
@@ -482,6 +492,19 @@ image:
     resize: 32x32
 
 font:
+  - id: font_roboto_12
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 12
+  - id: font_roboto_16
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 16
+
   - id: font_medium
     file:
       type: gfonts

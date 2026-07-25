@@ -145,7 +145,6 @@ binary_sensor:
      # --- EINFACHKLICK ---
       - timing:
           - ON for at most 0.5s
-          - OFF for at least 0.5s
         then:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_1_single_click");
@@ -188,7 +187,6 @@ binary_sensor:
      # --- EINFACHKLICK ---
       - timing:
           - ON for at most 0.5s
-          - OFF for at least 0.5s
         then:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_2_single_click");
@@ -212,7 +210,6 @@ binary_sensor:
      # --- EINFACHKLICK ---
       - timing:
           - ON for at most 0.5s
-          - OFF for at least 0.5s
         then:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_3_single_click");
@@ -244,7 +241,6 @@ binary_sensor:
      # --- EINFACHKLICK ---
       - timing:
           - ON for at most 0.5s
-          - OFF for at least 0.5s
         then:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_4_single_click");
@@ -425,81 +421,118 @@ light:
 ######################################################################################
 
 media_player:
-  - id: !extend media_player_id
+  - id: !extend va_player_id
 
     on_announcement:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_announcement");
+        // ESP_LOGI(__FILE__, "on_va_player_announcement");
         id(show_announce_overlay).execute();
     on_play:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_play");
-        id(set_content_mode).execute(${CONTENT_PLAY});
+        // ESP_LOGI(__FILE__, "on_va_player_play");
+        // id(set_content_mode).execute(${CONTENT_PLAY});
     on_pause:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_pause");
-        id(set_content_mode).execute(${CONTENT_PAUSE});
+        // ESP_LOGI(__FILE__, "on_va_player_pause");
+        // id(set_content_mode).execute(${CONTENT_PAUSE});
 
     on_idle:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_idle");
-        id(set_content_mode).execute(${CONTENT_IDLE});
+        // ESP_LOGI(__FILE__, "on_va_player_idle");
+        // id(set_content_mode).execute(${CONTENT_IDLE});
 
     on_turn_on:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_turn_on");
-        id(update_data).execute();
+        // ESP_LOGI(__FILE__, "on_va_player_turn_on");
+        // id(update_data).execute();
     on_turn_off:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_turn_off");
-        id(update_data).execute();
+        // ESP_LOGI(__FILE__, "on_va_player_turn_off");
+        // id(update_data).execute();
 
     on_mute:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_unmute");
+        // ESP_LOGI(__FILE__, "on_va_player_unmute");
+        // id(show_volume_overlay).execute();
+    on_unmute:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_va_player_unmute");
+        // id(show_volume_overlay).execute();
+
+    on_volume:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_va_player_volume");
+        // id(show_volume_overlay).execute();
+
+    on_state:
+      - lambda: |-
+          // ESP_LOGI(__FILE__, "on_va_player_state: %s", media_player::media_player_state_to_string(id(va_player_id).state));
+
+          // switch (id(va_player_id).state) {
+          //   case media_player::MEDIA_PLAYER_STATE_ANNOUNCING: {
+          //     if (!id(is_ducking)) {
+          //       ESP_LOGI(__FILE__, "enable ducking!");
+          //       id(mp_media_resampler).apply_ducking(16, 300);
+          //       id(is_ducking) = true;
+          //     } else {
+          //       ESP_LOGI(__FILE__, "ducking was enabled!!!!");
+          //     }
+          //     break;
+          //   }
+          //   case media_player::MEDIA_PLAYER_STATE_PLAYING:
+          //   case media_player::MEDIA_PLAYER_STATE_PAUSED:
+          //   case media_player::MEDIA_PLAYER_STATE_IDLE: {
+          //     if (id(is_ducking)) {
+          //       ESP_LOGI(__FILE__, "disable ducking!");
+          //       id(mp_media_resampler).apply_ducking(0, 300);
+          //       id(is_ducking) = false;
+          //     } else {
+          //       ESP_LOGI(__FILE__, "ducking was not enabled!!!!");
+          //     }
+          //     break;
+          //   }
+          //   case media_player::MEDIA_PLAYER_STATE_NONE:
+          //   case media_player::MEDIA_PLAYER_STATE_OFF:
+          //   case media_player::MEDIA_PLAYER_STATE_ON: {
+          //     ESP_LOGW(__FILE__, "nothing");
+          //     break;
+          //   }
+          // }
+
+  - id: !extend media_player_id
+    on_idle:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_media_player_idle");
+        id(set_content_mode).execute(${CONTENT_IDLE});
+
+    on_announcement:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_media_player_announcement");
+        id(show_announce_overlay).execute();
+    on_play:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_media_player_play");
+        id(set_content_mode).execute(${CONTENT_PLAY});
+    on_pause:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_media_player_pause");
+        id(set_content_mode).execute(${CONTENT_PAUSE});
+
+    on_mute:
+    - lambda: |-
+        // ESP_LOGI(__FILE__, "on_media_player_unmute");
         id(show_volume_overlay).execute();
     on_unmute:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_unmute");
+        // ESP_LOGI(__FILE__, "on_media_player_unmute");
         id(show_volume_overlay).execute();
 
     on_volume:
     - lambda: |-
-        ESP_LOGI(__FILE__, "on_media_player_volume");
+        // ESP_LOGI(__FILE__, "on_media_player_volume");
         id(show_volume_overlay).execute();
 
-    on_state:
-      - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
 
-          switch (id(media_player_id).state) {
-            case media_player::MEDIA_PLAYER_STATE_ANNOUNCING: {
-              if (!id(is_ducking)) {
-                ESP_LOGI(__FILE__, "enable ducking!!!!");
-                id(media_mixing_input).apply_ducking(16, 300);
-                id(is_ducking) = true;
-              }
-              break;
-            }
-            case media_player::MEDIA_PLAYER_STATE_PLAYING:
-            case media_player::MEDIA_PLAYER_STATE_PAUSED:
-            case media_player::MEDIA_PLAYER_STATE_IDLE: {
-              if (id(is_ducking)) {
-                ESP_LOGI(__FILE__, "disable ducking!!!!");
-                id(media_mixing_input).apply_ducking(0, 300);
-                id(is_ducking) = false;
-              } else {
-                ESP_LOGI(__FILE__, "no ducking skipped");
-              }
-              break;
-            }
-            case media_player::MEDIA_PLAYER_STATE_NONE:
-            case media_player::MEDIA_PLAYER_STATE_OFF:
-            case media_player::MEDIA_PLAYER_STATE_ON: {
-              ESP_LOGW(__FILE__, "nothing");
-              break;
-            }
-          }
 
 voice_assistant:
   on_wake_word_detected:                         # wird im local-mode nie aufgerufen
@@ -532,22 +565,36 @@ voice_assistant:
   on_listening: 
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_listening");
+        if (!id(is_ducking)) {
+          ESP_LOGI(__FILE__, "enable ducking!");
+          id(mp_media_resampler).apply_ducking(30, 300);
+          id(is_ducking) = true;
+        } else {
+          ESP_LOGI(__FILE__, "ducking was enabled!!!!");
+        }          
         id(set_content_mode).execute(${CONTENT_LISTEN});
 
+  on_stt_vad_start:
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_start");
+        if (id(is_ducking)) {
+          ESP_LOGI(__FILE__, "disable ducking!");
+          id(mp_media_resampler).apply_ducking(0, 300);
+          id(is_ducking) = false;
+        } else {
+          ESP_LOGI(__FILE__, "ducking was not enabled!!!!");
+        }
+  on_stt_vad_end:
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_end");
+        id(play_ui_sound).execute(snd_thinking);
+        id(set_content_mode).execute(${CONTENT_THINK});
   on_stt_end:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_stt_end \"%s\"", x.c_str() );
         id(command_message) = x;
         id(update_data).execute();
 
-  on_stt_vad_start:
-    - lambda: |-
-        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_start");
-  on_stt_vad_end:
-    - lambda: |-
-        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_end");
-        id(play_ui_sound).execute(snd_thinking);
-        id(set_content_mode).execute(${CONTENT_THINK});
 
   on_tts_start:
     - lambda: |-
@@ -591,7 +638,6 @@ voice_assistant:
     - script.execute: 
         id: set_content_mode
         mode: ${CONTENT_IDLE}
-    # - media_player.stop: media_player_id
     - script.execute: 
         id: show_error_overlay
     - if:

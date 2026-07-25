@@ -149,7 +149,7 @@ button:
       then:
         # Display ausschalten
         - lambda: 'id(display_id).turn_off();'
-        - media_player.mute: media_player_id
+        - media_player.mute: va_player_id
         - light.turn_off: ledstrip_id
         - wait_until:
               light.is_off: ledstrip_id
@@ -781,94 +781,6 @@ microphone:
           if (peak_r_16 > id(mic_peak_right)) id(mic_peak_right) = peak_r_16;
 
 
-#   [ HOME ASSISTANT / INTERNE AKTIONEN ]
-#        │                      │
-#        ▼                      ▼
-# ┌──────────────────┐  ┌──────────────────┐
-# │  Audio Player    │  │ UI Sound Player  │  <-- Die zwei Media Player (YAML)
-# │ (media_player_id)│  │(ui_sound_player_id)
-# └────────┬─────────┘  └────────┬─────────┘
-#          │                     │
-#    ┌─────┴────────┐            │
-#    │              │            │
-#    ▼ (Musik)      ▼ (TTS)      ▼ (Klicks)
-# [media_pipe]  [announce_pipe]  [announce_pipe] <-- Die drei Pipelines
-#    │              │            │
-#    │              │            │
-#    │              │            │
-#    ▼              ▼            ▼
-# ┌──────────────────────┐  ┌──────────────────────┐
-# │   on_announcement    │  │   (Keine Trigger!)   │ <-- Hier hängen deine Effekte
-# │  [ Startet Effekte ] │  │   [ Absolut ruhig ]  │
-# └──┬──────────────┬────┘  └──────────┬───────────┘
-#    │              │                  │
-#    ▼ (48kHz/Stereo)▼ (16kHz/Mono)    ▼ (16kHz/Mono)
-# ┌──────────────┐┌──────────────┐┌──────────────┐
-# │  Resampler   ││  Resampler   ││  Resampler   │
-# │(media_source_││(announcement_││(ui_source_   │ <-- Berechnen die Sampleraten
-# │   speaker)   ││source_speaker││   speaker)   │
-# └──────┬───────┘└──────┬───────┘└──────┬───────┘
-#        │               │               │
-#        ▼               ▼               ▼
-#  ┌───────────────┬───────────────┬───────────────┐
-#  │ media_mixing_ │ announcement_ │  ui_mixing_   │ <-- Die 3 Mixer-Eingänge
-#  │     input     │ mixing_input  │     input     │     (source_speakers)
-#  ├───────────────┴───────────────┴───────────────┤
-#  │                 audio_mixer                   │ <-- Dein digitaler Mixer
-#  └───────────────────────┬───────────────────────┘     (Nativ bis zu 8 Kanäle!)
-#                          │
-#                          ▼ (Gemischter I2S-Stream: 48kHz / 32bit / Stereo)
-#  ┌───────────────────────────────────────────────┐
-#  │                  hw_speaker                   │ <-- Hardware-Lautsprecher-Komponente
-#  └───────────────────────┬───────────────────────┘
-#                          │ (Physische Pins: DIN, BCLK, LRCLK)
-#                          ▼
-#              [ Verstärker: MAX 98357 ] ──> 🔊 Lautsprecher
-
-# Amplifier MAX 98357
-speaker:
-  # A) Der physische I2S Hardware-Lautsprecher (Ausgang)
-  - platform: i2s_audio
-    id: hw_speaker
-    i2s_audio_id: i2s_bus_out
-    dac_type: external
-    i2s_dout_pin: ${spk_din_pin}
-    bits_per_sample: 32bit
-    sample_rate: 48000
-    mclk_multiple: 256
-    channel: stereo
-    num_channels: 2
-    buffer_duration: 500ms
-    i2s_mode: primary
-
-  # B) Der digitale Audio-Mixer
-  - platform: mixer
-    id: audio_mixer
-    output_speaker: hw_speaker
-    num_channels: 2
-    source_speakers:
-      - id: media_mixing_input
-        timeout: never
-      - id: announcement_mixing_input
-        timeout: never
-      - id: ui_mixing_input
-        timeout: never        
-
-  # C) Virtueller Resampler für Musik-Medien
-  - platform: resampler
-    id: media_source_speaker
-    output_speaker: media_mixing_input
-
-  # D) Virtueller Resampler für Durchsagen (Announcements)
-  - platform: resampler
-    id: announcement_source_speaker
-    output_speaker: announcement_mixing_input
-
-  # E) Virtueller Resampler für UI-Sounds
-  - platform: resampler
-    id: ui_source_speaker
-    output_speaker: ui_mixing_input
-
 audio_file:
   - id: snd_boot
     file: "sounds/boot.wav"
@@ -904,12 +816,64 @@ audio:
     mp3:
     wav:
 
+# Amplifier MAX 98357
+speaker:
+  # A) Der physische I2S Hardware-Lautsprecher (Ausgang)
+  - platform: i2s_audio
+    id: hw_speaker
+    i2s_audio_id: i2s_bus_out
+    dac_type: external
+    i2s_dout_pin: ${spk_din_pin}
+    bits_per_sample: 32bit
+    sample_rate: 44100
+    mclk_multiple: 256
+    channel: stereo
+    num_channels: 2
+    buffer_duration: 500ms
+    i2s_mode: primary
+
+  # B) Der digitale Audio-Mixer
+  - platform: mixer
+    id: audio_mixer
+    output_speaker: hw_speaker
+    num_channels: 2
+    source_speakers:
+      - id: va_sounds_resampler
+        timeout: never
+      - id: va_announcement_resampler
+        timeout: never
+      - id: mp_media_resampler
+        timeout: never
+      - id: mp_announcement_resampler
+        timeout: never
+
+  # C) Virtueller Resampler für UI-Sounds
+  - platform: resampler
+    id: va_sounds_speaker
+    output_speaker: va_sounds_resampler
+
+  # D) Virtueller Resampler für Durchsagen (Voice Assistant)
+  - platform: resampler
+    id: va_announcement_speaker
+    output_speaker: va_announcement_resampler
+
+  # E) Virtueller Resampler für Musik-Medien
+  - platform: resampler
+    id: mp_media_speaker
+    output_speaker: mp_media_resampler
+
+  # F) Virtueller Resampler für Durchsagen (Home Assistant)
+  - platform: resampler
+    id: mp_announcement_speaker
+    output_speaker: mp_announcement_resampler
+
+
 media_player:
   - platform: speaker
     id: media_player_id
     name: "Audio Player"
     icon: "mdi:speaker-message"
-    buffer_size: 500000
+    buffer_size: 1000000
     task_stack_in_psram: true
     volume_initial: 50%
     volume_increment: 5%
@@ -917,44 +881,100 @@ media_player:
     volume_max: 100%
 
     media_pipeline:
-      speaker: media_source_speaker
+      speaker: mp_media_speaker
       num_channels: 2
-      sample_rate: 48000
-      format: NONE
+      sample_rate: 44100
+      format: NONE      
     announcement_pipeline:
-      speaker: announcement_source_speaker
+      speaker: mp_announcement_speaker
       sample_rate: 16000
       num_channels: 1
       format: WAV
+
+    on_idle: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_idle");
+    on_announcement: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_announcemant");
+    on_pause: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_pause");
+    on_play: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_play");
+    on_turn_on: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_turn_on");
+    on_turn_off: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_turn_off");
+    on_mute: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_mute");
+    on_unmute: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_unmute");
+    on_volume: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_volume");
+    on_state: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
+                                                                        
 
   - platform: speaker
-    id: ui_sound_player_id
-    name: "UI Sound Player"
-    buffer_size: 64000 
+    id: va_player_id
+    buffer_size: 25000
     task_stack_in_psram: true
-    entity_category: diagnostic
-    volume_initial: 60%
+    volume_initial: 50%
+    volume_increment: 5%
+    volume_min: 0%
+    volume_max: 100%
+    internal: true
 
-    announcement_pipeline:
-      speaker: ui_source_speaker
-      num_channels: 1
+    media_pipeline:
+      speaker: va_sounds_speaker
       sample_rate: 16000
+      num_channels: 1
+      format: WAV
+    announcement_pipeline:
+      speaker: va_announcement_speaker
+      sample_rate: 16000
+      num_channels: 1
       format: WAV
 
-    on_announcement: 
-      - lambda: 'ESP_LOGI("hardware.yaml", "UI-Player on_announce:");'
     on_idle: 
-      - lambda: 'ESP_LOGI("hardware.yaml", "UI-Player on_idle:");'
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_idle");
+    on_announcement: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_announcemant");
     on_pause: 
-      - lambda: 'ESP_LOGI("hardware.yaml", "UI-Player on_pause:");'
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_pause");
     on_play: 
-      - lambda: 'ESP_LOGI("hardware.yaml", "UI-Player on_play:");'
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_play");
+    on_turn_on: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_turn_on");
+    on_turn_off: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_turn_off");
+    on_mute: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_mute");
+    on_unmute: 
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_unmute");
     on_volume: 
-      - lambda: 'ESP_LOGI("hardware.yaml", "UI-Player on_volume:");'
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_volume");
     on_state: 
-      - lambda: 'ESP_LOGI("hardware.yaml", "UI-Player on_state: %s", media_player::media_player_state_to_string(id(media_player_id).state) );'
-      
-      # - lambda: 'id(on_media_player_state).execute(id(ui_sound_player_id).get_name());'
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_va_player_state: %s", media_player::media_player_state_to_string(id(va_player_id).state));
+        
 
 voice_assistant:
   id: va
@@ -965,28 +985,28 @@ voice_assistant:
       microphone: hw_microphone
     - channels: ["1"]
       microphone: hw_microphone
-  media_player: media_player_id
-  auto_gain: 23dBFS
+  media_player: va_player_id
+  auto_gain: 16dBFS
   conversation_timeout: 300s
   noise_suppression_level: 1
-  volume_multiplier: 4
+  volume_multiplier: 2
 
 micro_wake_word:
   id: mww
   task_stack_in_psram: true
   vad:
     model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json
-    probability_cutoff: 40%
+    probability_cutoff: 50%
     sliding_window_size: 5
   models:
     - model: github://esphome/micro-wake-word-models/models/v2/okay_nabu.json
-      probability_cutoff: 45%
+      probability_cutoff: 55%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_jarvis.json
       probability_cutoff: 40%
     - model: github://esphome/micro-wake-word-models/models/v2/alexa.json
-      probability_cutoff: 50%
+      probability_cutoff: 60%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_mycroft.json
-      probability_cutoff: 50%
+      probability_cutoff: 60%
 
 ###################################### Automation
 
@@ -1001,21 +1021,3 @@ number:
     initial_value: 60
     optimistic: true
     restore_value: True
-  - platform: template
-    name: "UI-Lautstärke"
-    id: ui_sound_volume
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.05
-    initial_value: 0.5
-    optimistic: true
-    restore_value: True
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            auto call = id(ui_sound_player_id).make_call();
-            call.set_announcement(true);
-            call.set_volume(x);
-            call.perform();            
-            ESP_LOGD(__FILE__, "UI-Sound-Pipeline Lautstärke per Slider geändert auf: %f", x);              

@@ -39,6 +39,7 @@ script:
                                                       id(symbol_api);
           
           id(status_symbols)[2] = 
+            id(va_player_id).state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING    ? id(symbol_mp_announce) :
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING ? id(symbol_mp_announce) :
             id(media_player_id).is_muted()                                           ? id(symbol_mute) :
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_PLAYING    ? id(symbol_mp_play) :
@@ -165,7 +166,7 @@ script:
             }
           }      
           ESP_LOGI("UI-Sound", "play '%s'", file_name.c_str());
-          id(ui_sound_player_id).play_file(sound_file, true, true);
+          id(va_player_id).play_file(sound_file, false, true);
 
   - id: set_content_mode
     parameters: 
@@ -273,14 +274,14 @@ script:
       # Warten bis Announcement wirklich gestartet ist
       - wait_until:
           condition:
-            media_player.is_announcing: media_player_id
+            media_player.is_announcing: va_player_id
           timeout: 5s
 
       # Warten bis Announcement vorbei ist
       - wait_until:
           condition:
             not:
-              media_player.is_announcing: media_player_id
+              media_player.is_announcing: va_player_id
           timeout: 25s
 
       - lambda: |-

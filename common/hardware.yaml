@@ -70,6 +70,10 @@ globals:
     type: std::string
     initial_value: "\"title\""
 
+  - id: idle_updater_scripts
+    type: 'std::vector<std::function<void()>>'
+    initial_value: 'std::vector<std::function<void()>>()'
+
   - id: page_info_start_time
     type: uint32_t
     restore_value: no
@@ -86,7 +90,38 @@ globals:
   - id: idle_message3
     type: std::string
     initial_value: "\"Again\""
-    
+
+script:
+  - id: update_time
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "update_time");
+          auto now = id(esptime).now();
+          id(idle_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute);
+  - id: update_date
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "update_date");
+          auto now = id(esptime).now();
+          id(idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+  - id: update_weekday
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "update_weekday");
+          static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+          auto now = id(esptime).now();
+          id(idle_message1) = str_snprintf("%s", 32, weekdays[now.day_of_week - 1]);
+          id(idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+      - lambda: |-
+          id(idle_updater_scripts).push_back([]() { id(update_time).execute(); });
+          id(idle_updater_scripts).push_back([]() { id(update_date).execute(); });
+          id(idle_updater_scripts).push_back([]() { id(update_weekday).execute(); });
+
 ########################## Components
 
 time:

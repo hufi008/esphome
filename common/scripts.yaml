@@ -1,14 +1,4 @@
 # common/scripts.yaml
-sensor:
-  # Die Dummys als Fallback (liefern standardmäßig "nan"). bme280.yaml muss danach inkludiert werden, um die echten Sensoren zu aktivieren.
-  - platform: template
-    id: room_temp
-  - platform: template
-    id: room_hum
-  - platform: template
-    id: room_press
-  - platform: template
-    id: room_heater
 
 script:
 ####################### functions
@@ -50,7 +40,7 @@ script:
           
           id(status_symbols)[2] = 
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING ? id(symbol_mp_announce) :
-            id(hw_speaker)->get_mute_state()                                         ? id(symbol_mute) :
+            id(media_player_id).is_muted()                                           ? id(symbol_mute) :
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_PLAYING    ? id(symbol_mp_play) :
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_PAUSED     ? id(symbol_mp_pause) :
             id(media_player_id).state == media_player::MEDIA_PLAYER_STATE_IDLE       ? id(symbol_mp_idle) :
@@ -65,6 +55,7 @@ script:
           // 1. ZENTRALER RESET (Failsafe)
           // Setzt alle Texte standardmäßig leer. Ein case schreibt nur noch, was er wirklich braucht.
           id(page_info_start_time) = 0;
+          id(image_icon) = nullptr;
           id(idle_message1) = "";
           id(idle_message2) = "";
           id(idle_message3) = "";
@@ -76,39 +67,14 @@ script:
             switch (id(content_mode)) {
               case ${CONTENT_BOOT}:
                 id(image_icon)    = id(logo_esphome);
-                id(idle_message1) = "${version}";
+                id(idle_message1) = ESPHOME_PROJECT_VERSION;
                 #include <esp_idf_version.h>
                 id(idle_message2) = IDF_VER;
+                id(idle_message3) = ESPHOME_VERSION;
                 break;
           
               case ${CONTENT_IDLE}: {
-                id(image_icon) = nullptr;
-                static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-                auto now = id(esptime).now();
-                
-                int max_pages = 3;
-                #ifdef HAVE_CLIMATE_TEMP
-                max_pages ++;
-                #endif
-                #ifdef HAVE_CLIMATE_HUM
-                max_pages ++;
-                #endif
-                #ifdef HAVE_CLIMATE_PRESS
-                max_pages ++;
-                #endif
-
-                int page_duration = id(page_info_duration).state * 1000;
-                int idx = (millis() / page_duration) % max_pages;
-                if (active_timer_count > 0)
-                  idx = -1;
-                else
-                  id(page_info_start_time) = millis();
-                
-                switch (idx) {
-                  case -1: 
-                    if (active_timer_count == 0) {
-                        id(idle_message1) = "Keine Timer";
-                    }
+                if (active_timer_count > 0) {
                     if (active_timer_count >= 1 && active_timers[0] != nullptr) {
                         std::string name1 = active_timers[0]->name.empty() ? "Timer" : active_timers[0]->name;
                         id(idle_message1) = str_sprintf("%s: %lu s", name1.c_str(), active_timers[0]->seconds_left);
@@ -124,20 +90,11 @@ script:
                     if (active_timer_count > 3) {
                         id(idle_message3) = str_sprintf("%d Timer", active_timer_count);
                     }
-                    break;
-                  case 0: id(idle_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute); break;
-                  case 1: id(idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
-                  case 2: id(idle_message1) = str_snprintf("%s", 32, weekdays[now.day_of_week - 1]);
-                          id(idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100); break;
-                #ifdef HAVE_CLIMATE_TEMP
-                  case 3: id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state); break;
-                #endif
-                #ifdef HAVE_CLIMATE_HUM
-                  case 4: id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state); break;
-                #endif
-                #ifdef HAVE_CLIMATE_PRESS
-                  case 5: id(idle_message1) = str_snprintf("%.0f hPa", 32, id(room_press).state); break;
-                #endif
+                } else {
+                  int page_duration = id(page_info_duration).state * 1000;
+                  int idx = (millis() / page_duration) % id(idle_updater_scripts).size();
+                  id(page_info_start_time) = millis();
+                  id(idle_updater_scripts)[idx]();
                 }
                 break;                
               }
@@ -145,7 +102,6 @@ script:
               case ${CONTENT_PLAY}:
               case ${CONTENT_PAUSE}: // Zusammengefasst, da textlich identisch
                 //id(image_icon)    = (id(content_mode) == ${CONTENT_PLAY}) ? id(icon_play) : id(icon_pause);
-                id(image_icon) = nullptr;
                 id(idle_message1) = id(media_album_name).state;
                 id(idle_message2) = id(media_title).state;
                 id(idle_message3) = id(media_artist).state;

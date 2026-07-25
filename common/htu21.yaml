@@ -1,12 +1,4 @@
 # common/bme280.yaml
-
-esphome:
-  build_flags:
-    - "-DHAVE_CLIMATE"
-    - "-DHAVE_CLIMATE_TEMP"
-    - "-DHAVE_CLIMATE_HUM"
-    - "-DHAVE_CLIMATE_HEATER"
-
 substitutions:
   # Climate HTU21
   bme_addr:      "0x76"
@@ -14,10 +6,6 @@ substitutions:
   # sda, scl vom i2c_bus
 
 sensor:
-  - id: !remove room_temp
-  - id: !remove room_hum
-  # - id: !remove room_press
-  - id: !remove room_heater
   - platform: htu21d
     id: climate_id
     update_interval: 60s
@@ -37,6 +25,26 @@ sensor:
       name: "Heater"
       state_class: measurement
 
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "Register Updater Scripts");
+          id(idle_updater_scripts).push_back([]() { id(update_temp).execute(); });
+          id(idle_updater_scripts).push_back([]() { id(update_hum).execute(); });
+
+script:
+  - id: update_temp
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "update_temp");
+          id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state);
+  - id: update_hum
+    then:
+      - lambda: |-          
+          ESP_LOGD(__FILE__, "update_hum");
+          id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state);
 
 # switch:
 #   - platform: template

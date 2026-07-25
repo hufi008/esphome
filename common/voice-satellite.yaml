@@ -2,8 +2,6 @@
 ######################### Configuration
 
 substitutions:
-  version: "0.8.1"
-
   # Display Modes
   CONTENT_BOOT:     0
   CONTENT_IDLE:     1
@@ -21,27 +19,10 @@ substitutions:
 esphome:
   project:
     name: "hufi.smart_speaker"
-    version: ${version}
+    version: "0.8.2"
   on_boot:
     - priority: 250
       then:
-        # - media_player.turn_on: media_player_id
-        # - media_player.turn_on: ui_sound_player_id
-        # - media_player.volume_set:
-        #     id: media_player_id
-        #     volume: 20%
-        # - media_player.volume_set:
-        #     id: ui_sound_player_id
-        #     volume: 30%
-        # - speaker.volume_set:
-        #     id: media_mixing_input
-        #     volume: 15%
-        # - speaker.volume_set:
-        #     id: announcement_mixing_input
-        #     volume: 25%
-        # - speaker.volume_set:
-        #     id: ui_mixing_input
-        #     volume: 35%
         - lambda: |-
             id(set_content_mode).execute(${CONTENT_BOOT});
             id(is_booting) = true;

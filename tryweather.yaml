@@ -1,105 +1,66 @@
-# common/weather.yaml
+# tryweather.yaml
+substitutions:
+  device_name: "esphome-web-f407a0"
+  friendly_name: "Weather Station"
 
-image:
-  # Sonnig / Klar
-  - platform: file
-    file: mdi:weather-sunny
-    id: icon_weather_sunny
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-night
-    id: icon_weather_clear_night
-    type: binary
-    resize: 32x32
+  ### Pin-Belegung
+  # Amp Max98357
+  spk_lrc_pin:   "GPIO40"   # LEFT / RIGHT CLOCK
+  spk_bclk_pin:  "GPIO39"   # Bit CLOCK
+  spk_din_pin:   "GPIO38"   # DATA OUT
+  # VCC: 5V
+  # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
+  # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
+  
 
-  # Bewölkung
-  - platform: file
-    file: mdi:weather-partly-cloudy
-    id: icon_weather_partlycloudy
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-cloudy
-    id: icon_weather_cloudy
-    type: binary
-    resize: 32x32
+  # Microphone INMP441
+  mic_ws_pin:    "GPIO06"   # WORD SELECT
+  mic_sck_pin:   "GPIO05"   # SERIAL CLOCK
+  mic_sd_pin:    "GPIO04"   # SERIAL DATA
+  # VCC: 3V3
+  # L/R: GND = Links, VCC = Rechts
 
-  # Nebel / Dunst
-  - platform: file
-    file: mdi:weather-fog
-    id: icon_weather_fog
-    type: binary
-    resize: 32x32
+  # LED Strip WS2812
+  led_din_pin:   "GPIO42"    # DATA IN
+  led_count:     "10"        # Number of LEDs
+  # VCC: 5V
+  # din mit Levelshifter auf 5V heben oder mit 100Ω Widerstand an 3V3 lassen (bei kurzen Strip-Längen)
 
-  # Regen
-  - platform: file
-    file: mdi:weather-pouring
-    id: icon_weather_pouring
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-rainy
-    id: icon_weather_rainy
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-hail
-    id: icon_weather_hail
-    type: binary
-    resize: 32x32
+  # I2C Bus
+  i2c_sda_pin:   "GPIO17"    # SERIAL DATA
+  i2c_scl_pin:   "GPIO18"    # SERIAL CLOCK
+  # VCC: 3V3
+  
+  # Display OLED SSD1306
+  ssd_addr:      "0x3C"
+  # VCC: 3V3
 
-  # Schnee
-  - platform: file
-    file: mdi:weather-snowy
-    id: icon_weather_snowy
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-snowy-rainy
-    id: icon_weather_snowy_rainy
-    type: binary
-    resize: 32x32
+  # Button TTP221
+  btn_1_pin:     "GPIO11"
+  btn_2_pin:     "GPIO12"
+  btn_3_pin:     "GPIO13"
+  btn_4_pin:     "GPIO14"
+  # VCC: 3V3
 
-  # Gewitter / Wind
-  - platform: file
-    file: mdi:weather-lightning
-    id: icon_weather_lightning
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-lightning-rainy
-    id: icon_weather_lightning_rainy
-    type: binary
-    resize: 32x32
-  - platform: file
-    file: mdi:weather-windy
-    id: icon_weather_windy
-    type: binary
-    resize: 32x32
+logger:
+  level: DEBUG
 
-  # Ausnahme / Unbekannt
-  - platform: file
-    file: mdi:weather-sunny-off
-    id: icon_weather_exceptional
-    type: binary
-    resize: 32x32
+json:
 
-
-esphome:
-  includes:
-    - "<sstream>"
-  on_boot:
-    - priority: 250
-      then:
-      - lambda: |-
-          ESP_LOGI(__FILE__, "Register Updater Scripts");
-          id(idle_updater_scripts).push_back([]() { id(update_weather_hourly).execute(); });
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include common/base-esp32.yaml
+  # Holt die Funktionalität
 
 globals:
   - id: forcast_repository
     type: JsonDocument
     initial_value: 'JsonDocument()'
+
+time:
+  - platform: homeassistant
+    id: esptime
+
 
 interval:
   - interval: 30min
@@ -151,34 +112,18 @@ interval:
 
               ESP_LOGI("weather", "--- Ende Wetter-Forecast ---");
 
-script:
-  - id: update_weather_hourly
+  - interval: 30sec
+    startup_delay: 10sec
     then:
       - lambda: |-
           static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-          static const std::map<std::string, esphome::image::Image*> weather_icon_map = {
-            {"sunny",           id(icon_weather_sunny)},
-            {"clear-night",     id(icon_weather_clear_night)},
-            {"partlycloudy",    id(icon_weather_partlycloudy)},
-            {"cloudy",          id(icon_weather_cloudy)},
-            {"fog",             id(icon_weather_fog)},
-            {"pouring",         id(icon_weather_pouring)},
-            {"rainy",           id(icon_weather_rainy)},
-            {"hail",            id(icon_weather_hail)},
-            {"snowy",           id(icon_weather_snowy)},
-            {"snowy-rainy",     id(icon_weather_snowy_rainy)},
-            {"lightning",       id(icon_weather_lightning)},
-            {"lightning-rainy", id(icon_weather_lightning_rainy)},
-            {"windy",           id(icon_weather_windy)},
-            {"windy-variant",   id(icon_weather_windy)}
-          };
+         
+          JsonArrayConst forecast = id(forcast_repository).as<JsonArrayConst>();
 
           static size_t current_hourly_index = 0;
-          JsonArrayConst forecast = id(forcast_repository).as<JsonArrayConst>();
           if (current_hourly_index >= forecast.size()) { current_hourly_index = 0; }
-          JsonObjectConst hour_data = forecast[current_hourly_index].as<JsonObjectConst>();
 
-          ESP_LOGI(__FILE__, "update_weather_hourly %d", current_hourly_index);
+          JsonObjectConst hour_data = forecast[current_hourly_index].as<JsonObjectConst>();
 
           int wday = hour_data["wday"].as<int>();
           int today_wday = id(esptime).now().day_of_week - 1; 
@@ -198,9 +143,9 @@ script:
           std::string hour_str = hour_data["hour"].as<std::string>();
           float temp = hour_data["temp"].as<float>();
           float prec = hour_data["prec"].as<float>();
-
-          // Ausgabe an das Display
-          id(idle_message1) = str_sprintf("%s %s", day_str.c_str(), hour_str.c_str());
-          id(idle_message2) = str_sprintf("%.1f°C | %.0f%%", temp, prec);
+          
+          ESP_LOGI(__FILE__, "%s %s", day_str.c_str(), hour_str.c_str());
+          ESP_LOGI(__FILE__, "%.1f°C | %.0f%%", temp, prec);
 
           current_hourly_index++;
+                      

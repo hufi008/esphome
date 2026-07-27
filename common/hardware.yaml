@@ -1005,17 +1005,17 @@ micro_wake_word:
   task_stack_in_psram: true
   vad:
     model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json
-    probability_cutoff: 50%
+    probability_cutoff: 65%
     sliding_window_size: 5
   models:
     - model: github://esphome/micro-wake-word-models/models/v2/okay_nabu.json
-      probability_cutoff: 55%
+      probability_cutoff: 65%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_jarvis.json
-      probability_cutoff: 40%
+      probability_cutoff: 65%
     - model: github://esphome/micro-wake-word-models/models/v2/alexa.json
-      probability_cutoff: 60%
+      probability_cutoff: 65%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_mycroft.json
-      probability_cutoff: 60%
+      probability_cutoff: 65%
 
 ###################################### Automation
 

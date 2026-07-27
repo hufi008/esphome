@@ -94,221 +94,113 @@ esphome:
       then:
       - lambda: |-
           ESP_LOGI(__FILE__, "Register Updater Scripts");
-          // id(idle_updater_scripts).push_back([]() { id(update_weather_dayly).execute(); });
           id(idle_updater_scripts).push_back([]() { id(update_weather_hourly).execute(); });
 
-script:
-  # - id: update_weather_dayly
-  #   then:
-  #     - homeassistant.action:
-  #         action: weather.get_forecasts
-  #         data:
-  #           entity_id: weather.forecast_home
-  #           type: daily  # Für Tages-Vorhersagen (Heute, Morgen, Übermorgen)
-  #         capture_response: true
-  #         on_success:
-  #           - lambda: |-
-  #               ESP_LOGI(__FILE__, "update_weather_dayly");
+globals:
+  - id: forcast_repository
+    type: JsonDocument
+    initial_value: 'JsonDocument()'
 
-  #               static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-  #               static const std::map<std::string, esphome::image::Image*> weather_icon_map = {
-  #                 {"sunny",           id(icon_weather_sunny)},
-  #                 {"clear-night",     id(icon_weather_clear_night)},
-  #                 {"partlycloudy",    id(icon_weather_partlycloudy)},
-  #                 {"cloudy",          id(icon_weather_cloudy)},
-  #                 {"fog",             id(icon_weather_fog)},
-  #                 {"pouring",         id(icon_weather_pouring)},
-  #                 {"rainy",           id(icon_weather_rainy)},
-  #                 {"hail",            id(icon_weather_hail)},
-  #                 {"snowy",           id(icon_weather_snowy)},
-  #                 {"snowy-rainy",     id(icon_weather_snowy_rainy)},
-  #                 {"lightning",       id(icon_weather_lightning)},
-  #                 {"lightning-rainy", id(icon_weather_lightning_rainy)},
-  #                 {"windy",           id(icon_weather_windy)},
-  #                 {"windy-variant",   id(icon_weather_windy)}
-  #               };
-  #               // Statischer Index direkt im Lambda verankert
-  #               static size_t current_day_index = 0;
-
-  #               // Laut Doku liegt das Ergebnis im Feld "response" des Objekts
-  #               JsonObjectConst ha_response = response["response"];
+interval:
+  - interval: 30min
+    startup_delay: 5sec      
+    then: 
+      homeassistant.action:
+        action: weather.get_forecasts
+        data:
+          entity_id: weather.forecast_home
+          type: hourly
+        capture_response: true
+        response_template: >-
+          [
+            {% for h in response['weather.forecast_home']['forecast'] %}
+              {
+                "wday": {{ as_datetime(h.datetime).strftime('%w') }},
+                "hour": "{{ as_datetime(h.datetime).strftime('%H:%M') }}",
+                "cond": "{{ h.condition }}",
+                "temp": {{ h.temperature | default(0) }},
+                "prec": {{ h.precipitation_probability | default(0) }}
+              }{% if not loop.last %},{% endif %}
+            {% endfor %}
+          ]
+        on_success:
+          - lambda: |-
+              // 1. Tiefe Kopie in die globale Variable
+              id(forcast_repository) = response["response"];
+              
+              // 2. Offizielle Längenabfrage des Arrays im globalen Dokument
+              ESP_LOGD(__FILE__, "forcast_repository %zu items received.", id(forcast_repository).size());
+              
+              // 3. Schreibgeschützte Ansicht für die Schleife generieren
+              JsonArrayConst forecast = id(forcast_repository).as<JsonArrayConst>();
+              
+              // 4. Jedes Item mit den gekürzten Schlüsseln auslesen und loggen
+              size_t idx = 0;
+              for (JsonObjectConst hour_data : forecast) {
+                int wday         = hour_data["wday"].is<int>() ? hour_data["wday"].as<int>() : 0;
+                std::string hour = hour_data["hour"].is<std::string>() ? hour_data["hour"].as<std::string>() : "00:00";
+                std::string cond = hour_data["cond"].is<std::string>() ? hour_data["cond"].as<std::string>() : "Unbekannt";
+                float temp       = hour_data["temp"].is<float>() ? hour_data["temp"].as<float>() : 0.0;
+                float prec       = hour_data["prec"].is<float>() ? hour_data["prec"].as<float>() : 0.0;
                 
-  #               if (!ha_response["weather.forecast_home"] || !ha_response["weather.forecast_home"]["forecast"].is<JsonArrayConst>()) {
-  #                 id(idle_message1) = str_sprintf("Warte auf Daten...");
-  #                 return;
-  #               }
+                // Kompakte tabellarische Zeile im ESPHome-Log ausgeben
+                ESP_LOGD(__FILE__, "[#%02zu] WDay: %d | Zeit: %s | Cond: %-15s | Temp: %5.1f°C | Regen: %3.0f%%", 
+                          idx, wday, hour.c_str(), cond.c_str(), temp, prec);
+                idx++;
+              }
 
-  #               JsonArrayConst forecast = ha_response["weather.forecast_home"]["forecast"].as<JsonArrayConst>();
-  #               size_t total_days = forecast.size();
-  #               ESP_LOGI(__FILE__, "recieved forecast for %d days", total_days);
+              ESP_LOGD(__FILE__, "--- Ende Wetter-Forecast ---");
 
-  #               if (total_days == 0) {
-  #                 id(idle_message1) = str_sprintf("Keine Vorhersage");
-  #                 return;
-  #               }
-
-  #               // Zyklisch durch die empfangenen Tage
-  #               if (current_day_index >= total_days) {
-  #                 current_day_index = 0;
-  #               }
-
-  #               auto now = id(esptime).now();
-  #               int dow = (now.day_of_week - 1 + current_day_index) % 7;
-
-
-  #               // Wochentags-Label bestimmen
-  #               std::string day_label = "";
-  #               if (current_day_index == 0) {
-  #                 day_label = "Heute";
-  #               } else if (current_day_index == 1) {
-  #                 day_label = "Morgen";
-  #               } else {
-  #                 day_label = weekdays[dow];
-  #               }
-  #               //ESP_LOGI(__FILE__, "day: %s %d %d", day_label.c_str(), current_day_index, now.day_of_week);
-
-
-  #               // Daten für den aktuellen Index laden
-  #               JsonObjectConst day_data = forecast[current_day_index].as<JsonObjectConst>();
-  #               ESP_LOGI(__FILE__, "day_data[%d] %s", current_day_index, json::serialize_json(day_data).c_str() );
-
-  #               // Icon zuweisen
-  #               if (day_data["condition"].is<std::string>()) {
-  #                 auto it = weather_icon_map.find(day_data["condition"].as<std::string>());
-  #                 id(image_icon) = (it != weather_icon_map.end()) ? it->second : id(icon_weather_exceptional);
-  #               }
-
-  #               // Werte auslesen (Home Assistant liefert Zahlen als Float)
-  #               float temp     = day_data["temperature"].is<float>()               ? day_data["temperature"].as<float>()               : 0.0;
-  #               float pop      = day_data["precipitation_probability"].is<float>() ? day_data["precipitation_probability"].as<float>() : 0.0;
-
-  #               // Texte für dein Display schreiben
-  #               id(idle_message1) = str_sprintf("%s", day_label.c_str());
-  #               id(idle_message2) = str_sprintf("%.1f°C | %.0f%%", temp, pop);
-
-  #               // nächster Index
-  #               current_day_index++;
-
+script:
   - id: update_weather_hourly
     then:
-      - homeassistant.action:
-          action: weather.get_forecasts
-          data:
-            entity_id: weather.forecast_home
-            type: hourly  # Auf stündliche Vorhersage umgestellt
-          capture_response: true
-          response_template: >-
-            [
-              {% for h in response['weather.forecast_home']['forecast'] %}
-                {
-                  "datetime": "{{ h.datetime }}",
-                  "condition": "{{ h.condition }}",
-                  "temperature": {{ h.temperature | default(0) }},
-                  "precipitation_probability": {{ h.precipitation_probability | default(0) }}
-                }{% if not loop.last %},{% endif %}
-              {% endfor %}
-            ]
-          on_success:
-            - lambda: |-
-                ESP_LOGI(__FILE__, "update_weather_hourly");
+      - lambda: |-
+          static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+          static const std::map<std::string, esphome::image::Image*> weather_icon_map = {
+            {"sunny",           id(icon_weather_sunny)},
+            {"clear-night",     id(icon_weather_clear_night)},
+            {"partlycloudy",    id(icon_weather_partlycloudy)},
+            {"cloudy",          id(icon_weather_cloudy)},
+            {"fog",             id(icon_weather_fog)},
+            {"pouring",         id(icon_weather_pouring)},
+            {"rainy",           id(icon_weather_rainy)},
+            {"hail",            id(icon_weather_hail)},
+            {"snowy",           id(icon_weather_snowy)},
+            {"snowy-rainy",     id(icon_weather_snowy_rainy)},
+            {"lightning",       id(icon_weather_lightning)},
+            {"lightning-rainy", id(icon_weather_lightning_rainy)},
+            {"windy",           id(icon_weather_windy)},
+            {"windy-variant",   id(icon_weather_windy)}
+          };
 
-                static const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-                static const std::map<std::string, esphome::image::Image*> weather_icon_map = {
-                  {"sunny",           id(icon_weather_sunny)},
-                  {"clear-night",     id(icon_weather_clear_night)},
-                  {"partlycloudy",    id(icon_weather_partlycloudy)},
-                  {"cloudy",          id(icon_weather_cloudy)},
-                  {"fog",             id(icon_weather_fog)},
-                  {"pouring",         id(icon_weather_pouring)},
-                  {"rainy",           id(icon_weather_rainy)},
-                  {"hail",            id(icon_weather_hail)},
-                  {"snowy",           id(icon_weather_snowy)},
-                  {"snowy-rainy",     id(icon_weather_snowy_rainy)},
-                  {"lightning",       id(icon_weather_lightning)},
-                  {"lightning-rainy", id(icon_weather_lightning_rainy)},
-                  {"windy",           id(icon_weather_windy)},
-                  {"windy-variant",   id(icon_weather_windy)}
-                };
-                
-                static size_t current_day_index = 0;
+          static size_t current_hourly_index = 0;
+          JsonArrayConst forecast = id(forcast_repository).as<JsonArrayConst>();
+          if (current_hourly_index >= forecast.size()) { current_hourly_index = 0; }
+          JsonObjectConst hour_data = forecast[current_hourly_index].as<JsonObjectConst>();
 
-                // Durch unser response_template liegt hier jetzt ein sauberes, schlankes Array
-                if (!response["response"].is<JsonArrayConst>()) {
-                  id(idle_message1) = str_sprintf("Warte auf Daten...");
-                  return;
-                }
+          ESP_LOGI(__FILE__, "update_weather_hourly %d", current_hourly_index);
 
-                JsonArrayConst forecast = response["response"].as<JsonArrayConst>();
-                size_t total_hours = forecast.size();
-                ESP_LOGI(__FILE__, "recieved forecast for %d hours", total_hours);
+          int wday = hour_data["wday"].as<int>();
+          int today_wday = id(esptime).now().day_of_week - 1; 
 
-                if (total_hours == 0) {
-                  id(idle_message1) = str_sprintf("Keine Vorhersage");
-                  return;
-                }
+          // Differenz der Wochentage berechnen (unter Berücksichtigung des Wochenwechsels)
+          int diff_days = (wday - today_wday + 7) % 7;
 
-                if (current_day_index >= total_hours) {
-                  current_day_index = 0;
-                }
+          std::string day_str = "";
+          if (diff_days == 0) {
+            day_str = "Heute";
+          } else if (diff_days == 1) {
+            day_str = "Morgen";
+          } else {
+            day_str = weekdays[wday];
+          }
 
-                JsonObjectConst day_data = forecast[current_day_index].as<JsonObjectConst>();
-                std::string day_label = "";
-                std::string output;
-                serializeJson(day_data, output);                
-                ESP_LOGI(__FILE__, "day_data[%d] %s", current_day_index, output.c_str() );
+          std::string hour_str = hour_data["hour"].as<std::string>();
+          float temp = hour_data["temp"].as<float>();
+          float prec = hour_data["prec"].as<float>();
 
-                if (day_data["datetime"].is<std::string>()) {
-                  std::string dt_str = day_data["datetime"].as<std::string>();
-                  int year = 0, month = 0, day = 0, hour = 0, min = 0;
-                  int parsed = sscanf(dt_str.c_str(), "%d-%d-%dT%d:%d", &year, &month, &day, &hour, &min);
+          // Ausgabe an das Display
+          id(idle_message1) = str_sprintf("%s %s", day_str.c_str(), hour_str.c_str());
+          id(idle_message2) = str_sprintf("%.1f°C | %.0f%%", temp, prec);
 
-                  if (parsed >= 5) {
-                    struct tm forecast_tm = {0};
-                    forecast_tm.tm_year = year - 1900;
-                    forecast_tm.tm_mon = month - 1;
-                    forecast_tm.tm_mday = day;
-                    forecast_tm.tm_hour = hour;
-                    forecast_tm.tm_min = min;
-                    time_t forecast_time = mktime(&forecast_tm);
-
-                    auto now = id(esptime).now();
-                    if (now.is_valid()) {
-                      struct tm current_tm = {0};
-                      current_tm.tm_year = now.year - 1900;
-                      current_tm.tm_mon = now.month - 1;
-                      current_tm.tm_mday = now.day_of_month;
-                      time_t current_time = mktime(&current_tm);
-
-                      double diff_seconds = difftime(forecast_time, current_time);
-                      int diff_days = std::floor(diff_seconds / 86400.0);
-
-                      if (diff_days == 0) {
-                        day_label = str_sprintf("Heute %02d:%02d", hour, min);
-                      } else if (diff_days == 1) {
-                        day_label = str_sprintf("Morgen %02d:%02d", hour, min);
-                      } else if (diff_days > 1 && forecast_tm.tm_wday >= 0 && forecast_tm.tm_wday <= 6) {
-                        day_label = str_sprintf("%s %02d:%02d", weekdays[forecast_tm.tm_wday], hour, min);
-                      }
-                    }
-                  }
-                }
-
-                if (day_label.empty()) {
-                  day_label = str_sprintf("+%dh", current_day_index);
-                }
-
-                // Icon zuweisen
-                if (day_data["condition"].is<std::string>()) {
-                  auto it = weather_icon_map.find(day_data["condition"].as<std::string>());
-                  id(image_icon) = (it != weather_icon_map.end()) ? it->second : id(icon_weather_exceptional);
-                }
-
-                // Werte auslesen
-                float temp = day_data["temperature"].is<float>() ? day_data["temperature"].as<float>() : 0.0;
-                float pop  = day_data["precipitation_probability"].is<float>() ? day_data["precipitation_probability"].as<float>() : 0.0;
-
-                // Ausgabe an das Display
-                id(idle_message1) = str_sprintf("%s", day_label.c_str());
-                id(idle_message2) = str_sprintf("%.1f°C | %.0f%%", temp, pop);
-
-                current_day_index++;
+          current_hourly_index++;

@@ -55,7 +55,7 @@ script:
 
           // 1. ZENTRALER RESET (Failsafe)
           // Setzt alle Texte standardmäßig leer. Ein case schreibt nur noch, was er wirklich braucht.
-          id(page_info_start_time) = 0;
+          if (id(content_mode) != ${CONTENT_IDLE}) id(page_info_start_time) = 0;  //progressbar nur im IDLE 
           id(image_icon) = nullptr;
           id(idle_message1) = "";
           id(idle_message2) = "";
@@ -66,7 +66,7 @@ script:
             id(title_text) = id(content_mode_text)[id(content_mode)];
           
             switch (id(content_mode)) {
-              case ${CONTENT_BOOT}:
+              case ${CONTENT_BOOT}:                
                 id(image_icon)    = id(logo_esphome);
                 id(idle_message1) = ESPHOME_PROJECT_VERSION;
                 #include <esp_idf_version.h>
@@ -94,7 +94,6 @@ script:
                 } else {
                   int page_duration = id(page_info_duration).state * 1000;
                   int idx = (millis() / page_duration) % id(idle_updater_scripts).size();
-                  id(page_info_start_time) = millis();
                   id(idle_updater_scripts)[idx]();
                 }
                 break;                
@@ -125,28 +124,29 @@ script:
                 break;
 
             }
+          } else {
+            // 3. OVERLAY MODES (Überschreiben ggf. Titel, Icon und Texte)
+            switch (id(overlay_mode)) {
+              case ${OVERLAY_VOLUME}:
+                id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+                id(idle_message1) = id(media_player_id).is_muted() ? "MUTE" : str_snprintf(" VOL %.0f", 32, id(media_player_id).volume * 100.0f);
+                break;
+            
+              case ${OVERLAY_ERROR}:
+                id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+                id(image_icon)    = id(icon_error);
+                id(idle_message1) = id(error_code);
+                id(idle_message2) = id(error_message);
+                break;
+            
+              case ${OVERLAY_ALARM}:
+                id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
+                id(image_icon)    = id(icon_alarm);
+                id(idle_message1) = "Timer beendet";
+                break;
+            }
           }
           
-          // 3. OVERLAY MODES (Überschreiben ggf. Titel, Icon und Texte)
-          switch (id(overlay_mode)) {
-            case ${OVERLAY_VOLUME}:
-              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
-              id(idle_message1) = id(media_player_id).is_muted() ? "MUTE" : str_snprintf(" VOL %.0f", 32, id(media_player_id).volume * 100.0f);
-              break;
-          
-            case ${OVERLAY_ERROR}:
-              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
-              id(image_icon)    = id(icon_error);
-              id(idle_message1) = id(error_code);
-              id(idle_message2) = id(error_message);
-              break;
-          
-            case ${OVERLAY_ALARM}:
-              id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];
-              id(image_icon)    = id(icon_alarm);
-              id(idle_message1) = "Timer beendet";
-              break;
-          }
           
           // 4. DISPLAY DIREKT AKTUALISIEREN
           id(display_id)->update();

@@ -20,8 +20,13 @@ substitutions:
 esphome:
   project:
     name: "hufi.smart_speaker"
-    version: "0.8.2"
+    version: "0.8.7"
   on_boot:
+    # - priority: 800.0  # einmalig, um NVS zu bereinigen
+    #   then:
+    #     - lambda: |-
+    #         ESP_LOGI("nvs", "Erzwinge NVS-Bereinigung...");
+    #         global_preferences->reset();  
     - priority: 250
       then:
         - lambda: |-
@@ -31,8 +36,10 @@ esphome:
       then:
         - lambda: |-
             id(play_ui_sound).execute(snd_boot);
-            
-    
+ 
+json:
+
+
 # Enable Home Assistant API
 api:
   on_client_connected:
@@ -192,10 +199,15 @@ binary_sensor:
           - lambda: |-
               ESP_LOGI(__FILE__, "on_btn_2_single_click");
               id(play_ui_sound).execute(snd_single_click);
-          - homeassistant.service:
-              service: media_player.media_play_pause
+          - homeassistant.action:
+              action: media_player.media_play_pause
               data:
                 entity_id: ${media_player_entity_id}_2
+              on_success:
+                - logger.log: "media_player.media_play_pause: OK"
+              on_error:
+                - logger.log: "media_player.media_play_pause: NOK!!!"
+
       # --- LANGER KLICK ---
       - timing:
           - ON for at least 1.0s
@@ -561,12 +573,12 @@ media_player:
 
     on_turn_on:
       - lambda: |-          
-          // ESP_LOGI(__FILE__, "on_va_player_turn_on");
-          // id(update_data).execute();
+          //ESP_LOGI(__FILE__, "on_media_player_turn_on");
+          id(update_data).execute();
     on_turn_off:
       - lambda: |-
-          // ESP_LOGI(__FILE__, "on_va_player_turn_off");
-          // id(update_data).execute();
+          //ESP_LOGI(__FILE__, "on_media_player_turn_off");
+          id(update_data).execute();
 
 
 
@@ -660,9 +672,6 @@ voice_assistant:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_finished");
 
-    - script.execute: 
-        id: set_content_mode
-        mode: ${CONTENT_IDLE}
     - if:
         condition:
           - micro_wake_word.is_running:                 
@@ -671,6 +680,10 @@ voice_assistant:
               ESP_LOGI(__FILE__, "MWW already running!");
         else:
           - micro_wake_word.start: 
+    - delay: 3s # damit man das auch lesen kann        
+    - script.execute: 
+        id: set_content_mode
+        mode: ${CONTENT_IDLE}
 
   on_error: 
     - lambda: |-

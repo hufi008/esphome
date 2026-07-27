@@ -44,7 +44,7 @@ substitutions:
   # VCC: 3V3
 
 logger:
-  level: DEBUG
+  level: INFO
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
@@ -55,3 +55,4 @@ packages:
   scripts: !include common/scripts.yaml
   # climate: !include common/bme280.yaml
   climate: !include common/htu21.yaml
+  weather: !include common/weather.yaml

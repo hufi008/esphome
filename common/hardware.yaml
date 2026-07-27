@@ -715,19 +715,20 @@ display:
 # interval für page messages
 interval:
   - id: update_timer
-    interval: 15s
+    interval: 5s
     then:
-      # Phase 1: Display-Texte aktualisieren
-      - script.execute: update_data
-
-      # Phase 2: Die permanent gesammelten Peaks der letzten 15s an HA senden
       - lambda: |-
+          if (millis() > id(page_info_start_time) + (id(page_info_duration).state * 1000)) {
+            id(page_info_start_time) = millis();
+            id(update_data).execute();
+          }
+
           id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
           id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
           
-          //ESP_LOGI("mic_test", "15s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
+          //ESP_LOGI("mic_test", "5s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
           
-          // Werte sofort nullen, um für die nächsten 15 Sekunden neu zu sammeln
+          // Werte sofort nullen, um neu zu sammeln
           id(mic_peak_left) = 0;
           id(mic_peak_right) = 0;
 
@@ -905,34 +906,34 @@ media_player:
 
     on_idle: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_idle");
+          ESP_LOGD(__FILE__, "on_media_player_idle");
     on_announcement: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_announcemant");
+          ESP_LOGD(__FILE__, "on_media_player_announcemant");
     on_pause: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_pause");
+          ESP_LOGD(__FILE__, "on_media_player_pause");
     on_play: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_play");
+          ESP_LOGD(__FILE__, "on_media_player_play");
     on_turn_on: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_turn_on");
+          ESP_LOGD(__FILE__, "on_media_player_turn_on");
     on_turn_off: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_turn_off");
+          ESP_LOGD(__FILE__, "on_media_player_turn_off");
     on_mute: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_mute");
+          ESP_LOGD(__FILE__, "on_media_player_mute");
     on_unmute: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_unmute");
+          ESP_LOGD(__FILE__, "on_media_player_unmute");
     on_volume: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_volume");
+          ESP_LOGD(__FILE__, "on_media_player_volume");
     on_state: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
+          ESP_LOGD(__FILE__, "on_media_player_state: %s", media_player::media_player_state_to_string(id(media_player_id).state));
                                                                         
 
   - platform: speaker
@@ -957,31 +958,31 @@ media_player:
           ESP_LOGI(__FILE__, "on_va_player_idle");
     on_announcement: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_announcemant");
+          ESP_LOGD(__FILE__, "on_va_player_announcemant");
     on_pause: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_pause");
+          ESP_LOGD(__FILE__, "on_va_player_pause");
     on_play: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_play");
+          ESP_LOGD(__FILE__, "on_va_player_play");
     on_turn_on: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_turn_on");
+          ESP_LOGD(__FILE__, "on_va_player_turn_on");
     on_turn_off: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_turn_off");
+          ESP_LOGD(__FILE__, "on_va_player_turn_off");
     on_mute: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_mute");
+          ESP_LOGD(__FILE__, "on_va_player_mute");
     on_unmute: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_unmute");
+          ESP_LOGD(__FILE__, "on_va_player_unmute");
     on_volume: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_volume");
+          ESP_LOGD(__FILE__, "on_va_player_volume");
     on_state: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_state: %s", media_player::media_player_state_to_string(id(va_player_id).state));
+          ESP_LOGD(__FILE__, "on_va_player_state: %s", media_player::media_player_state_to_string(id(va_player_id).state));
         
 
 voice_assistant:
@@ -1028,4 +1029,9 @@ number:
     step: 15
     initial_value: 60
     optimistic: true
-    restore_value: True
+    restore_value: True    
+    on_value: 
+      then:
+        - lambda: |-
+            ESP_LOGI(__FILE__, "on_page_info_duration_value: %f", x);
+            //id(update_data).execute(); führt zum Absturz

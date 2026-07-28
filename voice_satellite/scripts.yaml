@@ -1,4 +1,4 @@
-# common/scripts.yaml
+# voice-satellite/scripts.yaml
 
 script:
 ####################### functions
@@ -164,7 +164,7 @@ script:
               break;
             }
           }      
-          ESP_LOGI("UI-Sound", "play '%s'", file_name.c_str());
+          ESP_LOGD("UI-Sound", "play '%s'", file_name.c_str());
           id(va_player_id).play_file(sound_file, false, true);
 
   - id: set_content_mode

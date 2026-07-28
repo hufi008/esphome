@@ -90,7 +90,7 @@ interval:
               id(forcast_repository) = response["response"];
               
               // 2. Offizielle Längenabfrage des Arrays im globalen Dokument
-              ESP_LOGI("weather", "forcast_repository %zu items received.", id(forcast_repository).size());
+              ESP_LOGD("weather", "forcast_repository %zu items received.", id(forcast_repository).size());
               
               // 3. Schreibgeschützte Ansicht für die Schleife generieren
               JsonArrayConst forecast = id(forcast_repository).as<JsonArrayConst>();
@@ -105,12 +105,12 @@ interval:
                 float prec       = hour_data["prec"].is<float>() ? hour_data["prec"].as<float>() : 0.0;
                 
                 // Kompakte tabellarische Zeile im ESPHome-Log ausgeben
-                ESP_LOGI("weather", "[#%02zu] WDay: %d | Zeit: %s | Cond: %-15s | Temp: %5.1f°C | Regen: %3.0f%%", 
+                ESP_LOGD("weather", "[#%02zu] WDay: %d | Zeit: %s | Cond: %-15s | Temp: %5.1f°C | Regen: %3.0f%%", 
                           idx, wday, hour.c_str(), cond.c_str(), temp, prec);
                 idx++;
               }
 
-              ESP_LOGI("weather", "--- Ende Wetter-Forecast ---");
+              ESP_LOGD("weather", "--- Ende Wetter-Forecast ---");
 
   - interval: 30sec
     startup_delay: 10sec
@@ -144,8 +144,8 @@ interval:
           float temp = hour_data["temp"].as<float>();
           float prec = hour_data["prec"].as<float>();
           
-          ESP_LOGI(__FILE__, "%s %s", day_str.c_str(), hour_str.c_str());
-          ESP_LOGI(__FILE__, "%.1f°C | %.0f%%", temp, prec);
+          ESP_LOGD(__FILE__, "%s %s", day_str.c_str(), hour_str.c_str());
+          ESP_LOGD(__FILE__, "%.1f°C | %.0f%%", temp, prec);
 
           current_hourly_index++;
                       

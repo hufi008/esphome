@@ -431,7 +431,7 @@ interval:
           id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
           id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
           
-          ESP_LOGI("mic_test", "1s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
+          ESP_LOGD("mic_test", "1s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
           
           // Werte sofort nullen, um für die nächsten 15 Sekunden neu zu sammeln
           id(mic_peak_left) = 0;

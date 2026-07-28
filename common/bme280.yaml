@@ -31,7 +31,7 @@ esphome:
     - priority: 250
       then:
       - lambda: |-
-          ESP_LOGI(__FILE__, "Register Updater Scripts");
+          ESP_LOGD(__FILE__, "Register Updater Scripts");
           id(idle_updater_scripts).push_back([]() { id(update_temp).execute(); });
           id(idle_updater_scripts).push_back([]() { id(update_hum).execute(); });
           id(idle_updater_scripts).push_back([]() { id(update_press).execute(); });

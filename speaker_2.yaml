@@ -50,9 +50,9 @@ packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-esp32.yaml
   # Holt die Funktionalität
-  hardware: !include common/hardware.yaml
-  functions: !include common/voice-satellite.yaml
-  scripts: !include common/scripts.yaml
+  hardware: !include voice_satellite/hardware.yaml
+  functions: !include voice_satellite/main.yaml
+  scripts: !include voice_satellite/scripts.yaml
   # climate: !include common/bme280.yaml
   climate: !include common/htu21.yaml
   weather: !include common/weather.yaml

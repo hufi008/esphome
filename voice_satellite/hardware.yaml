@@ -726,7 +726,7 @@ interval:
           id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
           id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
           
-          //ESP_LOGI("mic_test", "5s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
+          //ESP_LOGD("mic_test", "5s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
           
           // Werte sofort nullen, um neu zu sammeln
           id(mic_peak_left) = 0;
@@ -955,7 +955,7 @@ media_player:
 
     on_idle: 
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_va_player_idle");
+          ESP_LOGD(__FILE__, "on_va_player_idle");
     on_announcement: 
       - lambda: |-
           ESP_LOGD(__FILE__, "on_va_player_announcemant");

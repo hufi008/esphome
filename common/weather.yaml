@@ -93,7 +93,7 @@ esphome:
     - priority: 250
       then:
       - lambda: |-
-          ESP_LOGI(__FILE__, "Register Updater Scripts");
+          ESP_LOGD(__FILE__, "Register Updater Scripts");
           id(idle_updater_scripts).push_back([]() { id(update_weather_hourly).execute(); });
 
 globals:
@@ -178,7 +178,7 @@ script:
           if (current_hourly_index >= forecast.size()) { current_hourly_index = 0; }
           JsonObjectConst hour_data = forecast[current_hourly_index].as<JsonObjectConst>();
 
-          ESP_LOGI(__FILE__, "update_weather_hourly %d", current_hourly_index);
+          ESP_LOGD(__FILE__, "update_weather_hourly %d", current_hourly_index);
 
           int wday = hour_data["wday"].as<int>();
           int today_wday = id(esptime).now().day_of_week - 1; 

@@ -41,15 +41,15 @@ script:
     then:
       - lambda: |-
           ESP_LOGD(__FILE__, "update_temp");
-          id(idle_message1) = str_snprintf("%.1f °C", 32, id(room_temp).state);
+          id(idle_message1) = str_sprintf("%.1f °C", id(room_temp).state);
   - id: update_hum
     then:
       - lambda: |-          
           ESP_LOGD(__FILE__, "update_hum");
-          id(idle_message1) = str_snprintf("%.0f%% rF", 32, id(room_hum).state);
+          id(idle_message1) = str_sprintf("%.0f%% rF", id(room_hum).state);
   - id: update_press
     then:
       - lambda: |-
           ESP_LOGD(__FILE__, "update_press");
-          id(idle_message1) = str_snprintf("%.0f hPa", 32, id(room_press).state);
+          id(idle_message1) = str_sprintf("%.0f hPa", id(room_press).state);
 

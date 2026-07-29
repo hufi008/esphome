@@ -101,6 +101,7 @@ script:
           
               case ${CONTENT_PLAY}:
               case ${CONTENT_PAUSE}: // Zusammengefasst, da textlich identisch
+                id(progress_value) = id(media_player_buffer_level).state;
                 //id(image_icon)    = (id(content_mode) == ${CONTENT_PLAY}) ? id(icon_play) : id(icon_pause);
                 id(idle_message1) = id(media_album_name).state;
                 id(idle_message2) = id(media_title).state;

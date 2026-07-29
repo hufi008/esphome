@@ -46,6 +46,11 @@ substitutions:
 logger:
   level: INFO
 
+external_components:
+  - source:
+      type: local
+      path: my_components
+
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-esp32.yaml
@@ -55,4 +60,5 @@ packages:
   scripts: !include voice_satellite/scripts.yaml
   # climate: !include common/bme280.yaml
   climate: !include common/htu21.yaml
+  sun: !include common/sunset_rise.yaml
   weather: !include common/weather.yaml

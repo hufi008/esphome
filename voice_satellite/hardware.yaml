@@ -78,6 +78,10 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: "0"
+  - id: progress_value
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
   - id: image_icon
     type: 'image::Image*'
     initial_value: '&id(icon_think)'
@@ -127,11 +131,6 @@ esphome:
 time:
   - platform: homeassistant
     id: esptime
-
-sun:
-  id: sun_id
-  latitude: !secret latitude
-  longitude: !secret longitude
 
 deep_sleep:
   id: deep_sleep_id
@@ -297,7 +296,23 @@ sensor:
     unit_of_measurement: "amp"
     accuracy_decimals: 0
     update_interval: never
-    
+
+  - platform: template
+    name: "Announcement-Puffer Füllstand"
+    state_class: measurement
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      return id(va_player_id).get_announcement_fill_level();
+  - platform: template
+    id: media_player_buffer_level
+    name: "Media-Puffer Füllstand"
+    state_class: measurement
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      return id(media_player_id).get_media_fill_level();
+
 text_sensor:
   # Wifi Informationen
   - platform: wifi_info
@@ -323,17 +338,6 @@ text_sensor:
     # scan_results:
     #   name: "Scan"
     #   icon: "mdi:wifi"
-  - platform: sun
-    id: sunrise_id
-    name: "Sonnenaufgang"
-    type: sunrise
-    format: "%H:%M"
-    
-  - platform: sun
-    id: sunset_id
-    name: "Sonnenuntergang"
-    type: sunset
-    format: "%H:%M"
 
   # Sender
   - platform: homeassistant

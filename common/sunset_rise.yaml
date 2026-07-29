@@ -1,0 +1,37 @@
+# common/sunset_rise.yaml
+substitutions:
+
+sun:
+  id: sun_id
+  latitude: !secret latitude
+  longitude: !secret longitude
+
+text_sensor:  
+  - platform: sun
+    id: sunrise_id
+    name: "Sonnenaufgang"
+    type: sunrise
+    format: "%H:%M"
+    
+  - platform: sun
+    id: sunset_id
+    name: "Sonnenuntergang"
+    type: sunset
+    format: "%H:%M"
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "Register Updater Scripts");
+          id(idle_updater_scripts).push_back([]() { id(update_sunset_rise).execute(); });
+
+script:
+  - id: update_sunset_rise
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "update_sunset_rise");
+          id(image_icon)    = id(icon_sun);
+          id(idle_message1) = str_sprintf("%s", id(sunrise_id).state);
+          id(idle_message2) = str_sprintf("%s", id(sunset_id).state);

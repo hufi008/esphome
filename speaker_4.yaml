@@ -15,4 +15,6 @@ packages:
   functions: !include voice_satellite/main.yaml
   scripts: !include voice_satellite/scripts.yaml
   climate: !include common/bme280.yaml
-
+  # climate: !include common/htu21.yaml
+  sun: !include common/sunset_rise.yaml
+  weather: !include common/weather.yaml

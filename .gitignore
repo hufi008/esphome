@@ -9,3 +9,4 @@ secrets.yaml
 # Byte-compiled / optimierte Dateien
 __pycache__/
 *.pyc
+.vscode/

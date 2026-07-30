@@ -76,6 +76,7 @@ script:
           
               case ${CONTENT_IDLE}: {
                 if (active_timer_count > 0) {
+                    id(page_info_start_time) = 0;
                     if (active_timer_count >= 1 && active_timers[0] != nullptr) {
                         std::string name1 = active_timers[0]->name.empty() ? "Timer" : active_timers[0]->name;
                         id(idle_message1) = str_sprintf("%s: %lu s", name1.c_str(), active_timers[0]->seconds_left);
@@ -127,6 +128,7 @@ script:
             }
           } else {
             // 3. OVERLAY MODES (Überschreiben ggf. Titel, Icon und Texte)
+            id(page_info_start_time) = 0;             
             switch (id(overlay_mode)) {
               case ${OVERLAY_VOLUME}:
                 id(title_text)    = id(overlay_mode_text)[id(overlay_mode)];

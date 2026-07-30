@@ -35,8 +35,8 @@ script:
           
           id(status_symbols)[1] =
             id(hw_microphone)->get_mute_state()    ? id(symbol_deaf) : 
-            id(api_id).is_connected()              ? id(symbol_api) :
             id(va).get_api_connection() != nullptr ? id(symbol_va) : 
+            id(api_id).is_connected()              ? id(symbol_api) :
                                                      nullptr;
           
           id(status_symbols)[2] = 

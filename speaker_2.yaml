@@ -44,12 +44,8 @@ substitutions:
   # VCC: 3V3
 
 logger:
-  level: INFO
-
-external_components:
-  - source:
-      type: local
-      path: my_components
+  level: DEBUG
+  initial_level: INFO
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)

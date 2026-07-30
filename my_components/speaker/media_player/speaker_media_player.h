@@ -53,7 +53,8 @@ class SpeakerMediaPlayer final : public Component,
   // Hufi
   float get_announcement_fill_level();
   float get_media_fill_level();
-  
+  // ifuH
+
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
   void setup() override;
   void loop() override;

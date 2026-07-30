@@ -20,7 +20,7 @@ substitutions:
 esphome:
   project:
     name: "hufi.smart_speaker"
-    version: "0.8.7"
+    version: "0.9.0"
   on_boot:
     # - priority: 800.0  # einmalig, um NVS zu bereinigen
     #   then:
@@ -81,7 +81,7 @@ globals:
     initial_value: '{"BOOT", "IDLE", "PLAY", "PAUSE", "LISTEN", "THINK", "ANNOUNCE", "SHUTDOWN"}'  
   - id: overlay_mode_text
     type: std::vector<std::string>
-    initial_value: '{"NONE", "VOLUME", "ERROR", "ALARM", "ANNOUNCE"}'  
+    initial_value: '{"NONE", "VOLUME", "ERROR", "ALARM"}'  
 
   - id: command_message
     type: std::string
@@ -124,7 +124,7 @@ number:
     name: "Content Mode"
     entity_category: diagnostic
     min_value: 0
-    max_value: 5
+    max_value: 7
     step: 1    
     initial_value: "${CONTENT_BOOT}"
     optimistic: True
@@ -136,7 +136,7 @@ number:
     name: "Overlay Mode"
     entity_category: diagnostic
     min_value: 0
-    max_value: 4
+    max_value: 3
     step: 1
     initial_value: "${OVERLAY_NONE}"
     set_action:
@@ -285,9 +285,11 @@ binary_sensor:
               if (id(hw_microphone)->get_mute_state()) {
                 ESP_LOGI(__FILE__, "microphone UNMUTE");
                 id(hw_microphone).set_mute_state(false);
+                id(mww).start();                 
               } else {
                 ESP_LOGI(__FILE__, "microphone MUTE");
                 id(hw_microphone).set_mute_state(true);
+                id(mww).stop();                 
               }
           - script.execute: update_data
 
@@ -470,14 +472,6 @@ light:
 ######################################################################################
 
 media_player:
-  - id: !extend va_player_id
-
-    on_announcement:
-      - lambda: |-
-          ESP_LOGD(__FILE__, "on_va_player_announcement");
-          id(set_content_mode).execute(${CONTENT_ANNOUNCE});
-
-
   - id: !extend media_player_id
     on_idle:
       - lambda: |-
@@ -499,7 +493,7 @@ media_player:
 
     on_mute:
       - lambda: |-
-          ESP_LOGD(__FILE__, "on_media_player_unmute");
+          ESP_LOGD(__FILE__, "on_media_player_mute");
           id(show_volume_overlay).execute();
     on_unmute:
       - lambda: |-
@@ -508,6 +502,11 @@ media_player:
 
     on_volume:
       - lambda: |-
+          // Volume syncronisieren
+          auto call = id(va_player_id).make_call();
+          call.set_volume(id(media_player_id).volume);
+          call.perform();
+
           ESP_LOGD(__FILE__, "on_media_player_volume");
           id(show_volume_overlay).execute();
 
@@ -519,6 +518,38 @@ media_player:
       - lambda: |-
           ESP_LOGD(__FILE__, "on_media_player_turn_off");
           id(update_data).execute();
+
+#################################
+  - id: !extend va_player_id
+
+    on_announcement:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "on_va_player_announcement");
+          id(set_content_mode).execute(${CONTENT_ANNOUNCE});
+
+    on_pause:
+      - lambda: |-
+          ESP_LOGE(__FILE__, "on_va_player_pause");
+
+    on_mute:
+      - lambda: |-
+          ESP_LOGE(__FILE__, "on_media_player_unmute");
+    on_unmute:
+      - lambda: |-
+          ESP_LOGE(__FILE__, "on_media_player_unmute");
+
+    on_volume:
+      - lambda: |-
+          // ESP_LOGE(__FILE__, "on_media_player_volume");
+
+    on_turn_on:
+      - lambda: |-          
+          ESP_LOGE(__FILE__, "on_media_player_turn_on");
+    on_turn_off:
+      - lambda: |-
+          ESP_LOGE(__FILE__, "on_media_player_turn_off");
+
+
 
 
 
@@ -549,10 +580,19 @@ voice_assistant:
         id(error_code) = "";
         id(error_message) = "";
         id(intent_message) = "";
+    - if:
+        condition:
+          - micro_wake_word.is_running:                 
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW running!!!!");
+
 
   on_listening: 
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_listening");
+        id(play_ui_sound).execute(snd_wake);
+        id(set_content_mode).execute(${CONTENT_LISTEN});
         if (!id(is_ducking)) {
           ESP_LOGI(__FILE__, "enable ducking!");
           id(mp_media_resampler).apply_ducking(30, 300);
@@ -560,11 +600,21 @@ voice_assistant:
         } else {
           ESP_LOGI(__FILE__, "ducking was enabled!!!!");
         }          
-        id(set_content_mode).execute(${CONTENT_LISTEN});
+    - if:
+        condition:
+          - micro_wake_word.is_running:                 
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW running!!!!");
 
   on_stt_vad_start:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_start");
+  on_stt_vad_end:
+    - lambda: |-
+        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_end");
+        id(play_ui_sound).execute(snd_thinking);
+        id(set_content_mode).execute(${CONTENT_THINK});
         if (id(is_ducking)) {
           ESP_LOGI(__FILE__, "disable ducking!");
           id(mp_media_resampler).apply_ducking(0, 300);
@@ -572,17 +622,11 @@ voice_assistant:
         } else {
           ESP_LOGI(__FILE__, "ducking was not enabled!!!!");
         }
-  on_stt_vad_end:
-    - lambda: |-
-        ESP_LOGI(__FILE__, "on_voice_assistant_stt_vad_end");
-        id(play_ui_sound).execute(snd_thinking);
-        id(set_content_mode).execute(${CONTENT_THINK});
   on_stt_end:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_stt_end \"%s\"", x.c_str() );
         id(command_message) = x;
         id(update_data).execute();
-
 
   on_tts_start:
     - lambda: |-
@@ -613,16 +657,19 @@ voice_assistant:
         ESP_LOGI(__FILE__, "on_voice_assistant_finished");
     - if:
         condition:
-          - micro_wake_word.is_running:                 
+          - micro_wake_word.is_running:
         then: 
           - lambda: |-
               ESP_LOGI(__FILE__, "MWW already running!");
         else:
           - micro_wake_word.start: 
+    - lambda: |-
     - delay: 3s # damit man das auch lesen kann        
+    - lambda: |-
     - script.execute: 
         id: set_content_mode
         mode: ${CONTENT_IDLE}
+    - lambda: |-
 
   on_error: 
     - lambda: |-
@@ -654,13 +701,34 @@ voice_assistant:
   on_intent_start:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_intent_start");
+    - if:
+        condition:
+          - micro_wake_word.is_running:                 
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW running!!!!");
+
   on_intent_progress:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_intent_progress \"%s\"", x.c_str() );
         id(intent_message) = x;
+    - if:
+        condition:
+          - micro_wake_word.is_running:                 
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW running!!!!");
+
   on_intent_end:
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_intent_end");
+    - if:
+        condition:
+          - micro_wake_word.is_running:                 
+        then: 
+          - lambda: |-
+              ESP_LOGI(__FILE__, "MWW running!!!!");
+
 
   on_timer_started:
     - lambda: |-
@@ -728,7 +796,6 @@ micro_wake_word:
     then:
       - lambda: |-
           ESP_LOGI(__FILE__, "micro_wake_word_on_wake_word_detected \"%s\"", wake_word.c_str() );
-          id(play_ui_sound).execute(snd_wake);
       - voice_assistant.start: 
           wake_word: !lambda return wake_word;
         

@@ -621,6 +621,7 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
+// Hufi
 float SpeakerMediaPlayer::get_announcement_fill_level() {
   if (this->announcement_pipeline_ != nullptr) {
     return this->announcement_pipeline_->get_buffer_fill_level();
@@ -634,6 +635,7 @@ float SpeakerMediaPlayer::get_media_fill_level() {
   }
   return 0.0f;
 }
+// ifuH
 
 }  // namespace esphome::speaker
 

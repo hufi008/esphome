@@ -91,9 +91,9 @@ class AudioPipeline final {
   void resume_tasks();
 
   uint32_t get_playback_ms() { return this->playback_ms_; }
-  // Hufi: Berechnet den Füllstand für den Mediaplayer-Sensor
+  // Hufi
   float get_buffer_fill_level();
-
+  // ifuH
   void set_pause_state(bool pause_state);
 
  protected:
@@ -109,7 +109,6 @@ class AudioPipeline final {
   UBaseType_t priority_;
 
   uint32_t playback_ms_{0};
-  float buffer_fill_level_{0.0f}; // HUFI: Spiegelt den echten Pufferstand für den Sensor
 
   bool hard_stop_{false};
   bool is_playing_{false};

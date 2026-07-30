@@ -33,5 +33,5 @@ script:
       - lambda: |-
           ESP_LOGD(__FILE__, "update_sunset_rise");
           id(image_icon)    = id(icon_sun);
-          id(idle_message1) = str_sprintf("%s", id(sunrise_id).state);
-          id(idle_message2) = str_sprintf("%s", id(sunset_id).state);
+          id(idle_message1) = str_sprintf("%s", id(sunrise_id).state.c_str());
+          id(idle_message2) = str_sprintf("%s", id(sunset_id).state.c_str());

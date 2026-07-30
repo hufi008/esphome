@@ -6,3 +6,6 @@
 .offloader_pairings.json
 .DS_Store
 secrets.yaml
+# Byte-compiled / optimierte Dateien
+__pycache__/
+*.pyc

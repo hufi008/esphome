@@ -412,7 +412,6 @@ void AudioPipeline::decode_task(void *params) {
       bool started_playback = false;
 
       size_t initial_bytes_to_buffer = 0;
-      this_pipeline->buffer_fill_level_ = 0.0f; // HUFI: Reset für den neuen Titel
 
       while (true) {
         event_bits = xEventGroupGetBits(this_pipeline->event_group_);
@@ -420,35 +419,6 @@ void AudioPipeline::decode_task(void *params) {
         if (event_bits & EventGroupBits::PIPELINE_COMMAND_STOP) {
           break;
         }
-
-        // --- HUFI: LIVE-PUFFERSTAND DIREKT BEIM SCHLEIFENSTART ERFASSEN ---
-        if (this_pipeline->buffer_size_ > 0) {
-          if (auto temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock()) {
-            // Unfehlbare Fließkomma-Division direkt aus dem RAM-Puffer
-            this_pipeline->buffer_fill_level_ = (float) temp_ring_buffer->available() / (float) this_pipeline->buffer_size_;
-          } else {
-            this_pipeline->buffer_fill_level_ = 0.0f; // Puffer noch nicht instanziiert
-          }
-        }
-
-        // // Trosselung auf maximal 1 Log-Eintrag pro Sekunde (1000ms)
-        // static uint32_t hufi_last_log = 0;
-        // uint32_t hufi_now = millis();
-        // if (hufi_now - hufi_last_log >= 1000) {
-        //   hufi_last_log = hufi_now;
-          
-        //   size_t debug_avail = 0;
-        //   if (auto temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock()) {
-        //     debug_avail = temp_ring_buffer->available();
-        //   }
-
-        //   ESP_LOGI("hufi_puffer", "Live-Messung vor Decoder: Level=%.2f | Bytes=%d / %d", 
-        //            this_pipeline->buffer_fill_level_, 
-        //            debug_avail, 
-        //            this_pipeline->buffer_size_);
-        // }
-        // // --- ENDE HUFI: LIVE-PUFFERSTAND ---        
-
 
         // Update pause state
         if (!started_playback) {
@@ -511,7 +481,7 @@ void AudioPipeline::decode_task(void *params) {
           switch (this_pipeline->current_audio_file_type_) {
 #ifdef USE_AUDIO_MP3_SUPPORT
             case audio::AudioFileType::MP3:
-              // initial_bytes_to_buffer /= 8;  // Estimate the MP3 compression factor is 8
+              initial_bytes_to_buffer /= 8;  // Estimate the MP3 compression factor is 8
               break;
 #endif
 #ifdef USE_AUDIO_FLAC_SUPPORT
@@ -530,6 +500,13 @@ void AudioPipeline::decode_task(void *params) {
           xQueueSend(this_pipeline->info_error_queue_, &event, portMAX_DELAY);
         }
 
+        // Hufi
+        if (started_playback) {
+          std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
+          ESP_LOGD(TAG, "ring_buffer->available %zu", temp_ring_buffer->available());
+        }
+        // ifuH
+
         if (!started_playback && has_stream_info) {
           // Verify enough data is available before starting playback
           std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
@@ -542,6 +519,7 @@ void AudioPipeline::decode_task(void *params) {
   }
 }
 
+// Hufi
 float AudioPipeline::get_buffer_fill_level() {
   if (this->buffer_size_ > 0) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->raw_file_ring_buffer_.lock();
@@ -551,7 +529,7 @@ float AudioPipeline::get_buffer_fill_level() {
   }
   return 0.0f;
 }
-
+// ifuH
 
 }  // namespace esphome::speaker
 

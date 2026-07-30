@@ -115,14 +115,15 @@ interval:
           [
             {% for h in response['weather.forecast_home']['forecast'] %}
               {
-                "wday": {{ as_datetime(h.datetime).strftime('%w') }},
-                "hour": "{{ as_datetime(h.datetime).strftime('%H:%M') }}",
+                "wday": {{ as_local(as_datetime(h.datetime)).strftime('%w') }},
+                "hour": "{{ as_local(as_datetime(h.datetime)).strftime('%H:%M') }}",
                 "cond": "{{ h.condition }}",
                 "temp": {{ h.temperature | default(0) }},
                 "prec": {{ h.precipitation_probability | default(0) }}
               }{% if not loop.last %},{% endif %}
             {% endfor %}
           ]
+
         on_success:
           - lambda: |-
               // 1. Tiefe Kopie in die globale Variable

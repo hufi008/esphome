@@ -42,7 +42,7 @@ substitutions:
 
 logger:
   level: DEBUG
-  initial_level: INFO
+  # initial_level: INFO
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)

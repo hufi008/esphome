@@ -549,19 +549,6 @@ image:
     resize: 32x32
 
 font:
-  - id: font_roboto_12
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 12
-  - id: font_roboto_16
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 16
-
   - id: font_medium
     file:
       type: gfonts
@@ -569,7 +556,7 @@ font:
       weight: 300
     size: 14
     glyphs:
-      - äöüÄÖÜß°
+      - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
   - id: font_large
@@ -579,7 +566,7 @@ font:
       weight: 300
     size: 21
     glyphs:
-      - äöüÄÖÜß°
+      - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
   - id: font_huge
@@ -589,7 +576,7 @@ font:
       weight: 300
     size: 28
     glyphs:
-      - äöüÄÖÜß°
+      - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
     
@@ -914,7 +901,7 @@ media_player:
     id: media_player_id
     name: "Audio Player"
     icon: "mdi:speaker-message"
-    buffer_size: 32768
+    buffer_size: 65536
     task_stack_in_psram: true
     volume_initial: 50%
     volume_increment: 5%

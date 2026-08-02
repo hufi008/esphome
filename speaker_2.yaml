@@ -57,4 +57,5 @@ packages:
   # climate: !include common/bme280.yaml
   climate: !include common/htu21.yaml
   sun: !include common/sunset_rise.yaml
+  moon: !include common/moonphase.yaml
   weather: !include common/weather.yaml

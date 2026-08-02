@@ -20,13 +20,8 @@ substitutions:
 esphome:
   project:
     name: "hufi.smart_speaker"
-    version: "0.9.0"
+    version: "0.9.1"
   on_boot:
-    # - priority: 800.0  # einmalig, um NVS zu bereinigen
-    #   then:
-    #     - lambda: |-
-    #         ESP_LOGI("nvs", "Erzwinge NVS-Bereinigung...");
-    #         global_preferences->reset();  
     - priority: 250
       then:
         - lambda: |-

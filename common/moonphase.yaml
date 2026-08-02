@@ -1,0 +1,103 @@
+# common/moonphase.yaml
+substitutions:
+
+text_sensor:  
+  - platform: homeassistant
+    id: moon_phase_id
+    entity_id: sensor.moon_phase
+    name: "Mondphase"
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "Register Updater Scripts");
+          id(idle_updater_scripts).push_back([]() { id(update_moon_phase).execute(); });
+
+image:
+  - platform: file
+    file: mdi:help-circle-outline
+    id: icon_moon_unknown
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-new
+    id: icon_moon_new_moon
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waxing-crescent
+    id: icon_moon_waxing_crescent
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-first-quarter
+    id: icon_moon_first_quarter
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waxing-gibbous
+    id: icon_moon_waxing_gibbous
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-full
+    id: icon_moon_full_moon
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waning-gibbous
+    id: icon_moon_waning_gibbous
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-last-quarter
+    id: icon_moon_last_quarter
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waning-crescent
+    id: icon_moon_waning_crescent
+    type: binary
+    resize: 32x32
+
+script:
+  - id: update_moon_phase
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "update_moon_phase");
+          
+          // 3 parallele Arrays: Index 0 ist der Fallback, 1..8 sind die legalen Phasen
+          static const std::string moon_keys[9] = {
+            "unknown",
+            "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+            "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
+          };
+
+          static const std::string moon_texts[9] = {
+            "Unbekannt",
+            "Neumond", "1/4 Mond »", "Halbmond »", "3/4 Mond »", "Vollmond", "3/4 Mond «", "Halbmond «", "1/4 Mond «"
+          };
+
+          static esphome::image::Image* moon_icons[9] = {
+            id(icon_moon_unknown),
+            id(icon_moon_new_moon), id(icon_moon_waxing_crescent), id(icon_moon_first_quarter), id(icon_moon_waxing_gibbous),
+            id(icon_moon_full_moon), id(icon_moon_waning_gibbous), id(icon_moon_last_quarter), id(icon_moon_waning_crescent)
+          };
+
+          std::string phase = id(moon_phase_id).state;
+          int index = 0; // Standardmäßig auf Index 0 (unknown) setzen
+
+          // Suche startet bei 1, da 0 der Standard-Fallback ist
+          for (int i = 1; i < 9; i++) {
+            if (moon_keys[i] == phase) {
+              index = i;
+              break;
+            }
+          }
+
+          id(image_icon) = moon_icons[index];
+          id(idle_message1) = str_sprintf("Mond (%d/8)", index);
+          id(idle_message2) = str_sprintf("%s", moon_texts[index].c_str());
+

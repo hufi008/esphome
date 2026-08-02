@@ -1,0 +1,51 @@
+# box_1.yaml
+substitutions:
+  device_name: "esphome-web-8b9f8c"
+  friendly_name: "MusicBox_1"
+  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
+
+# Pin-Belegung
+# --- LINKE SEITE (Kompakt nach oben geschoben - 4 Pins frei für I2C!) ---
+                                # Pin L1 : EN  : RST Pin (System-Reset, nicht im Code nutzbar)
+                                # Pin L2 : VP  : GPIO36 (Frei / Übersprungen)
+  rotary_a_pin: "GPIO39"        # Pin L3 : VN  : CLK am KY-040 Modul (Input Only)
+  rotary_b_pin: "GPIO34"        # Pin L4 : D34 : DT am KY-040 Modul (Input Only)
+  rotary_btn_pin: "GPIO35"      # Pin L5 : D35 : SW am KY-040 Modul (Button, Input Only)
+  audio_bclk_pin: "GPIO32"      # Pin L6 : D32 : Bit Clock für MAX98357A
+  audio_wsel_pin: "GPIO33"      # Pin L7 : D33 : Word Select (LRC) für MAX98357A
+  audio_din_pin: "GPIO25"       # Pin L8 : D25 : Data In für MAX98357A
+  led_data_pin: "GPIO26"        # Pin L9 : D26 : Data In für WS2812B LED-Ring
+                                # Pin L10: D27 : GPIO27 (⚠️ FREI / RESERVIERT FÜR I2C)
+                                # Pin L11: D14 : GPIO14 (⚠️ FREI / RESERVIERT FÜR I2C)
+                                # Pin L12: D12 : GPIO12 (⚠️ FREI / RESERVIERT FÜR I2C)
+                                # Pin L13: D13 : GPIO13 (⚠️ FREI / RESERVIERT FÜR I2C)
+                                # Pin L14: GND   (System-Masse)
+                                # Pin L15: VIN 5V (Hauptstromeingang)
+
+# --- RECHTE SEITE (100% Makerguides-Schema in echten Steckerblöcken) ---
+
+  display_mosi_pin: "GPIO23"    # Pin R1 : D23 : [NATIV] SDI(MOSI) + T_DIN am Touch
+  display_bl_pin: "GPIO22"      # Pin R2 : D22 : LED (Hintergrundbeleuchtung PWM)
+                                # Pin R3 : TX0 : (Im Stecker leer gelassen für USB)
+                                # Pin R4 : RX0 : (Im Stecker leer gelassen für USB)
+  display_dc_pin: "GPIO21"      # Pin R5 : D21 : Frei / Unbenutzt
+  display_miso_pin: "GPIO19"    # Pin R6 : D19 : [NATIV MISO] Exklusiv für T_DO!
+  display_sck_pin: "GPIO18"     # Pin R7 : D18 : [NATIV CLK] SCK + T_CLK am Touch
+                                # Pin R8 : D5  : CS am Display (TFT Select)
+  display_rst_pin: "GPIO17"     # Pin R9 : D17 : RESET am Display
+  display_cs_pin: "GPIO16"      # Pin R10: D16 : DC / AS am Display
+                                # Pin R11: D4  : T_CS (Touch Chip Select)
+                                # Pin R12: D2  : GPIO02 bleibt frei (Kritischer Boot-Pin!)
+                                # Pin R13: D15 : GPIO15 (Frei / Unbenutzt)
+                                # Pin R14: GND verbunden mit GND andere Seite
+                                # Pin R15: 3V3 
+
+logger:
+  level: DEBUG
+  initial_level: INFO
+
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include common/base-doit_devkit_v1.yaml
+  # Holt die Funktionalität
+  main: !include musicbox/main.yaml

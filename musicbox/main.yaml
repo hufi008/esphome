@@ -1,0 +1,415 @@
+# musicbox/main.yaml
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: page_index
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: ${rotary_btn_pin}
+      mode: INPUT
+      inverted: true
+    id: rotary_button
+    on_click:
+      then:
+        logger.log: "Button"
+
+sensor:
+  # Physischer Drehencoder für die Modus-Aktionen (Rechts- und Linksdrehen)
+  - platform: rotary_encoder
+    id: encoder_pulses
+    pin_a: ${rotary_a_pin}
+    pin_b: ${rotary_b_pin}
+    publish_initial_value: true
+    on_clockwise:
+      then:
+        - logger.log: "Clockwise"
+        - lvgl.page.next:
+    on_anticlockwise:
+      then: 
+        - logger.log: "Anticlockwise"
+        - lvgl.page.previous:
+
+  # Wifi Signalstärke
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "Signalstärke"
+    update_interval: 15s
+    on_value:
+      then:
+        # Ausgezeichnetes Signal
+        - if:
+            condition:
+              lambda: 'return x >= -50.0f;'
+            then:
+              - lvgl.image.update:
+                  id: widget_wifi_icon # <-- Hier angepasst
+                  src: img_wifi_4
+                  
+        # Gutes Signal
+        - if:
+            condition:
+              lambda: 'return x < -50.0f && x >= -65.0f;'
+            then:
+              - lvgl.image.update:
+                  id: widget_wifi_icon
+                  src: img_wifi_3
+
+        # Normales Signal
+        - if:
+            condition:
+              lambda: 'return x < -65.0f && x >= -75.0f;'
+            then:
+              - lvgl.image.update:
+                  id: widget_wifi_icon
+                  src: img_wifi_2
+
+        # Schlechtes Signal
+        - if:
+            condition:
+              lambda: 'return x < -75.0f && x >= -85.0f;'
+            then:
+              - lvgl.image.update:
+                  id: widget_wifi_icon
+                  src: img_wifi_1
+
+        # Kein/Sehr schlechtes Signal (oder Offline)
+        - if:
+            condition:
+              lambda: 'return x < -85.0f || isnan(x);'
+            then:
+              - lvgl.image.update:
+                  id: widget_wifi_icon
+                  src: img_wifi_0
+
+time:
+  - platform: homeassistant
+    id: esptime
+    # Aktualisiert die Anzeige jede Sekunde
+    on_time:
+      - seconds: /1
+        then:
+          - lvgl.label.update:
+              id: label_time
+              text: !lambda |-
+                return id(esptime).now().strftime("%H:%M:%S");
+          - lvgl.label.update:
+              id: label_date
+              text: !lambda |-
+                return id(esptime).now().strftime("%d.%m.%Y");
+          - lvgl.label.update:
+              id: label_weekday
+              text: !lambda |-
+                const char* days[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+                return days[id(esptime).now().day_of_week - 1];
+
+text_sensor:
+  - platform: homeassistant
+    id: player_title
+    entity_id: media_player.smart_speaker_2_audio_player_2
+    attribute: media_title
+    on_value:
+      then:
+        - logger.log:
+            format: "title %s"
+            args: 'x.c_str()'
+        - lvgl.label.update:
+            id: label_title
+            text: !lambda |-
+              return x.c_str();
+
+  - platform: homeassistant
+    id: player_artist
+    entity_id: media_player.smart_speaker_2_audio_player_2
+    attribute: media_artist
+    on_value:
+      then:
+        - logger.log:
+            format: "artist %s"
+            args: 'x.c_str()'
+        - lvgl.label.update:
+            id: label_artist
+            text: !lambda |-
+              return x.c_str();
+
+  - platform: homeassistant
+    id: player_album_name
+    entity_id: media_player.smart_speaker_2_audio_player_2
+    attribute: media_album_name
+    on_value:
+      then:
+        - logger.log:
+            format: "album_name %s"
+            args: 'x.c_str()'
+        - lvgl.label.update:
+            id: label_album
+            text: !lambda |-
+              return x.c_str();
+
+  - platform: homeassistant
+    id: player_album_art
+    entity_id: media_player.smart_speaker_2_audio_player_2
+    attribute: entity_picture
+    on_value:
+      then:
+        - logger.log:
+            format: "album_art %s"
+            args: 'x.c_str()'
+        - online_image.set_url:
+            id: cover_image
+            url: !lambda |-
+              return "https://wsrv.nl?url=" + x + "&w=120&h=120&fit=cover&output=jpg";
+        # - lvgl.image.update:
+        #     id: image_cover
+        #     src: cover_image
+            
+
+http_request:
+  timeout: 10s
+
+image:
+  - platform: online_image
+    url: "https://wsrv.nl"
+    id: cover_image
+    format: JPG
+    type: RGB565
+    on_download_finished:
+        - lvgl.image.update:
+            id: widget_cover_image
+            src: cover_image
+        - lambda: |-
+            if (cached) {
+              ESP_LOGD("online_image", "Cache hit: using cached image");
+            } else {
+              ESP_LOGD("online_image", "Cache miss: fresh download");
+            }
+    resize: 120x120            
+  - platform: file
+    file: "mdi:wifi-strength-outline"
+    id: img_wifi_0
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-1"
+    id: img_wifi_1
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-2"
+    id: img_wifi_2
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-3"
+    id: img_wifi_3
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-4"
+    id: img_wifi_4
+    type: BINARY
+    resize: 32x32
+
+
+# Backlight (PWM)
+output:
+  - platform: ledc
+    pin: GPIO22
+    id: backlight_pwm
+    frequency: 1000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Hintergrundbeleuchtung"
+    id: display_backlight
+    restore_mode: RESTORE_DEFAULT_ON
+
+# Gemeinsamer SPI-Bus für Display & Touch
+spi:
+  id: bus_spi
+  clk_pin: ${display_sck_pin}
+  mosi_pin: ${display_mosi_pin}
+  miso_pin: ${display_miso_pin}
+
+# TFT Display
+font:
+  - file: "gfonts://Roboto"
+    id: roboto_font_small
+    size: 20
+  - file: "gfonts://Roboto"
+    id: roboto_font
+    size: 30
+  - file: "gfonts://Roboto"
+    id: roboto_font_large
+    size: 40
+  - file: "gfonts://Roboto"
+    id: roboto_font_huge
+    size: 50
+
+display:
+  - platform: ili9xxx
+    model: ILI9341
+    id: tft_display
+    cs_pin: ${display_cs_pin}
+    dc_pin: ${display_dc_pin}
+    reset_pin: ${display_rst_pin}
+    invert_colors: false
+    auto_clear_enabled: false
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    dimensions:
+      height: 240
+      width: 320
+
+lvgl:
+  displays:
+    - tft_display
+  buffer_size: 10% 
+
+  theme:
+    dark_mode: true
+
+  # Der Top Layer ist auf allen Pages sichtbar
+  top_layer:
+    widgets:
+      - obj:
+          x: 0
+          y: 0
+          width: 100%
+          height: 40
+          bg_color: 0x222222
+          text_color: "0xFFFF00"
+          text_font: roboto_font_small
+          widgets:
+            - label:
+                id: widget_title_label
+                text: "Mein Smart Home"
+                align: LEFT_MID
+                x: 10
+            - image:
+                id: widget_wifi_icon
+                src: img_wifi_0
+                align: RIGHT_MID
+                x: -10
+                width: SIZE_CONTENT
+                height: SIZE_CONTENT
+  pages:
+    - id: page_idle
+      widgets:
+        # Große Uhrzeit in der Mitte
+        - label:
+            id: label_time
+            text: "--:--:--"
+            x: 10
+            y: 60
+            width: 300
+            text_color: "0xFFFFFF"
+            text_font: montserrat_48
+            text_align: CENTER
+
+        # Datum unter der Uhrzeit
+        - label:
+            id: label_date
+            text: "--.--.----"
+            x: 10
+            y: 150
+            width: 300
+            text_color: "0xAAAAAA" # Graue Schrift
+            text_font: montserrat_30
+            text_align: CENTER  
+
+        # Wochentag unter dem Datum
+        - label:
+            id: label_weekday
+            text: "Wochentag"
+            x: 10
+            y: 180          # Platziert unter dem Datum
+            width: 300
+            text_color: "0xAAAAAA" # Graue Schrift
+            text_font: montserrat_30
+            text_align: CENTER            
+    - id: page_play_media
+      widgets:
+        # Text-Label für den Album/Station (Über dem Songtitel)
+        - label:
+            id: label_album
+            text: "-"
+            x: 10
+            y: 40
+            width: 300
+            long_mode: SCROLL
+            text_color: "0xFFFF00" # Gelbe Schrift
+            text_font: montserrat_18
+            text_align: CENTER
+
+        # Text-Label für den Songtitel (Rechts neben dem Bild)
+        - label:
+            id: label_title
+            text: "Keine Wiedergabe"
+            x: 10
+            y: 65
+            width: 300
+            long_mode: SCROLL
+            text_color: "0xFFFFFF" # Weiße Schrift
+            text_font: montserrat_36
+            text_align: CENTER
+
+        # Text-Label für den Interpreten (Unter dem Songtitel)
+        - label:
+            id: label_artist
+            text: "-"
+            x: 10
+            y: 90
+            width: 300
+            long_mode: SCROLL
+            text_color: "0xAAAAAA" # Graue Schrift für besseren Kontrast
+            text_font: montserrat_28
+            text_align: CENTER
+        - image:
+            id: widget_cover_image
+            src: cover_image
+            x: 100
+            y: 120
+            width: 120
+            height: 120
+    - id: page_set_volume
+      widgets:
+        # Titel oben
+        - label:
+            text: "Volume"
+            x: 10
+            y: 50
+            width: 300
+            text_color: "0xFFFFFF"
+            text_font: montserrat_30
+            text_align: CENTER
+
+        # Große Prozentanzeige in der Mitte
+        - label:
+            id: label_volume_pct
+            text: "0 %"
+            x: 10
+            y: 120
+            width: 300
+            text_color: "0x0000FF" # Gelb
+            text_font: montserrat_30
+            text_align: CENTER
+
+        # Visueller Slider / Fortschrittsbalken
+        - slider:
+            id: volume_slider
+            x: 35
+            y: 180
+            width: 250
+            height: 20
+            min_value: 0
+            max_value: 100
+            value: 42

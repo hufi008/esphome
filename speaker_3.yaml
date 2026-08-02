@@ -9,7 +9,7 @@ logger:
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-esp32.yaml
+  base: !include common/base-s3_devkitc_1.yaml
   # Holt die Funktionalität
   hardware: !include voice_satellite/hardware.yaml
   functions: !include voice_satellite/main.yaml
@@ -17,4 +17,5 @@ packages:
   climate: !include common/bme280.yaml
   # climate: !include common/htu21.yaml
   sun: !include common/sunset_rise.yaml
+  moon: !include common/moonphase.yaml
   weather: !include common/weather.yaml

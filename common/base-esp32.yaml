@@ -4,20 +4,6 @@ esphome:
   friendly_name: ${friendly_name}
   name_add_mac_suffix: false
 
-esp32:
-  board: esp32-s3-devkitc-1
-  variant: esp32s3
-  flash_size: 16MB
-  cpu_frequency: 240mhz
-  flash_mode: dio
-  partitions: partitions_16MB.csv
-  framework:
-    type: esp-idf
-      # HUFI-FIX: Schiebt WLAN und Netzwerk-Puffer ins PSRAM, um SRAM freizumachen
-    sdkconfig_options:
-      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_AND_LWIP_STACKS_IN_EXTERNAL_RAM: "y"
-
-      
 api:
   id: api_id
   encryption:
@@ -32,16 +18,5 @@ wifi:
   id: wifi_id
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  power_save_mode: NONE
-  fast_connect: true
-  reboot_timeout: 15min
-  
-
-logger:
-  level: DEBUG
-
-psram:
-  mode: octal
-  speed: 80MHz
 
 

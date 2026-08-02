@@ -1,0 +1,17 @@
+# common/base-s3_devkitc_1.yaml
+
+packages:
+- !include base-esp32.yaml
+
+esp32:
+  board: esp32doit-devkit-v1
+  framework:
+    type: esp-idf
+    advanced:
+      minimum_chip_revision: "3.1"
+      sram1_as_iram: true
+      
+wifi:
+  power_save_mode: NONE
+  fast_connect: true
+  reboot_timeout: 15min

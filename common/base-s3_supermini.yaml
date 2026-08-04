@@ -1,0 +1,29 @@
+# common/base-s3_devkitc_1.yaml
+
+packages:
+- !include base-esp32.yaml
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 4MB
+  cpu_frequency: 240mhz
+  flash_mode: dio
+  # partitions: partitions_4MB.csv
+  framework:
+    type: esp-idf
+
+      
+wifi:
+  power_save_mode: NONE
+  fast_connect: true
+  
+
+logger:
+  level: DEBUG
+
+psram:
+  mode: quad
+  speed: 80MHz
+
+

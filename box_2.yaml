@@ -1,0 +1,65 @@
+# box_1.yaml
+substitutions:
+  device_name: "esphome-web-675044"
+  friendly_name: "MusicBox_2"
+  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
+
+# Pin-Belegung
+
+
+logger:
+  level: DEBUG
+
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include common/base-s3_supermini.yaml
+  # Holt die Funktionalität
+  # main: !include musicbox/main.yaml
+
+esphome:
+  project:
+    name: "hufi.musicbox"
+    version: "0.1.3"
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI(__FILE__, "Starting up...");
+
+light:
+  - platform: status_led
+    name: "Switch state"
+    pin: GPIO48
+
+button:
+  - platform: restart
+    name: "Restart"
+
+text_sensor:
+  # Wifi Informationen
+  - platform: wifi_info
+    id: wifi_info
+    ip_address:
+      name: "IP"
+      icon: "mdi:wifi"
+    ssid:
+      name: "SSID"
+      icon: "mdi:wifi"
+    bssid:
+      name: "BSSID"
+      icon: "mdi:wifi"
+    mac_address:
+      name: "Mac"
+      icon: "mdi:wifi"
+    dns_address:
+      name: "DNS"
+      icon: "mdi:wifi"
+    power_save_mode:
+      name: "Power Save"
+      icon: "mdi:wifi"
+    # scan_results:
+    #   name: "Scan"
+    #   icon: "mdi:wifi"
+
+
+            

@@ -8,8 +8,11 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
-            //id(set_page_index).execute(${PAGE_BOOT});
             id(is_blocked) = true;
+        - lvgl.page.show:
+            id: lvgl_page_idle
+            animation: FADE_IN
+            time: 500ms
 
 esp32:
   framework:
@@ -57,32 +60,30 @@ binary_sensor:
       mode: INPUT
       inverted: true
     id: rotary_button
-    on_click:
+    on_press:
       then:
-        - logger.log: "Button Clicked"
-        - script.execute:
-            id: on_page_activate
-            index: !lambda "return id(current_page_index);"
-            
+        - logger.log: "Rotary Press"
+    on_click:
+      min_length: 2s
+      max_length: 5s
+      then:
+        - logger.log: "Rotary long Click"
+
 sensor:
-  # Physischer Drehencoder für die Modus-Aktionen (Rechts- und Linksdrehen)
   - platform: rotary_encoder
-    id: encoder_pulses
+    id: rotary_pulses
     pin_a: ${rotary_a_pin}
     pin_b: ${rotary_b_pin}
     publish_initial_value: true
     on_clockwise:
       then:
-        - logger.log: "Clockwise -> Next"
-        - script.execute:
-            id: set_page_index
-            index: !lambda "return id(current_page_index) + 1;"
+        - logger.log: "Rotary Clockwise"
     on_anticlockwise:
       then: 
-        - logger.log: "Anticlockwise _> Prev"
-        - script.execute:
-            id: set_page_index
-            index: !lambda "return id(current_page_index) - 1;"
+        - logger.log: "Rotary Anticlockwise"
+
+
+
 
   # Wifi Signalstärke
   - platform: wifi_signal
@@ -97,7 +98,7 @@ sensor:
               lambda: 'return x >= -50.0f;'
             then:
               - lvgl.image.update:
-                  id: widget_wifi_icon # <-- Hier angepasst
+                  id: lvgl_icon_wifi # <-- Hier angepasst
                   src: img_wifi_4
                   
         # Gutes Signal
@@ -106,7 +107,7 @@ sensor:
               lambda: 'return x < -50.0f && x >= -65.0f;'
             then:
               - lvgl.image.update:
-                  id: widget_wifi_icon
+                  id: lvgl_icon_wifi
                   src: img_wifi_3
 
         # Normales Signal
@@ -115,7 +116,7 @@ sensor:
               lambda: 'return x < -65.0f && x >= -75.0f;'
             then:
               - lvgl.image.update:
-                  id: widget_wifi_icon
+                  id: lvgl_icon_wifi
                   src: img_wifi_2
 
         # Schlechtes Signal
@@ -124,7 +125,7 @@ sensor:
               lambda: 'return x < -75.0f && x >= -85.0f;'
             then:
               - lvgl.image.update:
-                  id: widget_wifi_icon
+                  id: lvgl_icon_wifi
                   src: img_wifi_1
 
         # Kein/Sehr schlechtes Signal (oder Offline)
@@ -133,8 +134,22 @@ sensor:
               lambda: 'return x < -85.0f || isnan(x);'
             then:
               - lvgl.image.update:
-                  id: widget_wifi_icon
+                  id: lvgl_icon_wifi
                   src: img_wifi_0
+
+  - platform: homeassistant
+    id: media_player_volume
+    entity_id: media_player.smart_speaker_2_audio_player_2
+    attribute: volume_level
+    on_value:
+      - lvgl.slider.update:
+          id: lvgl_slider_volume
+          value: !lambda return (x * 20);
+      - lvgl.label.update:
+          id: lvgl_label_volume_pct
+          text: !lambda |-
+            // {:.0f} formatiert den float-Wert x als Ganzzahl ohne Nachkommastellen
+            return esphome::str_sprintf("%.0f %%", x * 100.0f);
 
 time:
   - platform: homeassistant
@@ -146,23 +161,28 @@ time:
           if (id(is_blocked)) {
             ESP_LOGI("time", "Systemstart abgeschlossen");
             id(is_blocked) = false;
-            id(set_page_index).execute(${PAGE_IDLE}); 
           }
+      - lvgl.page.show:
+          id: lvgl_page_volume # <-- Hier ebenfalls korrigiert
+          animation: FADE_OUT
+          time: 500ms
 
     # Aktualisiert die Anzeige jede Sekunde
     on_time:
       - seconds: /1
         then:
+          - lambda: |-
+              // ESP_LOGI("time", "on_time_time");
           - lvgl.label.update:
-              id: label_time
+              id: lvgl_label_time
               text: !lambda |-
                 return id(esptime).now().strftime("%H:%M:%S");
           - lvgl.label.update:
-              id: label_date
+              id: lvgl_label_date
               text: !lambda |-
                 return id(esptime).now().strftime("%d.%m.%Y");
           - lvgl.label.update:
-              id: label_weekday
+              id: lvgl_label_weekday
               text: !lambda |-
                 const char* days[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
                 return days[id(esptime).now().day_of_week - 1];
@@ -178,7 +198,7 @@ text_sensor:
             format: "title %s"
             args: 'x.c_str()'
         - lvgl.label.update:
-            id: label_title
+            id: lvgl_label_title
             text: !lambda |-
               return x.c_str();
 
@@ -192,7 +212,7 @@ text_sensor:
             format: "artist %s"
             args: 'x.c_str()'
         - lvgl.label.update:
-            id: label_artist
+            id: lvgl_label_artist
             text: !lambda |-
               return x.c_str();
 
@@ -206,7 +226,7 @@ text_sensor:
             format: "album_name %s"
             args: 'x.c_str()'
         - lvgl.label.update:
-            id: label_album
+            id: lvgl_label_album
             text: !lambda |-
               return x.c_str();
 
@@ -318,6 +338,17 @@ light:
     name: "Display Hintergrundbeleuchtung"
     id: display_backlight
     restore_mode: RESTORE_DEFAULT_ON
+    on_state:
+      - lvgl.slider.update:
+          id: lvgl_slider_backlight
+          value: !lambda 'return (id(display_backlight).remote_values.get_brightness() * 20);'
+      - lvgl.label.update:
+          id: lvgl_label_backlight_pct
+          text: !lambda |-
+            // {:.0f} formatiert den float-Wert x als Ganzzahl ohne Nachkommastellen
+            return esphome::str_sprintf("%.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
+
+
 
 # Gemeinsamer SPI-Bus für Display & Touch
 spi:
@@ -367,6 +398,24 @@ lvgl:
   theme:
     dark_mode: true
 
+  style_definitions:
+    # Sil für normalen Modus
+    - id: lvgl_styledef_normal
+      bg_color: 0x000000
+      bg_opa: COVER
+    
+    # Stil für aktiven Modus
+    - id: lvgl_styledef_active
+      bg_color: 0x001f3f
+      bg_opa: COVER
+
+  encoders:
+    - id: lvgl_encoder_device
+      sensor: rotary_pulses
+      enter_button: rotary_button
+      group: main_group
+      
+
   # Der Top Layer ist auf allen Pages sichtbar
   top_layer:
     widgets:
@@ -380,13 +429,13 @@ lvgl:
           text_font: roboto_font_small
           widgets:
             - label:
-                id: widget_title_label
+                id: lvgl_lvgl_label_title
                 align: LEFT_MID
-                x: 10
+                x: 0
                 width: 200
-                text: "Title"
+                text: "TIILE"
             - image:
-                id: widget_wifi_icon
+                id: lvgl_icon_wifi
                 src: img_wifi_0
                 align: RIGHT_MID
                 x: -10
@@ -395,7 +444,11 @@ lvgl:
                 recolor: 0xFFFFFF
                 recolor_opa: 100%
   pages:
-    - id: page_boot
+    - id: lvgl_page_boot
+      on_load:
+        - lvgl.label.update:
+            id: lvgl_lvgl_label_title
+            text: "BOOT"
       widgets:
         # 1. Das zentrale Musik-Logo
         - image:
@@ -408,7 +461,7 @@ lvgl:
 
         # 2. Ein animierter Ladekreis (Spinner) um das Logo herum
         - spinner:
-            id: boot_spinner
+            id: lvgl_spinner_boot
             align: CENTER
             y: -20
             width: 110
@@ -418,39 +471,45 @@ lvgl:
             
         # 3. Der Statustext darunter
         - label:
-            id: label_boot_status
-            text: "System startet..."
+            id: lvgl_label_boot_status
             align: CENTER
-            text_color: "0xFFFFFF" # Weiße Schrift
             y: 70
+            text_color: "0xFFFFFF"
+            text_font: montserrat_12
+            text_align: CENTER
+            text: "System startet..."
 
         # 4. Systeminfos ganz unten (nebeneinander oder untereinander)
         - label:
-            id: label_version_proj
+            id: lvgl_label_version_proj
             align: CENTER
-            y: 260
-            width: 300
-            text_color: "0xFFFFFF" # Weiße Schrift
-            text_font: montserrat_14
-            # Das Widget holt sich seine Informationen vollautomatisch selbst!
+            y: 90
+            text_color: "0x7f7fFF"
+            text_font: montserrat_12
+            text_align: CENTER
             text: !lambda |-
               return "App: " + std::string(ESPHOME_PROJECT_NAME) + " v" + std::string(ESPHOME_PROJECT_VERSION);
 
         - label:
-            id: label_version_sys
+            id: lvgl_label_version_sys
             align: CENTER
-            y: 280
-            width: 300
-            text_color: "0xFFFFFF" # Weiße Schrift
-            text_font: montserrat_14
+            y: 110
+            text_color: "0x7f7fFF"
+            text_font: montserrat_12
+            text_align: CENTER
             text: !lambda |-
               return "ESPHome: " + std::string(ESPHOME_VERSION);
 
-    - id: page_idle
+
+    - id: lvgl_page_idle
+      on_load:
+        - lvgl.label.update:
+            id: lvgl_lvgl_label_title
+            text: "IDLE"
       widgets:
         # Große Uhrzeit in der Mitte
         - label:
-            id: label_time
+            id: lvgl_label_time
             text: "--:--:--"
             x: 10
             y: 60
@@ -458,10 +517,15 @@ lvgl:
             text_color: "0xFFFFFF"
             text_font: montserrat_48
             text_align: CENTER
-
+            group: main_group
+            on_focus:
+              - lvgl.page.show:
+                  id: lvgl_page_idle
+                  animation: FADE_IN
+                  time: 300ms
         # Datum unter der Uhrzeit
         - label:
-            id: label_date
+            id: lvgl_label_date
             text: "--.--.----"
             x: 10
             y: 150
@@ -472,7 +536,7 @@ lvgl:
 
         # Wochentag unter dem Datum
         - label:
-            id: label_weekday
+            id: lvgl_label_weekday
             text: "Wochentag"
             x: 10
             y: 180          # Platziert unter dem Datum
@@ -480,11 +544,17 @@ lvgl:
             text_color: "0xAAAAAA" # Graue Schrift
             text_font: montserrat_30
             text_align: CENTER            
-    - id: page_media
+
+
+    - id: lvgl_page_media
+      on_load:
+        - lvgl.label.update:
+            id: lvgl_lvgl_label_title
+            text: "MEDIA"
       widgets:
         # Text-Label für den Album/Station (Über dem Songtitel)
         - label:
-            id: label_album
+            id: lvgl_label_album
             text: "-"
             x: 10
             y: 40
@@ -496,7 +566,7 @@ lvgl:
 
         # Text-Label für den Songtitel (Rechts neben dem Bild)
         - label:
-            id: label_title
+            id: lvgl_label_title
             text: "Keine Wiedergabe"
             x: 10
             y: 60
@@ -505,10 +575,15 @@ lvgl:
             text_color: "0xFFFFFF" # Weiße Schrift
             text_font: montserrat_32
             text_align: CENTER
-
+            group: main_group
+            on_focus:
+              - lvgl.page.show:
+                  id: lvgl_page_media
+                  animation: FADE_IN
+                  time: 300ms                  
         # Text-Label für den Interpreten (Unter dem Songtitel)
         - label:
-            id: label_artist
+            id: lvgl_label_artist
             text: "-"
             x: 10
             y: 90
@@ -524,21 +599,17 @@ lvgl:
             y: 140
             width: 100
             height: 100
-    - id: page_volume
+
+    - id: lvgl_page_volume
+      on_load:
+        - lvgl.label.update:
+            id: lvgl_lvgl_label_title
+            text: "VOLUME"
       widgets:
-        # Titel oben
-        - label:
-            text: "Volume"
-            x: 10
-            y: 50
-            width: 300
-            text_color: "0xFFFFFF"
-            text_font: montserrat_30
-            text_align: CENTER
 
         # Große Prozentanzeige in der Mitte
         - label:
-            id: label_volume_pct
+            id: lvgl_label_volume_pct
             text: "0 %"
             x: 10
             y: 120
@@ -549,17 +620,146 @@ lvgl:
 
         # Visueller Slider / Fortschrittsbalken
         - slider:
-            id: volume_slider
+            id: lvgl_slider_volume
             x: 35
             y: 180
             width: 250
             height: 20
             min_value: 0
-            max_value: 100
+            max_value: 20
             value: 42
-    - id: page_light
-    - id: page_settings
-    - id: page_shutdown
+            group: main_group
+            on_focus:
+              - lvgl.page.show:
+                  id: lvgl_page_volume
+                  animation: FADE_IN
+                  time: 300ms
+            on_value:
+              then:
+                - logger.log:
+                    format: "set Volume %.0f %%"
+                    args: [ 'x * 5.0f' ]
+                - homeassistant.service:
+                    action: media_player.volume_set
+                    data:
+                      entity_id: media_player.smart_speaker_2_audio_player_2
+                      volume_level: !lambda 'return (x / 20.0f);'
+                    on_success:
+                      - logger.log: "OK"
+                    on_error:
+                      - logger.log: "Error"
+
+
+    - id: lvgl_page_backlight
+      on_load:
+        - lvgl.label.update:
+            id: lvgl_lvgl_label_title
+            text: "BACKLIGHT"
+      widgets:
+
+        # Große Prozentanzeige in der Mitte
+        - label:
+            id: lvgl_label_backlight_pct
+            text: "0 %"
+            x: 10
+            y: 120
+            width: 300
+            text_color: "0xFF0000"
+            text_font: montserrat_30
+            text_align: CENTER
+
+        # Visueller Slider / Fortschrittsbalken
+        - slider:
+            id: lvgl_slider_backlight
+            x: 35
+            y: 180
+            width: 250
+            height: 20
+            min_value: 5
+            max_value: 20
+            value: 42
+            group: main_group
+            on_focus:
+              - lvgl.page.show:
+                  id: lvgl_page_backlight
+                  animation: FADE_IN
+                  time: 300ms
+            on_value:
+              then:
+                - logger.log:
+                    format: "set Backlight %.0f %%"
+                    args: [ 'x * 5.0f' ]
+                - lambda: |-
+                    // 1. Berechne den Ziel-Helligkeitswert (0.0 bis 1.0) aus dem Slider (0 bis 20)
+                    float target_brightness = x / 20.0f;
+                    
+                    // 2. Hole den aktuellen Ist-Wert des Lichts ab
+                    float current_brightness = id(display_backlight).remote_values.get_brightness();
+                    
+                    // 3. Prüfe mathematisch (mit minimaler Toleranz für Rundungsfehler), ob sich der Wert REAL geändert hat
+                    if (std::abs(target_brightness - current_brightness) > 0.02f) {
+                      
+                      // Nur wenn sich der Wert geändert hat, loggen wir und aktualisieren das Licht
+                      ESP_LOGD("main", "set Backlight %.0f %%", x * 5.0f);
+                      
+                      auto call = id(display_backlight).make_call();
+                      call.set_brightness(target_brightness);
+                      call.perform();
+                    }
+
+    - id: lvgl_page_settings
+      on_load:
+        - lvgl.label.update:
+            id: lvgl_lvgl_label_title
+            text: "SETTINGS"
+      widgets:
+        - obj:
+            id: lvgl_list_settings
+            x: 5
+            y: 45
+            width: 310
+            height: 190
+            layout: VERTICAL
+            scrollbar_mode: AUTO
+            widgets:
+              - button:
+                  id: lvgl_button_settings_backlight
+                  text: "Helligkeit Display"
+                  group: main_group
+                  on_focus:
+                    - lvgl.page.show:
+                        id: lvgl_page_settings
+                        animation: FADE_IN
+                        time: 300ms
+              - button:
+                  id: lvgl_button_settings_ledstrip
+                  text: "Helligkeit LED"
+                  group: main_group
+                  on_focus:
+                    - lvgl.page.show:
+                        id: lvgl_page_settings
+                        animation: FADE_IN
+                        time: 300ms
+              - button:
+                  id: lvgl_button_settings_restart
+                  text: "Neustart"
+                  group: main_group
+                  on_focus:
+                    - lvgl.page.show:
+                        id: lvgl_page_settings
+                        animation: FADE_IN
+                        time: 300ms
+              - button:
+                  id: lvgl_button_settings_power
+                  text: "Zurück"
+                  group: main_group
+                  on_focus:
+                    - lvgl.page.show:
+                        id: lvgl_page_settings
+                        animation: FADE_IN
+                        time: 300ms
+
+    - id: lvgl_page_shutdown
 
 
 
@@ -578,119 +778,8 @@ substitutions:
 
 
 globals:
-  - id: page_text
-    type: std::vector<std::string>
-    initial_value: '{"BOOT", "IDLE", "MEDIA", "VOLUME", "LIGHT", "SETTINGS", "SHUTDOWN"}'  
-
   # im Boot/Shutdownvorgang true
   - id: is_blocked
     type: bool
     restore_value: no
     initial_value: 'false' 
-  # Speichert den aktuell ausgewählten (fokussierten) Seitenindex im Menü (1..5)
-  - id: current_page_index
-    type: int
-    restore_value: no
-    initial_value: '0'
-
-script:
-  # 1. Hauptskript zum Wechseln des Seitenindexes
-  - id: set_page_index
-    mode: restart # Falls schnell hintereinander gedreht wird, bricht es alte Instanzen ab
-    parameters:
-      index: int
-    then:
-      - lambda: |-
-          ESP_LOGD("navigation", "set_page_index %d", index);
-          if(id(is_blocked)) return;
-
-          int old_index = id(current_page_index);
-          int new_index = index;
-          
-          // Bereich eingrenzen (Wechsel zwischen den Pages 1..5)
-          if (new_index < 1) new_index = 5;
-          if (new_index > 5) new_index = 1;
-          
-          // Nur ausführen, wenn sich der Index wirklich geändert hat
-          if (new_index != old_index) {
-            ESP_LOGD("navigation", "Wechsle Fokus von Index %d zu %d", old_index, new_index);
-            
-            // Führe Leave-Logik für alte Seite aus
-            id(on_page_leave).execute(old_index);
-            
-            // Setze neuen globalen Index
-            id(current_page_index) = new_index;
-            
-            // Führe Enter-Logik für neue Seite aus
-            id(on_page_enter).execute(new_index);
-
-            // Der eigentliche LVGL-Seitenwechsel wird für alle Indizes am Ende ausgeführt
-            auto anim = LV_SCREEN_LOAD_ANIM_FADE_ON;
-            if (index == old_index+1) {
-              anim = LV_SCREEN_LOAD_ANIM_MOVE_LEFT;
-            } else if (index == old_index-1) {
-              anim = LV_SCREEN_LOAD_ANIM_MOVE_RIGHT;
-            }
-            id(my_lvgl).show_page(new_index, anim, 250);
-
-          } else {
-            ESP_LOGD("navigation", "Seite schon da!!!");
-          }
-      - lvgl.label.update:
-          id: widget_title_label    
-          text: !lambda |-
-            int idx = id(current_page_index);
-            return id(page_text).at(idx).c_str();
-
-  # 2. Wird aufgerufen, wenn eine Seite im Fokus verlassen wird
-  - id: on_page_leave
-    parameters:
-      index: int
-    then:
-      - lambda: |-
-          ESP_LOGD("navigation", "Verlasse Seite Index: %d", index);
-          // Hier später z.B. visuelle Highlights/Rahmen der alten Seite im Menü entfernen
-
-  # 3. Wird aufgerufen, wenn eine neue Seite in den Fokus rückt (beim Drehen)
-  - id: on_page_enter
-    parameters:
-      index: int
-    then:
-      - lambda: |-
-          switch (index) {
-            case 0: // PAGE_BOOT
-              break;
-
-            case 1: // PAGE_IDLE
-              break;
-
-            case 2: // PAGE_MEDIA
-              break;
-
-            case 3: // PAGE_VOLUME
-              break;
-
-            case 4: // PAGE_LIGHT
-              break;
-
-            case 5: // PAGE_SETTINGS
-              break;
-
-            case 99: // PAGE_SHUTDOWN
-              break;
-
-            default:
-              ESP_LOGW("navigation", "Keine spezielle Initialisierung für Index %d", index);
-              break;
-          }
-
-
-  # 4. Wird aufgerufen, wenn der Button geklickt wird (Aktivierung der Seite)
-  - id: on_page_activate
-    parameters:
-      index: int
-    then:
-      - lambda: |-
-          ESP_LOGI("navigation", "AKTIVIERE Seite Index: %d", index);
-          // Hier kommt die Logik rein, was PASSIERT, wenn die Seite aktiv ist.
-          // Z.B. "Subpages umschalten" für IDLE/SETTINGS oder "Play/Pause" für MEDIA.

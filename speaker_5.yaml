@@ -1,0 +1,1092 @@
+# speaker_5.yaml
+
+substitutions:
+  device_name: "esphome-web-46406c"
+  friendly_name: "Smart Speaker 5"
+  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
+
+  # ========================================================
+  # --- LINKE SEITE: (3V3) ILI9341/TOUCH, Drehimpulsgeber --
+  # ========================================================
+  # --- ILI9341 Block ---
+  # 3V3                      # -> VCC  (ggf. J1 trennen)
+  # GND                      # -> GND
+  pin_ili9341_cs:    GPIO4   # -> CS (Display)
+  pin_ili9341_reset: GPIO5   # -> RESET (Display)
+  pin_ili9341_dc:    GPIO6   # -> D/C (Display)
+  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)         und   ---+
+  pin_spi_clk:       GPIO15  # -> SCK               und      |  -> T_CLK
+  pin_touch_cs:      GPIO16  # -> nix (SDO/MISO blind!)      |  -> T_CS
+  pin_ili9341_led:   GPIO17  # -> LED               und quer +---> T_DN
+  pin_spi_miso:      GPIO18  # -> nix                           -> T_OUT
+  pin_touch_irq:     GPIO8   # -> nix                           -> T_IRQ
+
+  # --- KY-040 Drehgeber Block ---
+  pin_encoder_clk:   GPIO12   # -> CLK
+  pin_encoder_dt:    GPIO13   # -> DT
+  pin_encoder_sw:    GPIO14  # -> SW
+  # 3V3 !!!                  # -> +
+  # GND                      # -> GND
+
+  # ========================================================
+  # --- RECHTE SEITE (5V): AUDIO, LED  ---
+  # ========================================================
+
+  # --- WS2812 RGB-LED ---
+  # 5V                       # -> +5V
+  pin_ws2812_din:    GPIO01  # -> DIN
+  # GND                      # -> GND
+
+  # --- MAX98357 I2S Audio Block ---
+  pin_max98357_lrc:  GPIO41  # -> LRC
+  pin_max98357_bclk: GPIO40  # -> BCLK
+  pin_max98357_din:  GPIO39  # -> DIN
+  # 100kOhm gegen GND        # -> GAIN
+  # frei für stereo          # -> SD
+  # GND                      # -> GND
+  # 5V                       # -> VIN
+  
+
+  
+
+logger:
+  level: DEBUG
+  logs:
+    xpt2046: INFO
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include common/base-s3_devkitc_1.yaml
+
+
+esphome:
+  min_version: 2026.7.3
+  project:
+    name: "hufi.musicbox"
+    version: 0.0.2
+  on_boot:
+    priority: -100
+    then:
+      - light.turn_on:
+          id: onboard_led
+          effect: "Rainbow"
+
+
+
+
+time:
+  - id: esptime
+    platform: homeassistant
+    on_time_sync:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_time_time_sync");
+    on_time:
+      - seconds: /30
+        then:
+          # - lambda: |-
+          #     ESP_LOGI("time_trigger", "Läuft jede Sekunde!");      
+          - lvgl.label.update:
+              id: info_clock
+              text: !lambda |-
+                auto time_obj = id(esptime).now();
+                // str_sprintf erzeugt direkt einen sicheren std::string
+                return str_sprintf("%02d:%02d:%02d", time_obj.hour, time_obj.minute, time_obj.second);
+
+          - lvgl.label.update:
+              id: info_date
+              text: !lambda |-
+                auto time_obj = id(esptime).now();
+                return str_sprintf("%02d.%02d.%04d", time_obj.day_of_month, time_obj.month, time_obj.year);
+                                
+button:
+  - platform: restart
+    name: "Restart"
+    on_press:
+      then:
+        - safe_mode.mark_successful
+
+
+switch:
+  - platform: template
+    name: "Eingeschaltet"
+    icon: mdi:power
+    id: ha_power_switch
+    optimistic: true
+    # Startzustand beim Booten festlegen
+    restore_mode: RESTORE_DEFAULT_ON
+    
+    on_turn_on:
+      then:
+        - logger.log: "HA: Power ON empfangen"
+        - script.execute: update_states
+
+    on_turn_off:
+      then:
+        - logger.log: "HA: Power OFF empfangen"
+        # - media_player.stop: sendspin_player
+        - script.execute: update_states
+
+# -------------------------------------------------------------------
+# Lighting
+# -------------------------------------------------------------------
+# Onboard WS2812 LED
+light:
+  - platform: esp32_rmt_led_strip
+    id: onboard_led
+    name: "Onboard RGB"
+    pin: GPIO48
+    num_leds: 1
+    rgb_order: GRB
+    chipset: WS2812
+    effects:
+      - addressable_rainbow:
+          id: effect_rainbow
+          name: "Rainbow"
+          speed: 10           
+
+# Display Backlight (PWM)
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Hintergrundbeleuchtung"
+    id: display_backlight
+    restore_mode: RESTORE_DEFAULT_ON
+    on_state:
+      then:
+        - lvgl.slider.update:
+            id: lvgl_slider_brightness
+            value: !lambda |-
+              // Holt den Helligkeits-Float über .remote_values und rechnet ihn auf die 20er-Skala um
+              return (int)(id(display_backlight).remote_values.get_brightness() * 20.0f);
+        - lvgl.label.update:
+            id: lvgl_label_brightness
+            text: !lambda |-
+              // Aktualisiert den Text direkt im 100%-Format
+              return str_sprintf("%0.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
+              
+output:
+  - platform: ledc
+    pin: ${pin_ili9341_led}
+    id: backlight_pwm
+    frequency: 1000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
+
+
+
+# -------------------------------------------------------------------
+# SENDSPIN MULTIROOM AUDIO ENGINE
+# -------------------------------------------------------------------
+# 1. Der grundlegende I2S-Taktgeber für deinen MAX98357 (Nutzt die Variablen)
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: ${pin_max98357_lrc}
+    i2s_bclk_pin: ${pin_max98357_bclk}
+
+# 2. Definition des physischen Ausgangs am I2S-Bus
+speaker:
+  - platform: i2s_audio
+    id: my_speaker
+    dac_type: external
+    i2s_dout_pin: ${pin_max98357_din}
+    i2s_audio_id: i2s_out
+    sample_rate: 48000
+    channel: mono
+    timeout: never
+    buffer_duration: 100ms
+
+
+# 3. Der zentrale Sendspin Netzwerk-Hub
+sendspin:
+  id: sendspin_hub
+  task_stack_in_psram: true
+
+# 4. Quelle, die den synchronisierten Netzwerk-Audiostream puffert
+media_source:
+  - platform: sendspin
+    id: sendspin_media_source
+    task_stack_in_psram: true
+    decode_memory: psram
+    buffer_size: 200000
+
+# 5. Der finale Mediaplayer, der den Netzwerkstream an den Speaker schickt
+media_player:
+  - platform: sendspin
+    id: sendspin_player
+    name: "Group"
+    disabled_by_default: true
+
+    on_state:
+      then:
+        - logger.log:
+            format: "SendSpin Player-State geändert: %s"
+            args: ['media_player::media_player_state_to_string(id(sendspin_player).state)']
+        - script.execute: update_states
+    on_announcement:
+      then:
+        - logger.log: "SendSpin: on_announcement"
+    on_play:
+      then:
+        - logger.log: "SendSpin: on_play"
+    on_pause:
+      then:
+        - logger.log: "SendSpin: on_pause"
+    on_turn_on:
+      then:
+        - logger.log: "SendSpin: on_turn_on"
+    on_turn_off:
+      then:
+        - logger.log: "SendSpin: on_turn_off"
+    on_idle:
+      then:
+        - logger.log: "SendSpin: on_idle"
+
+  - platform: speaker_source
+    id: audio_player
+    name: "Audio Player"
+    media_pipeline:
+      speaker: my_speaker
+      sources:
+        - sendspin_media_source
+    disabled_by_default: true
+    on_state:
+      then:
+        - logger.log:
+            format: "Physischer Audio Player-State geändert: %s"
+            args: ['media_player::media_player_state_to_string(id(audio_player).state)']
+        - script.execute: update_states
+    on_announcement:
+      then:
+        - logger.log: "SendSpin: on_announcement"
+    on_play:
+      then:
+        - logger.log: "AudioPlayer: on_play"
+    on_pause:
+      then:
+        - logger.log: "AudioPlayer: on_pause"
+    on_idle:
+      then:
+        - logger.log: "AudioPlayer: on_idle"
+    on_mute:
+      then:
+        - logger.log: "AudioPlayer: on_mute"
+    on_unmute:
+      then:
+        - logger.log: "AudioPlayer: on_unmute"
+    on_volume:
+      then:
+        - logger.log: "AudioPlayer: on_volume"
+        - lvgl.slider.update:
+            id: lvgl_slider_volume
+            value: !lambda |-
+              return (int)(id(audio_player).volume * 20.0f);
+        - lvgl.label.update:
+            id: lvgl_label_volume
+            text: !lambda |-
+              return str_sprintf("%0.0f %%", id(audio_player).volume * 100.0f);        
+    on_turn_on:
+      then:
+        - logger.log: "AudioPlayer: on_turn_on"
+    on_turn_off:
+      then:
+        - logger.log: "AudioPlayer: on_turn_off"
+
+
+
+# -------------------------------------------------------------------
+# Wifi & Sendspin Text-Sensoren
+# -------------------------------------------------------------------
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: Device IP Address
+    #  address_0:
+     #    name: Device IP Address 0
+    ssid:
+      name: Device Connected SSID
+ # bssid:
+ #   name: Device Connected BSSID
+ # mac_address:
+ #   name: Device Mac Wifi Address
+    scan_results:
+      name: Device Latest Scan Results
+#  dns_address:
+ #   name: Device DNS Address
+    power_save_mode:
+      name: Device Wifi Power Save Mode
+
+  - platform: sendspin
+    type: title
+    name: Track Title
+    on_value:
+      then:
+        - logger.log:
+            format: "Track Title: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text: !lambda 'return x;'
+  - platform: sendspin
+    type: artist
+    name: Artist
+    on_value:
+      then:
+        - logger.log:
+            format: "Artist: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text: !lambda 'return x;'
+  - platform: sendspin
+    type: album
+    name: Album
+    on_value:
+      then:
+        - logger.log:
+            format: "Album: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text: !lambda 'return x;'
+  
+
+# -------------------------------------------------------------------
+# Wifi und KY-040 Drehgeber Sensoren
+# -------------------------------------------------------------------
+sensor:
+  - platform: sendspin
+    type: track_progress
+    name: "SendSpin Track Progress"
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return x > 0;'      
+            then:
+              # - logger.log:
+              #     format: "SendSpin Fortschritt: %02d:%02d:%02d"
+              #     args:
+              #       - '(int)(x / 1000) / 3600'
+              #       - '((int)(x / 1000) % 3600) / 60'
+              #       - '(int)(x / 1000) % 60'
+              - lambda: |-
+                  static unsigned long last_log_time = 0;
+                  unsigned long now = millis();
+
+                  // Trigger every 30 real-time seconds (30,000 milliseconds)
+                  if (now - last_log_time >= 30000) {
+                    last_log_time = now;
+
+                    int total_seconds = x / 1000;
+                    ESP_LOGD("custom", "SendSpin Fortschritt: %02d:%02d:%02d", 
+                            total_seconds / 3600, 
+                            (total_seconds % 3600) / 60, 
+                            total_seconds % 60);
+                  }
+
+              - lvgl.label.update:
+                  id: lvgl_label_progress
+                  text: !lambda |-
+                    int total_seconds = (int)(x / 1000);
+                    int hours = total_seconds / 3600;
+                    int minutes = (total_seconds % 3600) / 60;
+                    int seconds = total_seconds % 60;
+                    return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+              - lvgl.bar.update:
+                  id: track_progress_bar
+                  value: !lambda 'return (int)x;'                    
+  - platform: sendspin
+    type: track_duration
+    name: "SendSpin Track Duration"
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return x > 0;'      
+            then:
+              - logger.log:
+                  format: "SendSpin Gesamtlänge: %02d:%02d:%02d"
+                  args:
+                    - '(int)(x / 1000) / 3600'
+                    - '((int)(x / 1000) % 3600) / 60'
+                    - '(int)(x / 1000) % 60'
+              - lvgl.label.update:
+                  id: lvgl_label_duration
+                  text: !lambda |-
+                    int total_seconds = (int)(x / 1000);
+                    int hours = total_seconds / 3600;
+                    int minutes = (total_seconds % 3600) / 60;
+                    int seconds = total_seconds % 60;
+                    return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+              - lvgl.bar.update:
+                  id: track_progress_bar
+                  min_value: 0
+                  max_value: !lambda 'return (int)x;'                    
+  - platform: sendspin
+    type: year
+    name: "SendSpin Year"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Year: %.0f"
+            args: [ 'x' ]
+
+  - platform: sendspin
+    type: track
+    name: "SendSpin Track"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Track: %.0f"
+            args: [ 'x' ]
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "Signalstärke"
+    update_interval: 15s
+    on_value:
+      then:
+        # Ausgezeichnetes Signal
+        - if:
+            condition:
+              lambda: 'return x >= -50.0f;'
+            then:
+              - lvgl.image.update:
+                  id: lvgl_icon_wifi
+                  src: img_wifi_4
+                  
+        # Gutes Signal
+        - if:
+            condition:
+              lambda: 'return x < -50.0f && x >= -65.0f;'
+            then:
+              - lvgl.image.update:
+                  id: lvgl_icon_wifi
+                  src: img_wifi_3
+
+        # Normales Signal
+        - if:
+            condition:
+              lambda: 'return x < -65.0f && x >= -75.0f;'
+            then:
+              - lvgl.image.update:
+                  id: lvgl_icon_wifi
+                  src: img_wifi_2
+
+        # Schlechtes Signal
+        - if:
+            condition:
+              lambda: 'return x < -75.0f && x >= -85.0f;'
+            then:
+              - lvgl.image.update:
+                  id: lvgl_icon_wifi
+                  src: img_wifi_1
+
+        # Kein/Sehr schlechtes Signal (oder Offline)
+        - if:
+            condition:
+              lambda: 'return x < -85.0f || isnan(x);'
+            then:
+              - lvgl.image.update:
+                  id: lvgl_icon_wifi
+                  src: img_wifi_0
+
+  - platform: rotary_encoder
+    id: my_encoder_pulse
+    pin_a:
+      number: ${pin_encoder_clk}
+      mode: INPUT_PULLUP
+    pin_b:
+      number: ${pin_encoder_dt}
+      mode: INPUT_PULLUP
+    resolution: 1
+    publish_initial_value: true
+    on_value:
+      - logger.log:
+          format: "on_rotary_encoder_pulse %.0f"
+          args: [ 'x' ]
+    on_clockwise:
+      - logger.log: "Turned Clockwise"
+    on_anticlockwise:
+      - logger.log: "Turned Anticlockwise"        
+
+
+binary_sensor:
+  - platform: gpio
+    id: my_encoder_button
+    pin:
+      number: ${pin_encoder_sw}
+      inverted: true
+      mode: INPUT_PULLUP
+    filters:
+      - delayed_on_off: 20ms      
+    on_press:
+      then:
+        - logger.log: "on_rotary_encoder_press"
+    on_release:
+      then:
+        - logger.log: "on_rotary_encoder_release"
+    on_click:
+      then:
+        - logger.log: "on_rotary_encoder_click"
+
+
+
+
+
+
+
+
+
+
+# -------------------------------------------------------------------
+# Display und touch
+# -------------------------------------------------------------------
+font:
+  - file: "gfonts://Roboto"
+    id: roboto_16
+    size: 16
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_20
+    size: 20
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_24
+    size: 24
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+image:
+  - platform: file
+    file: "mdi:music-box-outline"
+    id: img_boot_logo
+    type: BINARY
+    resize: 64x64
+  - platform: file
+    file: "mdi:wifi-strength-outline"
+    id: img_wifi_0
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-1"
+    id: img_wifi_1
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-2"
+    id: img_wifi_2
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-3"
+    id: img_wifi_3
+    type: BINARY
+    resize: 32x32
+  - platform: file
+    file: "mdi:wifi-strength-4"
+    id: img_wifi_4
+    type: BINARY
+    resize: 32x32
+
+spi:
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+  miso_pin: ${pin_spi_miso}
+
+display:
+  - platform: mipi_spi
+    model: ILI9341
+    id: my_display
+    spi_mode: MODE0
+    cs_pin: ${pin_ili9341_cs}
+    dc_pin: ${pin_ili9341_dc}
+    reset_pin: ${pin_ili9341_reset}
+    invert_colors: false
+    auto_clear_enabled: false
+    update_interval: never
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    dimensions:
+      height: 240
+      width: 320
+
+touchscreen:
+  - platform: xpt2046
+    id: my_touch
+    cs_pin: ${pin_touch_cs}
+    interrupt_pin: ${pin_touch_irq}
+    threshold: 400
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: false
+    calibration:
+      x_min: 270
+      x_max: 3700
+      y_min: 450
+      y_max: 3900
+
+# -------------------------------------------------------------------
+# GUI
+# -------------------------------------------------------------------
+lvgl:
+  id: my_lvgl
+  displays:
+    - my_display
+  touchscreens:
+    - my_touch
+
+  encoders:
+    - sensor: my_encoder_pulse
+      enter_button: my_encoder_button
+      initial_focus: lvgl_button_play_stop 
+
+  on_boot:
+    then:
+      - lvgl.page.show: lvgl_page_info
+      # - lvgl.widget.focus: lvgl_button_play_stop
+      - script.execute: update_states
+      - logger.log: "[LVGL Boot]"
+
+
+  theme:
+    dark_mode: true  
+
+    # 🎛️ Globale Stile für Basis-Container (obj)
+    obj:
+      main:
+        bg_color: 0x141414
+        bg_opa: COVER
+        border_width: 0
+        radius: 8
+
+    label:
+      main:
+        text_color: 0xFFFFFF
+        text_font: roboto_20    # Globaler Standard für Text-Widgets!
+
+    # 🔘 Globale Button-Stile (Gilt für ALLE Buttons)
+    button:
+      main:
+        bg_color: 0x1E1E1E
+        bg_opa: COVER
+        radius: 6
+        border_width: 0
+        text_color: 0xFFFFFF
+        text_font: roboto_20    # Globaler Standard für die Buttonbeschriftung!
+
+      pressed:
+        bg_color: 0x2C3E50  
+        bg_opa: COVER
+        text_color: 0x3498DB 
+
+      focused:
+        border_color: 0xD35400 
+        border_opa: COVER   
+        text_color: 0x14487B
+        border_width: 3     
+
+
+  # Statusbar
+  top_layer:
+    widgets:
+      - obj:
+          x: 0
+          y: 0
+          width: 100%
+          height: 30
+          bg_color: 0x222222
+          border_width: 0
+          text_color: 0xFFFF00
+          text_font: roboto_20
+          
+          # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
+          widgets:
+            - label:
+                id: lvgl_label_status_title
+                text: "TITLE"
+                align: LEFT_MID
+                x: 10
+                y: 0 
+
+            - image:
+                id: lvgl_icon_wifi
+                src: img_wifi_0
+                align: RIGHT_MID
+                x: -10
+                y: 0 
+                recolor: "0xFFFFFF"
+                recolor_opa: 100% 
+
+  # Die GUI-Elemente
+  pages:
+    - id: lvgl_page_info
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "INFO"
+
+      widgets:
+        # 🕒 GROSSE DIGITALUHR (Zentriert im oberen Drittel)
+        - label:
+            id: info_clock
+            x: 0
+            y: 35
+            text: "00:00:00"
+            text_font: roboto_24
+            text_color: 0x00FFD2   # Aqua-Akzentfarbe für die Uhr
+            align: TOP_MID
+
+        # 📅 DATUM & WOCHENTAG
+        - label:
+            id: info_date
+            x: 0
+            y: 65
+            text: "---"
+            text_font: roboto_16
+            text_color: 0xAAAAAA
+            align: TOP_MID
+
+    - id: lvgl_page_media
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "MEDIA"
+
+      widgets:
+        # 🎵 TRACK INFOS (Aus dem vorherigen Schritt)
+        - label:
+            id: lvgl_label_media_title
+            x: 10
+            y: 35
+            width: 90%
+            text: "Keine Wiedergabe"
+            text_font: roboto_24
+            align: TOP_MID
+            text_align: CENTER
+            long_mode: SCROLL_CIRCULAR
+
+        - label:
+            id: lvgl_label_media_artist
+            x: 10
+            y: 65
+            width: 90%
+            text: "---  •  ---"
+            text_font: roboto_16
+            text_color: 0xAAAAAA
+            align: TOP_MID
+            text_align: CENTER
+            long_mode: DOT
+
+        - label:
+            id: lvgl_label_media_album
+            x: 10
+            y: 85
+            width: 90%
+            text: "---"
+            text_font: roboto_16
+            text_color: 0x777777   # Etwas dunkleres Grau für die Album-Information
+            align: TOP_MID
+            text_align: CENTER
+            long_mode: DOT
+
+        # ⏳ NEU: KOMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
+        - obj:
+            x: 0
+            y: 110
+            width: 90%
+            height: 25
+            align: TOP_MID
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_main: SPACE_BETWEEN # Drückt Progress nach links und Length nach rechts
+              flex_align_cross: CENTER
+            widgets:
+              # Aktueller Fortschritt (Links)
+              - label:
+                  id: lvgl_label_progress
+                  text: "00:00:00"
+                  text_color: 0x00FFD2
+
+              # Gesamtlänge (Rechts - füttert deinen track_duration Sensor!)
+              - label:
+                  id: lvgl_label_duration
+                  text: "00:00:00"
+                  text_color: 0x888888 # Dezent gedimmtes Grau für die Gesamtlänge
+
+        # 📊 FORTSCHRITTSLEISTE (Direkt darunter bei y: 125)
+        - bar:
+            id: track_progress_bar
+            x: 0
+            y: 135
+            width: 90%
+            height: 5
+            align: TOP_MID
+            bg_color: 0x222222
+
+        # 🎛️ BUTTONBAR UNTEN (Der bündige Container am unteren Rand)
+        - obj:
+            align: BOTTOM_MID
+            x: 0
+            y: -5
+            width: 95%
+            height: 44
+            pad_all: 4
+            layout:
+              type: FLEX
+              flex_flow: ROW             
+              flex_align_main: SPACE_EVENLY
+              flex_align_cross: CENTER   
+            widgets:
+              # 📌 BUTTON: PREVIOUS
+              - button:
+                  id: lvgl_button_prev
+                  width: 22%
+                  height: 34
+                  text: "<<"
+                  # on_focus:
+                  #   then:
+                  #     - lvgl.page.show:
+                  #         id: lvgl_page_media
+                  #         animation: OVER_BOTTOM
+                  #         time: 300ms
+                  on_click:
+                    then:
+                      - logger.log: "prev via GUI"
+                      - media_player.previous: sendspin_player
+              # 📌 BUTTON: PLAY
+              - button:
+                  id: lvgl_button_play_stop
+                  width: 32%
+                  height: 34
+                  widgets:
+                    - label:
+                        id: lvgl_button_play_stop_label
+                        text: "Wait..."
+                        align: CENTER
+                  # on_focus:
+                  #   then:
+                  #     - lvgl.page.show:
+                  #         id: lvgl_page_media
+                  #         animation: FADE_IN
+                  #         time: 300ms
+                  on_click:
+                    then:
+                      - logger.log: "play via GUI"
+                      - media_player.toggle: sendspin_player
+
+              # 📌 BUTTON: NEXT
+              - button:
+                  id: lvgl_button_next
+                  width: 22%
+                  height: 34
+                  text: ">>"
+                  # on_focus:
+                  #   then:
+                  #     - lvgl.page.show:
+                  #         id: lvgl_page_media
+                  #         animation: FADE_IN
+                  #         time: 300ms
+                  on_click:
+                    then:
+                      - logger.log: "next via GUI"
+                      - media_player.next: sendspin_player
+
+
+    - id: lvgl_page_volume
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "VOLUME"
+
+      widgets:
+        # 🔊 DIGITALE LAUTSTÄRKEANZEIGE (Groß und zentriert im oberen Drittel)
+        - label:
+            id: lvgl_label_volume
+            x: 0
+            y: 50
+            text: "50 %"
+            text_font: roboto_24    # Ausnahme: Große Schrift für den Wert
+            text_color: 0x00FFD2   # Aqua-Akzentfarbe passend zur Timeline
+            align: TOP_MID
+            text_align: CENTER
+
+        # 🎚️ INTEGRATIVER VOLUME-SLIDER (Elegant zentriert im unteren Drittel)
+        - slider:
+            id: lvgl_slider_volume
+            x: 0
+            y: 110
+            width: 85%
+            height: 16
+            align: TOP_MID
+            min_value: 0
+            max_value: 20
+            value: 8
+            
+            # on_focus:
+            #   then:
+            #     - lvgl.page.show:
+            #         id: lvgl_page_volume
+            #         animation: FADE_IN
+            #         time: 300ms
+
+            on_change:
+              then:
+                - lvgl.label.update:
+                    id: lvgl_label_volume
+                    text: !lambda 'return str_sprintf("%0.0f %%", x * 5.0f);'
+                - media_player.volume_set:
+                    id: audio_player
+                    volume: !lambda 'return x / 20.0f;'
+
+    - id: lvgl_page_backlight
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "BRIGHTNESS"
+
+      widgets:
+        # ☀️ DIGITALE HELLIGKEITSANZEIGE (Groß und zentriert)
+        - label:
+            id: lvgl_label_brightness
+            x: 0
+            y: 50
+            text: "50 %"
+            text_font: roboto_24    # Ausnahme: Große Schrift für den Wert
+            text_color: 0x00FFD2   # Aqua-Akzentfarbe passend zur Timeline
+            align: TOP_MID
+            text_align: CENTER
+
+        # 🎚️ HELLIGKEITS-SLIDER (20 Rasten für flottes Drehen)
+        - slider:
+            id: lvgl_slider_brightness
+            x: 0
+            y: 110
+            width: 85%
+            height: 16
+            align: TOP_MID
+            min_value: 5
+            max_value: 20           # 20 Einzelschritte (5% pro Raste)
+            value: 15               # Startwert 75%
+            
+            # Seiten-Scrollen beim Fokuswechsel auf die korrekte neue ID
+            # on_focus:
+            #   then:
+            #     - lvgl.page.show: lvgl_page_backlight
+            #         animation: FADE_IN
+            #         time: 300ms
+
+            # Event beim manuellen Drehen am KY-040
+            on_change:
+              then:
+                # 1. Prozentanzeige aktualisieren (x * 5)
+                - lvgl.label.update:
+                    id: lvgl_label_brightness
+                    text: !lambda |-
+                      return str_sprintf("%0.0f %%", x * 5.0f);
+                
+                # 2. Helligkeit an die monochromatic Light-Komponente übergeben
+                - light.turn_on:
+                    id: display_backlight
+                    # x (0-20) geteilt durch 20.0f ergibt den benötigten Float-Bereich (0.0 bis 1.0)
+                    brightness: !lambda |-
+                      return x / 20.0f;
+
+
+
+                    
+script:
+  - id: update_states
+    mode: single
+    then: 
+      - if:
+          condition:
+            # Die C++ Prüfung verpackt als kurze YAML-Bedingung
+            lambda: 'return !id(my_lvgl).is_ready();'
+          then:
+            - logger.log: "LVGL noch nicht bereit – Update übersprungen!"
+          else:
+            - logger.log: "LVGL ist bereit, führe Display-Updates aus."
+
+            # SCHRITT 0: Wenn power_off
+            - if: 
+                condition: 
+                  lambda: 'return id(ha_power_switch).state == false;'
+                then: 
+                  - logger.log: "[Script-Pfad] Schalter ist AUS. Initialisiere Info-Standby..."
+                  # - lvgl.page.show: lvgl_page_info
+                  - lvgl.page.show:
+                      id: lvgl_page_info
+                      animation: OVER_BOTTOM
+                      time: 300ms
+                  - lambda: 'id(backlight_pwm).set_level(0.15f);'
+                  - media_player.turn_off: audio_player
+
+                else:
+                  - logger.log: "[Script-Pfad] Schalter ist AN. Initialisiere Media-Standby..."
+                  # - lvgl.page.show: lvgl_page_media
+                  - lvgl.page.show:
+                      id: lvgl_page_media
+                      animation: OVER_TOP
+                      time: 300ms
+                  - lambda: |-
+                      float ha_brightness = id(display_backlight).remote_values.get_brightness();
+                      id(backlight_pwm).set_level(ha_brightness);
+                  - media_player.turn_on: audio_player
+
+
+            # SCHRITT 1: Wenn offline (NONE) -> Beide Buttons sperren (Disabled)
+            - if: 
+                condition: 
+                  lambda: "return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_NONE;"
+                then: 
+                  - lvgl.widget.disable: lvgl_button_play_stop
+
+            # SCHRITT 2: Wenn online -> Beide Buttons freigeben (Enabled)
+            - if: 
+                condition: 
+                  lambda: "return id(sendspin_player).state != media_player::MEDIA_PLAYER_STATE_NONE;"
+                then: 
+                  - lvgl.widget.enable: lvgl_button_play_stop
+
+            # SCHRITT 3: Wenn Musik läuft (PLAYING) -> Play verstecken, Stop anzeigen
+            - if: 
+                condition: 
+                  lambda: "return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PLAYING;"
+                then: 
+                  - lvgl.label.update:
+                      id: lvgl_button_play_stop_label
+                      text: "Pause"
+
+            # SCHRITT 4: Wenn Musik pausiert/leerläuft (IDLE/PAUSED) -> Play anzeigen, Stop verstecken
+            - if: 
+                condition: 
+                  lambda: |-
+                    return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_IDLE || 
+                          id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PAUSED;
+                then: 
+                  - lvgl.label.update:
+                      id: lvgl_button_play_stop_label
+                      text: "Play"
+            - logger.log: "LVGL Display-Updates beendet."

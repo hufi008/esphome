@@ -12,7 +12,6 @@ esp32:
   partitions: partitions_16MB.csv
   framework:
     type: esp-idf
-      # HUFI-FIX: Schiebt WLAN und Netzwerk-Puffer ins PSRAM, um SRAM freizumachen
     sdkconfig_options:
       CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_AND_LWIP_STACKS_IN_EXTERNAL_RAM: "y"
 

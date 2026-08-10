@@ -12,6 +12,12 @@ esphome:
       - globals.set:
           id: is_blocked
           value: 'true'
+      - lambda: 'ESP_LOGD(__FILE__, "lvgl: disable all indev");'
+      - lambda: |-
+          lv_indev_t *indev = nullptr;
+          while ((indev = lv_indev_get_next(indev)) != nullptr) {
+            lv_indev_enable(indev, false); 
+          }          
       - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BOOT");'
       - lvgl.page.show:
           id: lvgl_page_boot
@@ -35,10 +41,22 @@ time:
           condition:
             lambda: 'return id(is_blocked);'
           then:
+            - sensor.rotary_encoder.set_value:
+                id: my_encoder_pulse
+                value: 0
             - globals.set:
                 id: is_blocked
                 value: 'false'
+            - lambda: 'ESP_LOGD(__FILE__, "lvgl: enable all indev");'
+            - lambda: |-
+                lv_indev_t *indev = nullptr;
+                while ((indev = lv_indev_get_next(indev)) != nullptr) {
+                  lv_indev_enable(indev, true);
+                }          
+
             - script.execute: update_states
+            - lvgl.widget.focus: lvgl_button_play_stop
+
 
     on_time:
       - seconds: /30
@@ -332,7 +350,38 @@ text_sensor:
         - lvgl.label.update:
             id: lvgl_label_media_album
             text: !lambda 'return x;'
+  - platform: sendspin
+    type: artwork_url
+    name: "Album Cover URL"
+    id: sendspin_artwork_url
+    on_value:
+      then:
+        - logger.log:
+            format: "Artwork URL: %s"
+            args: [ 'x.c_str()' ]
+        - online_image.set_url:
+            id: current_album_art
+            url: !lambda 'return x;'
+  # - platform: homeassistant
+  #   id: ma_album_art_url
+  #   # Ersetze dies durch die exakte Entity-ID deines Music Assistant Players in HA
+  #   entity_id: ${media_player_entity_id}
+  #   attribute: entity_picture
+  #   # Sobald Home Assistant eine neue URL liefert, wird das Bild im Hintergrund geladen
+  #   on_value:
+  #     then:
+  #       - logger.log:
+  #           format: "Album Art URL: %s"
+  #           args: [ 'x.c_str()' ]
+  #       - online_image.set_url:
+  #           id: current_album_art
+  #           url: !lambda 'return x;'
   
+external_components:
+  - source:
+      type: local
+      path: my_components
+    components: [ sendspin ]
 
 # -------------------------------------------------------------------
 # Wifi und Sensoren
@@ -544,6 +593,7 @@ binary_sensor:
 
 
 
+
 # -------------------------------------------------------------------
 # Display und touch
 # -------------------------------------------------------------------
@@ -584,7 +634,25 @@ font:
     glyphsets:
       - GF_Latin_Kernel
 
+http_request:
+  timeout: 10s
+  verify_ssl: false 
+
+# Der Netzwerk-Bild-Downloader von ESPHome
 image:
+  - platform: online_image
+    id: current_album_art
+    # Eine Standard-Grafik (lokal), falls gerade nichts abgespielt wird oder beim Booten
+    url: "https://githubusercontent.com"
+    format: JPG # Music Assistant liefert die Cover meist als JPG/PNG aus
+    type: RGB565
+    resize: 80x80 # Skaliert das Bild direkt beim Download auf die perfekte UI-Größe
+    on_download_finished:
+      then:
+        # Zwingt LVGL das Bild auf dem Display neu zu zeichnen, sobald der Download fertig ist
+        - lvgl.image.update:
+            id: lvgl_img_album_art
+            src: current_album_art
   - platform: file
     file: "mdi:music-box-outline"
     id: img_boot_logo
@@ -763,20 +831,14 @@ lvgl:
   encoders:
     - sensor: my_encoder_pulse
       enter_button: my_encoder_button
-      initial_focus: lvgl_button_play_stop 
-      long_press_time: 500ms
+      # initial_focus: lvgl_button_play_stop
       group: encoder_group
   rotary_sensitivity: 128
 
   on_boot:
     then:
       - logger.log: "lvgl: on_boot"
-      - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BOOT");'
       - lvgl.widget.focus: lvgl_button_play_stop
-      # - lvgl.page.show: lvgl_page_boot
-      # - lvgl.widget.redraw:
-      # - lvgl.pause:
-      # - script.execute: update_states
 
   on_idle:
     timeout: 60s
@@ -798,26 +860,24 @@ lvgl:
 
     # 🎛️ Globale Stile für Basis-Container (obj)
     obj:
-      main:
-        bg_color: 0x141414
-        bg_opa: COVER
-        border_width: 0
-        radius: 8
+      bg_color: 0x303000
+      bg_opa: COVER
+      border_width: 0
+      radius: 8
+      scrollable: false        
 
     label:
-      main:
-        text_color: 0xFFFFFF
-        text_font: roboto_20    # Globaler Standard für Text-Widgets!
+      text_color: 0xFFFFFF
+      text_font: roboto_20    # Globaler Standard für Text-Widgets!
 
     # 🔘 Globale Button-Stile (Gilt für ALLE Buttons)
     button:
-      main:
-        bg_color: 0x1E1E1E
-        bg_opa: COVER
-        radius: 6
-        border_width: 0
-        text_color: 0xFFFFFF
-        text_font: roboto_20    # Globaler Standard für die Buttonbeschriftung!
+      bg_color: 0x1E1E1E
+      bg_opa: COVER
+      radius: 6
+      border_width: 0
+      text_color: 0xFFFFFF
+      text_font: roboto_20    # Globaler Standard für die Buttonbeschriftung!
 
       pressed:
         bg_color: 0x2C3E50  
@@ -825,10 +885,21 @@ lvgl:
         text_color: 0x3498DB 
 
       focused:
-        border_color: 0xD35400 
+        border_color: 0xFFFF00
         border_opa: COVER   
-        text_color: 0x14487B
-        border_width: 3     
+        text_color: 0x0000FF
+        border_width: 2
+    slider:
+      pressed:
+        border_color: 0xCCCC00
+        border_opa: COVER
+        border_width: 2
+
+      focused:
+        border_color: 0xFFFF00
+        border_opa: COVER   
+        border_width: 2
+
 
   # Statusbar
   top_layer:
@@ -838,10 +909,11 @@ lvgl:
           y: 0
           width: 100%
           height: 30
-          bg_color: 0x222222
+          bg_color: 0x606060
           border_width: 0
           text_color: 0xFFFF00
           text_font: roboto_20
+          scrollable: false        
           
           # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
           widgets:
@@ -915,8 +987,15 @@ lvgl:
                 ESPHOME_VERSION
               );
 
-
     - id: lvgl_page_info
+      on_press:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "lvgl_page_info: on_press"
+        - lvgl.page.show:
+            id: lvgl_page_media
+            animation: move_top
+            time: 300ms
+        - switch.turn_on: ha_switch_power
       on_load:
         then:
           - lvgl.label.update:
@@ -1022,12 +1101,29 @@ lvgl:
             text_font: roboto_16
             text_color: 0x666666
 
-
-
-
-
-
     - id: lvgl_page_media
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt von lvgl_page_media!"
+        - lvgl.page.show:
+            id: lvgl_page_volume
+            animation: move_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt von lvgl_page_media!"
+        - lvgl.page.show:
+            id: lvgl_page_backlight
+            animation: move_right
+            time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt von lvgl_page_media!"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: move_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
       on_load:
         then:
           - lvgl.label.update:
@@ -1035,40 +1131,49 @@ lvgl:
               text: "MEDIA"
 
       widgets:
-        # 🎵 TRACK INFOS (Aus dem vorherigen Schritt)
-        - label:
-            id: lvgl_label_media_title
+        # 🖼️ NEU: ALBUM COVER (Links platziert, holt sich die Daten aus dem online_image)
+        - image:
+            id: lvgl_img_album_art
             x: 10
             y: 35
-            width: 90%
+            width: 80
+            height: 80
+            src: current_album_art
+
+        # 🎵 TRACK INFOS (Nach rechts verschoben, damit Platz für das Cover ist)
+        - label:
+            id: lvgl_label_media_title
+            x: 100 # Verspringen nach rechts
+            y: 35
+            width: 55% # Breite verringert, damit es nicht über den Rand ragt
             text: "Keine Wiedergabe"
             text_font: roboto_24
-            align: TOP_MID
-            text_align: CENTER
+            align: TOP_LEFT # Ausrichtung geändert für besseren Textfluss neben dem Bild
+            text_align: LEFT
             long_mode: SCROLL_CIRCULAR
 
         - label:
             id: lvgl_label_media_artist
-            x: 10
+            x: 100
             y: 65
-            width: 90%
+            width: 55%
             text: "---  •  ---"
             text_font: roboto_16
             text_color: 0xAAAAAA
-            align: TOP_MID
-            text_align: CENTER
+            align: TOP_LEFT
+            text_align: LEFT
             long_mode: DOT
 
         - label:
             id: lvgl_label_media_album
-            x: 10
+            x: 100
             y: 85
-            width: 90%
+            width: 55%
             text: "---"
             text_font: roboto_16
-            text_color: 0x777777   # Etwas dunkleres Grau für die Album-Information
-            align: TOP_MID
-            text_align: CENTER
+            text_color: 0x777777
+            align: TOP_LEFT
+            text_align: LEFT
             long_mode: DOT
 
         # ⏳ NEU: KOMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
@@ -1115,7 +1220,8 @@ lvgl:
             x: 0
             y: -5
             width: 95%
-            height: 44
+            height: 40
+            bg_color: 0x606060
             pad_all: 4
             layout:
               type: FLEX
@@ -1127,19 +1233,18 @@ lvgl:
               - button:
                   id: lvgl_button_prev
                   width: 22%
-                  height: 34
-                  text: "<<"
+                  height: 30
+                  # text: "<<"
+                  widgets:
+                    - label:
+                        text: "<<"
+                        align: CENTER
                   group: encoder_group                  
                   on_focus:
                     then:
                       - script.execute:
                           id: show_page
                           page: lvgl_page_media
-                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
-                      # - lvgl.page.show:
-                      #     id: lvgl_page_media
-                      #     animation: OVER_BOTTOM
-                      #     time: 300ms
                   on_click:
                     then:
                       - logger.log: "prev via GUI"
@@ -1148,7 +1253,7 @@ lvgl:
               - button:
                   id: lvgl_button_play_stop
                   width: 32%
-                  height: 34
+                  height: 30
                   widgets:
                     - label:
                         id: lvgl_button_play_stop_label
@@ -1160,11 +1265,6 @@ lvgl:
                       - script.execute:
                           id: show_page
                           page: lvgl_page_media
-                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
-                      # - lvgl.page.show:
-                      #     id: lvgl_page_media
-                      #     animation: FADE_IN
-                      #     time: 300ms
                   on_click:
                     then:
                       - logger.log: "play via GUI"
@@ -1174,19 +1274,18 @@ lvgl:
               - button:
                   id: lvgl_button_next
                   width: 22%
-                  height: 34
-                  text: ">>"
+                  height: 30
+                  # text: ">>"
+                  widgets:
+                    - label:
+                        text: ">>"
+                        align: CENTER
                   group: encoder_group                  
                   on_focus:
                     then:
                       - script.execute:
                           id: show_page
                           page: lvgl_page_media
-                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
-                      # - lvgl.page.show:
-                      #     id: lvgl_page_media
-                      #     animation: FADE_IN
-                      #     time: 300ms
                   on_click:
                     then:
                       - logger.log: "next via GUI"
@@ -1194,6 +1293,20 @@ lvgl:
 
 
     - id: lvgl_page_volume
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt von lvgl_page_volume!"
+        - lvgl.page.show:
+            id: lvgl_page_backlight
+            animation: move_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt von lvgl_page_volume!"
+        - lvgl.page.show:
+            id: lvgl_page_media
+            animation: move_right
+            time: 300ms
       on_load:
         then:
           - lvgl.label.update:
@@ -1212,39 +1325,66 @@ lvgl:
             align: TOP_MID
             text_align: CENTER
 
-        # 🎚️ INTEGRATIVER VOLUME-SLIDER (Elegant zentriert im unteren Drittel)
-        - slider:
-            id: lvgl_slider_volume
+        # 🎛️ BUTTONBAR UNTEN (Der bündige Container am unteren Rand)
+        - obj:
+            align: BOTTOM_MID
             x: 0
-            y: 110
-            width: 85%
-            height: 16
-            align: TOP_MID
-            min_value: 0
-            max_value: 20
-            value: 8
-            group: encoder_group                  
-            on_focus:
-              then:
-                - script.execute:
-                    id: show_page
-                    page: lvgl_page_volume
-                # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "VOLUME");'
-                # - lvgl.page.show:
-                #     id: lvgl_page_volume
-                #     animation: FADE_IN
-                #     time: 300ms
+            y: -5
+            width: 95%
+            height: 40
+            bg_color: 0x606060
+            pad_all: 4
+            layout:
+              type: FLEX
+              flex_flow: ROW             
+              flex_align_main: SPACE_EVENLY
+              flex_align_cross: CENTER   
+            widgets:
 
-            on_change:
-              then:
-                - lvgl.label.update:
-                    id: lvgl_label_volume
-                    text: !lambda 'return str_sprintf("%0.0f %%", x * 5.0f);'
-                - media_player.volume_set:
-                    id: audio_player
-                    volume: !lambda 'return x / 20.0f;'
+              # 🎚️ INTEGRATIVER VOLUME-SLIDER (Elegant zentriert im unteren Drittel)
+              - slider:
+                  id: lvgl_slider_volume
+                  width: 85%
+                  height: 20
+                  min_value: 0
+                  max_value: 20
+                  value: 8
+                  group: encoder_group                  
+                  on_focus:
+                    then:
+                      - script.execute:
+                          id: show_page
+                          page: lvgl_page_volume
+                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "VOLUME");'
+                      # - lvgl.page.show:
+                      #     id: lvgl_page_volume
+                      #     animation: FADE_IN
+                      #     time: 300ms
+
+                  on_change:
+                    then:
+                      - lvgl.label.update:
+                          id: lvgl_label_volume
+                          text: !lambda 'return str_sprintf("%0.0f %%", x * 5.0f);'
+                      - media_player.volume_set:
+                          id: audio_player
+                          volume: !lambda 'return x / 20.0f;'
 
     - id: lvgl_page_backlight
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt von lvgl_page_backlight!"
+        - lvgl.page.show:
+            id: lvgl_page_media
+            animation: move_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt von lvgl_page_backlight!"
+        - lvgl.page.show:
+            id: lvgl_page_volume
+            animation: move_right
+            time: 300ms
       on_load:
         then:
           - lvgl.label.update:
@@ -1418,12 +1558,10 @@ script:
     then: 
       - logger.log: "script: show_page"
       - lambda: |-
-          if (id(is_blocked)) return;
-
           if (page != nullptr) {
-              // get_parent() holt die übergeordnete LVGL-Komponente.
-              // show_page wechselt dann die Seite anhand des seiteninternen Index.
+              ESP_LOGE(__FILE__, "show_page pageidx: %d", page->index);
+              if (id(is_blocked)) return;
               page->get_parent()->show_page(page->index, LV_SCREEN_LOAD_ANIM_FADE_ON, 300);
           } else {
-              ESP_LOGE("main", "show_page aufgerufen, aber page ist ein nullptr!");
+              ESP_LOGE(__FILE__, "show_page aufgerufen, aber page ist ein nullptr!");
           }

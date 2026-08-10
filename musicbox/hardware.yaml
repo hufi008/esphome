@@ -106,7 +106,7 @@ sensor:
       number: ${pin_encoder_dt}
       mode: INPUT_PULLUP
     resolution: 1
-    publish_initial_value: false
+    publish_initial_value: true
     filters:
       - debounce: 50ms
       - throttle: 50ms

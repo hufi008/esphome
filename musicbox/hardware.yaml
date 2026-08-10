@@ -1,0 +1,262 @@
+# musicbox/hardware.yaml
+
+substitutions:
+  # ========================================================
+  # --- LINKE SEITE: (3V3) ILI9341/TOUCH, Drehimpulsgeber --
+  # ========================================================
+  # --- ILI9341 Block ---
+  # 3V3                      # -> VCC  (ggf. J1 trennen)
+  # GND                      # -> GND
+  pin_ili9341_cs:    GPIO4   # -> CS (Display)
+  pin_ili9341_reset: GPIO5   # -> RESET (Display)
+  pin_ili9341_dc:    GPIO6   # -> D/C (Display)
+  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)         und   ---+
+  pin_spi_clk:       GPIO15  # -> SCK               und      |  -> T_CLK
+  pin_touch_cs:      GPIO16  # -> nix (SDO/MISO blind!)      |  -> T_CS
+  pin_ili9341_led:   GPIO17  # -> LED               und quer +---> T_DN
+  pin_spi_miso:      GPIO18  # -> nix                           -> T_OUT
+  pin_touch_irq:     GPIO8   # -> nix                           -> T_IRQ
+
+  # --- KY-040 Drehgeber Block ---
+  pin_encoder_clk:   GPIO12   # -> CLK
+  pin_encoder_dt:    GPIO13   # -> DT
+  pin_encoder_sw:    GPIO14  # -> SW
+  # 3V3 !!!                  # -> +
+  # GND                      # -> GND
+
+  # ========================================================
+  # --- RECHTE SEITE (5V): AUDIO, LED  ---
+  # ========================================================
+
+  # --- WS2812 RGB-LED ---
+  # 5V                       # -> +5V
+  pin_ws2812_din:    GPIO01  # -> DIN
+  # GND                      # -> GND
+
+  # --- MAX98357 I2S Audio Block ---
+  pin_max98357_lrc:  GPIO41  # -> LRC
+  pin_max98357_bclk: GPIO40  # -> BCLK
+  pin_max98357_din:  GPIO39  # -> DIN
+  # 100kOhm gegen GND        # -> GAIN
+  # frei für stereo          # -> SD
+  # GND                      # -> GND
+  # 5V                       # -> VIN
+
+
+
+# -------------------------------------------------------------------
+# Virtual
+# -------------------------------------------------------------------
+
+time:
+  - id: esptime
+    platform: homeassistant
+
+sun:
+  id: sun_id
+  latitude: !secret latitude
+  longitude: !secret longitude
+
+button:
+  - platform: restart
+    name: "Restart"
+    on_press:
+      then:
+        - safe_mode.mark_successful
+
+switch:
+  - platform: template
+    name: "Eingeschaltet"
+    icon: mdi:power
+    id: ha_power_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+
+# -------------------------------------------------------------------
+# Sensoren
+# -------------------------------------------------------------------
+text_sensor:
+  # 📡 Spiegelt die Wetter- und Umweltdaten aus deinem Home Assistant
+  - platform: homeassistant
+    id: ha_weather
+    entity_id: weather.home
+  - platform: homeassistant
+    id: ha_sunrise
+    entity_id: sensor.sunrise
+  - platform: homeassistant
+    id: ha_sunset
+    entity_id: sensor.sunset
+
+  - platform: sun
+    id: sunrise_id
+    name: "Sonnenaufgang"
+    type: sunrise
+    format: "%H:%M"
+  - platform: sun
+    id: sunset_id
+    name: "Sonnenuntergang"
+    type: sunset
+    format: "%H:%M"
+
+  - platform: homeassistant
+    id: ha_moonphase
+    entity_id: sensor.moon_phase
+
+  - platform: wifi_info
+    ip_address:
+      name: IP Address
+    ssid:
+      name: Connected SSID
+    scan_results:
+      name: Latest Scan Results
+    power_save_mode:
+      name: Wifi Power Save Mode
+
+sensor:
+  - platform: rotary_encoder
+    id: my_encoder_pulse
+    pin_a:
+      number: ${pin_encoder_clk}
+      mode: INPUT_PULLUP
+    pin_b:
+      number: ${pin_encoder_dt}
+      mode: INPUT_PULLUP
+    resolution: 1
+    publish_initial_value: false
+    filters:
+      - debounce: 50ms
+      - throttle: 50ms
+
+binary_sensor:
+  - platform: gpio
+    id: my_encoder_button
+    pin:
+      number: ${pin_encoder_sw}
+      inverted: true
+      mode: INPUT_PULLUP
+    filters:
+      - delayed_on_off: 20ms
+
+# -------------------------------------------------------------------
+# Lighting
+# -------------------------------------------------------------------
+# Onboard WS2812 LED
+light:
+  - platform: esp32_rmt_led_strip
+    id: onboard_led
+    name: "Onboard RGB"
+    pin: GPIO48
+    num_leds: 1
+    rgb_order: GRB
+    chipset: WS2812
+    effects:
+      - addressable_rainbow:
+          id: effect_rainbow
+          name: "Rainbow"
+          speed: 10           
+    
+# Display Backlight (PWM)
+  - platform: monochromatic
+    id: display_backlight
+    output: backlight_pwm
+    name: "Display Hintergrundbeleuchtung"
+    restore_mode: RESTORE_DEFAULT_ON
+              
+output:
+  - platform: ledc
+    pin: ${pin_ili9341_led}
+    id: backlight_pwm
+    min_power: 0%
+    max_power: 80%
+    frequency: 1000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
+
+
+
+# -------------------------------------------------------------------
+# Audio
+# -------------------------------------------------------------------
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: ${pin_max98357_lrc}
+    i2s_bclk_pin: ${pin_max98357_bclk}
+
+speaker:
+  - platform: i2s_audio
+    id: my_speaker
+    dac_type: external
+    i2s_dout_pin: ${pin_max98357_din}
+    i2s_audio_id: i2s_out
+    sample_rate: 48000
+    channel: mono
+    timeout: never
+    buffer_duration: 100ms
+
+sendspin:
+  id: sendspin_hub
+  task_stack_in_psram: true
+
+media_source:
+  - platform: sendspin
+    id: sendspin_media_source
+    task_stack_in_psram: true
+    decode_memory: psram
+    buffer_size: 200000
+
+media_player:
+  - platform: sendspin
+    id: sendspin_player
+    name: "Group"
+    disabled_by_default: true
+
+  - platform: speaker_source
+    id: audio_player
+    name: "Audio Player"
+    media_pipeline:
+      speaker: my_speaker
+      sources:
+        - sendspin_media_source
+    disabled_by_default: true
+
+# -------------------------------------------------------------------
+# Display und Touch
+# -------------------------------------------------------------------
+spi:
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+  miso_pin: ${pin_spi_miso}
+
+display:
+  - platform: mipi_spi
+    model: ILI9341
+    id: my_display
+    spi_mode: MODE0
+    cs_pin: ${pin_ili9341_cs}
+    dc_pin: ${pin_ili9341_dc}
+    reset_pin: ${pin_ili9341_reset}
+    invert_colors: false
+    auto_clear_enabled: false
+    update_interval: never
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    dimensions:
+      height: 240
+      width: 320
+
+touchscreen:
+  - platform: xpt2046
+    id: my_touch
+    cs_pin: ${pin_touch_cs}
+    interrupt_pin: ${pin_touch_irq}
+    update_interval: never
+    threshold: 400
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: false
+    calibration:
+      x_min: 270
+      x_max: 3700
+      y_min: 450
+      y_max: 3900

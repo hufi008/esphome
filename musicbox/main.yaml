@@ -1,91 +1,427 @@
 # musicbox/main.yaml
 
 esphome:
+  min_version: 2026.7.3
   project:
     name: "hufi.musicbox"
-    version: "0.0.3"
+    version: 0.2.0
   on_boot:
-    - priority: -100
+    priority: -100
+    then:
+      - logger.log: "esphome: on_boot"
+      - globals.set:
+          id: is_blocked
+          value: 'true'
+      - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BOOT");'
+      - lvgl.page.show:
+          id: lvgl_page_boot
+
+
+substitutions:
+
+globals:
+  - id: is_blocked
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+
+
+time:
+  - id: !extend esptime
+    on_time_sync:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "on_time_time_sync");
+      - if:
+          condition:
+            lambda: 'return id(is_blocked);'
+          then:
+            - globals.set:
+                id: is_blocked
+                value: 'false'
+            - script.execute: update_states
+
+    on_time:
+      - seconds: /30
+        then:
+          # # - logger.log: "[Interval] 30s-Takt:"
+          - if:
+              condition:
+                lambda: 'return !id(my_lvgl).is_ready();'
+              then:
+                # - logger.log: "LVGL noch nicht bereit – Update übersprungen!"
+              else:
+                # - logger.log: "LVGL ist bereit, führe Display-Updates aus."
+
+                - lambda: |-
+                    ESP_LOGI("time_trigger", "Läuft alle 30 Sekunden!");
+
+                # 1. UHRZEIT AKTUALISIEREN (Ohne Sekunden)
+                - lvgl.label.update:
+                    id: info_clock
+                    text: !lambda |-
+                      auto t = id(esptime).now();
+                      return str_sprintf("%02d:%02d", t.hour, t.minute);
+
+                # 2. DATUM & WOCHENTAG AKTUALISIEREN
+                - lvgl.label.update:
+                    id: info_date
+                    text: !lambda |-
+                      auto t = id(esptime).now();
+                      const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+                      return str_sprintf("%s, %02d.%02d.%04d", weekdays[t.day_of_week % 7], t.day_of_month, t.month, t.year);
+
+                # 3. WETTER-TEXT AKTUALISIEREN
+                - lvgl.label.update:
+                    id: info_weather
+                    text: !lambda |-
+                      std::string w = id(ha_weather).state;
+                      if (w == "partlycloudy") return "Leicht bewölkt";
+                      if (w == "clear_night" || w == "sunny") return "Klar";
+                      if (w == "cloudy") return "Bewölkt";
+                      if (w == "rainy") return "Regen";
+                      if (w == "pouring") return "Starker Regen";
+                      if (w == "fog") return "Nebel";
+                      return w;
+
+                # 4. WETTER-ICON AKTUALISIEREN
+                - lvgl.image.update:
+                    id: info_weather_icon
+                    src: !lambda |-
+                      static const std::map<std::string, const esphome::image::Image*> weather_icon_map = {
+                        {"sunny",           id(icon_weather_sunny)},
+                        {"clear-night",     id(icon_weather_clear_night)},
+                        {"partlycloudy",    id(icon_weather_partlycloudy)},
+                        {"cloudy",          id(icon_weather_cloudy)},
+                        {"fog",             id(icon_weather_fog)},
+                        {"pouring",         id(icon_weather_pouring)},
+                        {"rainy",           id(icon_weather_rainy)},
+                        {"hail",            id(icon_weather_hail)},
+                        {"snowy",           id(icon_weather_snowy)},
+                        {"snowy-rainy",     id(icon_weather_snowy_rainy)},
+                        {"lightning",       id(icon_weather_lightning)},
+                        {"lightning-rainy", id(icon_weather_lightning_rainy)},
+                        {"windy",           id(icon_weather_windy)},
+                        {"windy-variant",   id(icon_weather_windy)}
+                      };
+                      std::string current_weather = id(ha_weather).state;
+                      auto it = weather_icon_map.find(current_weather);
+                      if (it != weather_icon_map.end()) {
+                          return const_cast<esphome::image::Image*>(it->second);
+                      }
+                      return id(icon_weather_exceptional);
+
+                # 5. LOKALE SONNENZEITEN AKTUALISIEREN
+                - lvgl.label.update:
+                    id: info_sun
+                    text: !lambda |-
+                      std::string sunrise = id(sunrise_id).state;
+                      std::string sunset = id(sunset_id).state;
+                      if (sunrise.empty() || sunset.empty()) return "Aufgang: --:--  •  Untergang: --:--";
+                      return str_sprintf("Sonne %s  •  %s", sunrise.c_str(), sunset.c_str());
+
+                # 6. MOND-TEXT AKTUALISIEREN (Korrektur: [] und = hinzugefügt)
+                - lvgl.label.update:
+                    id: info_moon_text
+                    text: !lambda |-
+                      static const std::string moon_keys[] = {
+                        "unknown",
+                        "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+                        "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
+                      };
+                      static const std::string moon_texts[] = {
+                        "Unbekannt",
+                        "Neumond", "1/4 Mond »", "Halbmond »", "3/4 Mond »", "Vollmond", "3/4 Mond «", "Halbmond «", "1/4 Mond «"
+                      };
+                      std::string phase = id(ha_moonphase).state;
+                      int index = 0;
+                      for (int i = 1; i < 9; i++) {
+                          if (moon_keys[i] == phase) { index = i; break; }
+                      }
+                      return str_sprintf("Mond (%d/8): %s", index, moon_texts[index].c_str());
+
+                # 7. MOND-ICON AKTUALISIEREN (Korrektur: [] und = hinzugefügt)
+                - lvgl.image.update:
+                    id: info_moon_icon
+                    src: !lambda |-
+                      static const std::string moon_keys[] = {
+                        "unknown",
+                        "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+                        "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
+                      };
+                      static const esphome::image::Image* moon_icons[] = {
+                        id(icon_moon_unknown),
+                        id(icon_moon_new_moon), id(icon_moon_waxing_crescent), id(icon_moon_first_quarter), id(icon_moon_waxing_gibbous),
+                        id(icon_moon_full_moon), id(icon_moon_waning_gibbous), id(icon_moon_last_quarter), id(icon_moon_waning_crescent)
+                      };
+                      std::string phase = id(ha_moonphase).state;
+                      int index = 0;
+                      for (int i = 1; i < 9; i++) {
+                          if (moon_keys[i] == phase) { index = i; break; }
+                      }
+                      return const_cast<esphome::image::Image*>(moon_icons[index]);
+                # 8. LUFTDRUCK AKTUALISIEREN
+                - lvgl.label.update:
+                    id: info_barometer
+                    text: !lambda |-
+                      if (std::isnan(id(weather_pressure).state)) return std::string("---");
+                      return str_sprintf("%.0f hPa", id(weather_pressure).state);
+
+                # 9. LUFTFEUCHTIGKEIT AKTUALISIEREN (Nutzt deine ID 'info_rain_prob')
+                - lvgl.label.update:
+                    id: info_rain_prob
+                    text: !lambda |-
+                      if (std::isnan(id(weather_humidity).state)) return std::string("---");
+                      return str_sprintf("%.0f%%", id(weather_humidity).state);
+
+                # 10. WINDGESCHWINDIGKEIT AKTUALISIEREN
+                - lvgl.label.update:
+                    id: info_wind
+                    text: !lambda |-
+                      if (std::isnan(id(weather_wind_speed).state)) return std::string("---");
+                      return str_sprintf("%.1f km/h", id(weather_wind_speed).state);
+
+                # - logger.log: "[Interval] 30s-Takt: ...beendet"
+
+
+switch:
+  - id: !extend ha_power_switch
+    
+    on_turn_on:
       then:
-        - lambda: |-
-            id(is_blocked) = true;
-        - lvgl.page.show:
-            id: lvgl_page_idle
-            animation: FADE_IN
-            time: 500ms
+        - logger.log: "HA: Power ON empfangen"
+        - light.turn_on:
+            id: onboard_led
+            effect: "Rainbow"
+        - script.execute: update_states
 
-esp32:
-  framework:
-    # Das begrenzt den RAM-Verbrauch des WLAN-Stacks auf dem alten ESP32 massiv
-    sdkconfig_options:
-      CONFIG_LWIP_MAX_ACTIVE_TCP_CONNECTIONS: "5"
-      CONFIG_LWIP_MAX_SOCKETS: "7"
-
-logger:
-  level: DEBUG
-
-
-### Bedienung ###
-# Pages: Konstanten als Substitution, niemals die int verwenden
-# PAGE_BOOT:      0
-# PAGE_IDLE:      1
-# PAGE_MEDIA:     2
-# PAGE_VOLUME:    3
-# PAGE_LIGHT:     4
-# PAGE_SETTINGS:  5
-# PAGE_SHUTDOWN:  99
-#
-# Rotary:
-# Wheel: Wechsel zwischen den Pages 1..5
-# Click: Page aktivieren
-# nach 15 sec Inaktivität wird die Seite PAGE_IDLE/PAGE_MEDIA aktiviert, je nachdem ob der media_player läuft
-# 
-# Page aktiviert:
-# PAGE_BOOT: geht nicht, verschwindet, wenn time_sync erreicht
-# PAGE_IDLE: Wechsel der Subpages "Time,Date,Weekday", "Weather forecast", "Sunrise/set", "Moonphase"
-# Page_MEDIA: Play/Pause, Stop, FR/FF, Next/Previous Track
-# Page_VOLUME: Volume up/down, Mute
-# Page_LIGHT: Auswahl des Light effects
-# Page_SETTINGS: Auswahl der Subpages "Light brightness" "Backlight brightness"
-
-
-
-
-
-
-binary_sensor:
-  - platform: gpio
-    pin:
-      number: ${rotary_btn_pin}
-      mode: INPUT
-      inverted: true
-    id: rotary_button
-    on_press:
+    on_turn_off:
       then:
-        - logger.log: "Rotary Press"
-    on_click:
-      min_length: 2s
-      max_length: 5s
-      then:
-        - logger.log: "Rotary long Click"
+        - logger.log: "HA: Power OFF empfangen"
+        - light.turn_off:
+            id: onboard_led
+        - script.execute: update_states
 
+
+light:
+# Display Backlight (PWM)
+  - id: !extend display_backlight
+
+    on_state:
+      then:
+        - lvgl.slider.update:
+            id: lvgl_slider_brightness
+            value: !lambda |-
+              // Holt den Helligkeits-Float über .remote_values und rechnet ihn auf die 20er-Skala um
+              return (int)(id(display_backlight).remote_values.get_brightness() * 20.0f);
+        - lvgl.label.update:
+            id: lvgl_label_brightness
+            text: !lambda |-
+              // Aktualisiert den Text direkt im 100%-Format
+              return str_sprintf("%0.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
+
+
+
+# 5. Der finale Mediaplayer, der den Netzwerkstream an den Speaker schickt
+media_player:
+  - id: !extend sendspin_player
+
+    on_state:
+      then:
+        - logger.log:
+            format: "SendSpin Player-State geändert: %s"
+            args: ['media_player::media_player_state_to_string(id(sendspin_player).state)']
+        - script.execute: update_states
+    on_announcement:
+      then:
+        - logger.log: "SendSpin: on_announcement"
+    on_play:
+      then:
+        - logger.log: "SendSpin: on_play"
+        - switch.turn_on: ha_power_switch
+    on_pause:
+      then:
+        - logger.log: "SendSpin: on_pause"
+    on_turn_on:
+      then:
+        - logger.log: "SendSpin: on_turn_on"
+    on_turn_off:
+      then:
+        - logger.log: "SendSpin: on_turn_off"
+    on_idle:
+      then:
+        - logger.log: "SendSpin: on_idle"
+
+  - id: !extend audio_player
+
+    on_state:
+      then:
+        - logger.log:
+            format: "Physischer Audio Player-State geändert: %s"
+            args: ['media_player::media_player_state_to_string(id(audio_player).state)']
+        - script.execute: update_states
+    on_announcement:
+      then:
+        - logger.log: "SendSpin: on_announcement"
+    on_play:
+      then:
+        - logger.log: "AudioPlayer: on_play"
+    on_pause:
+      then:
+        - logger.log: "AudioPlayer: on_pause"
+    on_idle:
+      then:
+        - logger.log: "AudioPlayer: on_idle"
+    on_mute:
+      then:
+        - logger.log: "AudioPlayer: on_mute"
+    on_unmute:
+      then:
+        - logger.log: "AudioPlayer: on_unmute"
+    on_volume:
+      then:
+        - logger.log: "AudioPlayer: on_volume"
+        - lvgl.slider.update:
+            id: lvgl_slider_volume
+            value: !lambda |-
+              return (int)(id(audio_player).volume * 20.0f);
+        - lvgl.label.update:
+            id: lvgl_label_volume
+            text: !lambda |-
+              return str_sprintf("%0.0f %%", id(audio_player).volume * 100.0f);        
+    on_turn_on:
+      then:
+        - logger.log: "AudioPlayer: on_turn_on"
+    on_turn_off:
+      then:
+        - logger.log: "AudioPlayer: on_turn_off"
+
+# -------------------------------------------------------------------
+# Sendspin Text-Sensoren
+# -------------------------------------------------------------------
+text_sensor:
+  - platform: sendspin
+    type: title
+    name: Track Title
+    on_value:
+      then:
+        - logger.log:
+            format: "Track Title: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text: !lambda 'return x;'
+  - platform: sendspin
+    type: artist
+    name: Artist
+    on_value:
+      then:
+        - logger.log:
+            format: "Artist: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text: !lambda 'return x;'
+  - platform: sendspin
+    type: album
+    name: Album
+    on_value:
+      then:
+        - logger.log:
+            format: "Album: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text: !lambda 'return x;'
+  
+
+# -------------------------------------------------------------------
+# Wifi und Sensoren
+# -------------------------------------------------------------------
 sensor:
-  - platform: rotary_encoder
-    id: rotary_pulses
-    pin_a: ${rotary_a_pin}
-    pin_b: ${rotary_b_pin}
-    publish_initial_value: true
-    on_clockwise:
+  - platform: sendspin
+    type: track_progress
+    name: "SendSpin Track Progress"
+    on_value:
       then:
-        - logger.log: "Rotary Clockwise"
-    on_anticlockwise:
-      then: 
-        - logger.log: "Rotary Anticlockwise"
+        - if:
+            condition:
+              lambda: 'return x > 0;'      
+            then:
+              # - logger.log:
+              #     format: "SendSpin Fortschritt: %02d:%02d:%02d"
+              #     args:
+              #       - '(int)(x / 1000) / 3600'
+              #       - '((int)(x / 1000) % 3600) / 60'
+              #       - '(int)(x / 1000) % 60'
+              - lambda: |-
+                  static unsigned long last_log_time = 0;
+                  unsigned long now = millis();
 
+                  // Trigger every 30 real-time seconds (30,000 milliseconds)
+                  if (now - last_log_time >= 30000) {
+                    last_log_time = now;
 
+                    int total_seconds = x / 1000;
+                    ESP_LOGD("custom", "SendSpin Fortschritt: %02d:%02d:%02d", 
+                            total_seconds / 3600, 
+                            (total_seconds % 3600) / 60, 
+                            total_seconds % 60);
+                  }
 
-
-  # Wifi Signalstärke
+              - lvgl.label.update:
+                  id: lvgl_label_progress
+                  text: !lambda |-
+                    int total_seconds = (int)(x / 1000);
+                    int hours = total_seconds / 3600;
+                    int minutes = (total_seconds % 3600) / 60;
+                    int seconds = total_seconds % 60;
+                    return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+              - lvgl.bar.update:
+                  id: track_progress_bar
+                  value: !lambda 'return (int)x;'                    
+  - platform: sendspin
+    type: track_duration
+    name: "SendSpin Track Duration"
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return x > 0;'      
+            then:
+              - logger.log:
+                  format: "SendSpin Gesamtlänge: %02d:%02d:%02d"
+                  args:
+                    - '(int)(x / 1000) / 3600'
+                    - '((int)(x / 1000) % 3600) / 60'
+                    - '(int)(x / 1000) % 60'
+              - lvgl.label.update:
+                  id: lvgl_label_duration
+                  text: !lambda |-
+                    int total_seconds = (int)(x / 1000);
+                    int hours = total_seconds / 3600;
+                    int minutes = (total_seconds % 3600) / 60;
+                    int seconds = total_seconds % 60;
+                    return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+              - lvgl.bar.update:
+                  id: track_progress_bar
+                  min_value: 0
+                  max_value: !lambda 'return (int)x;'                    
+  - platform: sendspin
+    type: year
+    name: "SendSpin Year"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Year: %.0f"
+            args: [ 'x' ]
+  - platform: sendspin
+    type: track
+    name: "SendSpin Track"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Track: %.0f"
+            args: [ 'x' ]
   - platform: wifi_signal
     id: wifi_rssi
     name: "Signalstärke"
@@ -98,7 +434,7 @@ sensor:
               lambda: 'return x >= -50.0f;'
             then:
               - lvgl.image.update:
-                  id: lvgl_icon_wifi # <-- Hier angepasst
+                  id: lvgl_icon_wifi
                   src: img_wifi_4
                   
         # Gutes Signal
@@ -136,164 +472,119 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_0
-
   - platform: homeassistant
-    id: media_player_volume
-    entity_id: media_player.smart_speaker_2_audio_player_2
-    attribute: volume_level
+    id: weather_temperature
+    entity_id: ${weather_forecast_id}
+    attribute: temperature
+    unit_of_measurement: "°C"
+  - platform: homeassistant
+    id: weather_humidity
+    entity_id: ${weather_forecast_id}
+    attribute: humidity
+    unit_of_measurement: "%"
+  - platform: homeassistant
+    id: weather_pressure
+    entity_id: ${weather_forecast_id}
+    attribute: pressure
+    unit_of_measurement: "hPa"
+  - platform: homeassistant
+    id: weather_wind_speed
+    entity_id: ${weather_forecast_id}
+    attribute: wind_speed
+    unit_of_measurement: "km/h"
+  - platform: homeassistant
+    id: weather_wind_bearing
+    entity_id: ${weather_forecast_id}
+    attribute: wind_bearing
+    unit_of_measurement: "°"
+  - platform: homeassistant
+    id: weather_wind_gust_speed
+    entity_id: ${weather_forecast_id}
+    attribute: wind_gust_speed
+  - platform: homeassistant
+    id: weather_uv_index
+    entity_id: ${weather_forecast_id}
+    attribute: uv_index
+
+  - id: !extend my_encoder_pulse
     on_value:
-      - lvgl.slider.update:
-          id: lvgl_slider_volume
-          value: !lambda return (x * 20);
-      - lvgl.label.update:
-          id: lvgl_label_volume_pct
-          text: !lambda |-
-            // {:.0f} formatiert den float-Wert x als Ganzzahl ohne Nachkommastellen
-            return esphome::str_sprintf("%.0f %%", x * 100.0f);
+      - logger.log:
+          format: "on_rotary_encoder_pulse %.0f"
+          args: [ 'x' ]
+    on_clockwise:
+      - logger.log: "Turned Clockwise"
+    on_anticlockwise:
+      - logger.log: "Turned Anticlockwise"        
 
-time:
-  - platform: homeassistant
-    id: esptime
-    on_time_sync:
-      - lambda: |-
-          ESP_LOGI("time", "on_time_time_sync");
 
-          if (id(is_blocked)) {
-            ESP_LOGI("time", "Systemstart abgeschlossen");
-            id(is_blocked) = false;
-          }
-      - lvgl.page.show:
-          id: lvgl_page_volume # <-- Hier ebenfalls korrigiert
-          animation: FADE_OUT
-          time: 500ms
-
-    # Aktualisiert die Anzeige jede Sekunde
-    on_time:
-      - seconds: /1
+binary_sensor:
+  - id: !extend my_encoder_button
+    on_press:
+      then:
+        - logger.log: "on_rotary_encoder_press"
+    on_release:
+      then:
+        - logger.log: "on_rotary_encoder_release"
+    on_click:
+      then:
+        - logger.log: "on_rotary_encoder_click"
+    on_multi_click:
+      - timing:    
+          - ON for at most 2s
         then:
-          - lambda: |-
-              // ESP_LOGI("time", "on_time_time");
-          - lvgl.label.update:
-              id: lvgl_label_time
-              text: !lambda |-
-                return id(esptime).now().strftime("%H:%M:%S");
-          - lvgl.label.update:
-              id: lvgl_label_date
-              text: !lambda |-
-                return id(esptime).now().strftime("%d.%m.%Y");
-          - lvgl.label.update:
-              id: lvgl_label_weekday
-              text: !lambda |-
-                const char* days[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-                return days[id(esptime).now().day_of_week - 1];
+          - logger.log: "on_rotary_encoder_long_click"
+          # - switch.toggle: ha_power_switch
 
-text_sensor:
-  - platform: homeassistant
-    id: player_title
-    entity_id: media_player.smart_speaker_2_audio_player_2
-    attribute: media_title
-    on_value:
-      then:
-        - logger.log:
-            format: "title %s"
-            args: 'x.c_str()'
-        - lvgl.label.update:
-            id: lvgl_label_title
-            text: !lambda |-
-              return x.c_str();
 
-  - platform: homeassistant
-    id: player_artist
-    entity_id: media_player.smart_speaker_2_audio_player_2
-    attribute: media_artist
-    on_value:
-      then:
-        - logger.log:
-            format: "artist %s"
-            args: 'x.c_str()'
-        - lvgl.label.update:
-            id: lvgl_label_artist
-            text: !lambda |-
-              return x.c_str();
 
-  - platform: homeassistant
-    id: player_album_name
-    entity_id: media_player.smart_speaker_2_audio_player_2
-    attribute: media_album_name
-    on_value:
-      then:
-        - logger.log:
-            format: "album_name %s"
-            args: 'x.c_str()'
-        - lvgl.label.update:
-            id: lvgl_label_album
-            text: !lambda |-
-              return x.c_str();
 
-  - platform: homeassistant
-    id: player_album_art
-    entity_id: media_player.smart_speaker_2_audio_player_2
-    attribute: entity_picture
-    on_value:
-      then:
-        - logger.log:
-            format: "album_art %s"
-            args: 'x.c_str()'
-        # Wir nutzen ein allgemeines Lambda statt der fertigen 'set_url'-Aktion
-        - lambda: |-
-            // 1. Wenn die URL leer ist, brechen wir das Lambda sofort ab.
-            // Es wird KEIN Download-Befehl an die Komponente gesendet!
-            if (x.empty() || x == "null") {
-              ESP_LOGD("custom", "URL ist leer. Überspringe HTTP-Client-Initialisierung.");
-              return;
-            }
 
-            // 2. Pfade prüfen
-            bool is_local_ip = (x.rfind("http://192.168.", 0) == 0);
-            bool is_local_path = (x.rfind("/api/", 0) == 0);
 
-            std::string final_url;
-            if (is_local_ip || is_local_path) {
-              ESP_LOGD("custom", "Lokales Bild erkannt. Lade direkt.");
-              final_url = x;
-            } else {
-              ESP_LOGD("custom", "Externes Bild erkannt. Nutze wsrv.nl Proxy.");
-              final_url = "https://wsrv.nl?url=" + x + "&w=100&h=100&fit=cover&output=jpg";
-            }
 
-            // 3. Hier steuern wir das Online-Image direkt über seine C++ Instanz an.
-            // Das entspricht exakt der YAML-Aktion, aber absolut sicher gekapselt.
-            id(cover_image).set_url(final_url);
-            id(cover_image).update();
 
-http_request:
-  timeout: 10s
-  useragent: esphome/musicbox
-  # Korrekte ESPHome-Variablen zur RAM-Begrenzung:
-  buffer_size_rx: 512
-  buffer_size_tx: 256
+
+
+# -------------------------------------------------------------------
+# Display und touch
+# -------------------------------------------------------------------
+font:
+  - file: "gfonts://Roboto"
+    id: roboto_12
+    size: 12
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_16
+    size: 16
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_20
+    size: 20
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_24
+    size: 24
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_32
+    size: 32
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
 
 image:
-  - platform: online_image
-    url: "https://wsrv.nl"
-    id: cover_image
-    format: JPG
-    type: RGB565
-    on_download_finished:
-        - lvgl.image.update:
-            id: widget_cover_image
-            src: cover_image
-        - lambda: |-
-            if (cached) {
-              ESP_LOGD("online_image", "Cache hit: using cached image");
-            } else {
-              ESP_LOGD("online_image", "Cache miss: fresh download");
-            }
-    on_error:
-        - lambda: |-
-            ESP_LOGE("cover", "Download error");
-
-    resize: 100x100
   - platform: file
     file: "mdi:music-box-outline"
     id: img_boot_logo
@@ -324,462 +615,815 @@ image:
     id: img_wifi_4
     type: BINARY
     resize: 32x32
+  - platform: file
+    file: mdi:weather-sunny
+    id: icon_sun
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:help-circle-outline
+    id: icon_moon_unknown
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-new
+    id: icon_moon_new_moon
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waxing-crescent
+    id: icon_moon_waxing_crescent
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-first-quarter
+    id: icon_moon_first_quarter
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waxing-gibbous
+    id: icon_moon_waxing_gibbous
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-full
+    id: icon_moon_full_moon
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waning-gibbous
+    id: icon_moon_waning_gibbous
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-last-quarter
+    id: icon_moon_last_quarter
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waning-crescent
+    id: icon_moon_waning_crescent
+    type: binary
+    resize: 32x32
+  # Sonnig / Klar
+  - platform: file
+    file: mdi:weather-sunny
+    id: icon_weather_sunny
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-night
+    id: icon_weather_clear_night
+    type: binary
+    resize: 32x32
 
+  # Bewölkung
+  - platform: file
+    file: mdi:weather-partly-cloudy
+    id: icon_weather_partlycloudy
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-cloudy
+    id: icon_weather_cloudy
+    type: binary
+    resize: 32x32
 
-# Backlight (PWM)
-output:
-  - platform: ledc
-    pin: GPIO22
-    id: backlight_pwm
-    frequency: 1000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
-light:
-  - platform: monochromatic
-    output: backlight_pwm
-    name: "Display Hintergrundbeleuchtung"
-    id: display_backlight
-    restore_mode: RESTORE_DEFAULT_ON
-    on_state:
-      - lvgl.slider.update:
-          id: lvgl_slider_backlight
-          value: !lambda 'return (id(display_backlight).remote_values.get_brightness() * 20);'
-      - lvgl.label.update:
-          id: lvgl_label_backlight_pct
-          text: !lambda |-
-            // {:.0f} formatiert den float-Wert x als Ganzzahl ohne Nachkommastellen
-            return esphome::str_sprintf("%.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
+  # Nebel / Dunst
+  - platform: file
+    file: mdi:weather-fog
+    id: icon_weather_fog
+    type: binary
+    resize: 32x32
 
+  # Regen
+  - platform: file
+    file: mdi:weather-pouring
+    id: icon_weather_pouring
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-rainy
+    id: icon_weather_rainy
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-hail
+    id: icon_weather_hail
+    type: binary
+    resize: 32x32
 
+  # Schnee
+  - platform: file
+    file: mdi:weather-snowy
+    id: icon_weather_snowy
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-snowy-rainy
+    id: icon_weather_snowy_rainy
+    type: binary
+    resize: 32x32
 
-# Gemeinsamer SPI-Bus für Display & Touch
-spi:
-  id: bus_spi
-  clk_pin: ${display_sck_pin}
-  mosi_pin: ${display_mosi_pin}
-  miso_pin: ${display_miso_pin}
+  # Gewitter / Wind
+  - platform: file
+    file: mdi:weather-lightning
+    id: icon_weather_lightning
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-lightning-rainy
+    id: icon_weather_lightning_rainy
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-windy
+    id: icon_weather_windy
+    type: binary
+    resize: 32x32
 
-# TFT Display
-font:
-  - file: "gfonts://Roboto"
-    id: roboto_font_small
-    size: 20
-  - file: "gfonts://Roboto"
-    id: roboto_font
-    size: 30
-  - file: "gfonts://Roboto"
-    id: roboto_font_large
-    size: 40
-  - file: "gfonts://Roboto"
-    id: roboto_font_huge
-    size: 50
+  # Ausnahme / Unbekannt
+  - platform: file
+    file: mdi:weather-sunny-off
+    id: icon_weather_exceptional
+    type: binary
+    resize: 32x32
 
-display:
-  - platform: ili9xxx
-    model: ILI9341
-    id: tft_display
-    cs_pin: ${display_cs_pin}
-    dc_pin: ${display_dc_pin}
-    reset_pin: ${display_rst_pin}
-    invert_colors: false
-    auto_clear_enabled: false
-    transform:
-      swap_xy: true
-      mirror_x: true
-      mirror_y: true
-    dimensions:
-      height: 240
-      width: 320
-
+# -------------------------------------------------------------------
+# GUI
+# -------------------------------------------------------------------
 lvgl:
   id: my_lvgl
   displays:
-    - tft_display
-  buffer_size: 10% 
+    - my_display
+  touchscreens:
+    - my_touch
 
-  theme:
-    dark_mode: true
-
-  style_definitions:
-    # Sil für normalen Modus
-    - id: lvgl_styledef_normal
-      bg_color: 0x000000
-      bg_opa: COVER
-    
-    # Stil für aktiven Modus
-    - id: lvgl_styledef_active
-      bg_color: 0x001f3f
-      bg_opa: COVER
 
   encoders:
-    - id: lvgl_encoder_device
-      sensor: rotary_pulses
-      enter_button: rotary_button
-      group: main_group
-      
+    - sensor: my_encoder_pulse
+      enter_button: my_encoder_button
+      initial_focus: lvgl_button_play_stop 
+      long_press_time: 500ms
+      group: encoder_group
+  rotary_sensitivity: 128
 
-  # Der Top Layer ist auf allen Pages sichtbar
+  on_boot:
+    then:
+      - logger.log: "lvgl: on_boot"
+      - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BOOT");'
+      - lvgl.widget.focus: lvgl_button_play_stop
+      # - lvgl.page.show: lvgl_page_boot
+      # - lvgl.widget.redraw:
+      # - lvgl.pause:
+      # - script.execute: update_states
+
+  on_idle:
+    timeout: 60s
+    then:
+      logger.log: "lvgl: on_idle"
+      # switch.turn_off: ha_power_switch
+
+  on_pause:
+    then:
+      logger.log: "lvgl: on_pause"
+
+  on_resume:
+    then:
+      logger.log: "lvgl: on_resume"
+
+
+  theme:
+    dark_mode: true  
+
+    # 🎛️ Globale Stile für Basis-Container (obj)
+    obj:
+      main:
+        bg_color: 0x141414
+        bg_opa: COVER
+        border_width: 0
+        radius: 8
+
+    label:
+      main:
+        text_color: 0xFFFFFF
+        text_font: roboto_20    # Globaler Standard für Text-Widgets!
+
+    # 🔘 Globale Button-Stile (Gilt für ALLE Buttons)
+    button:
+      main:
+        bg_color: 0x1E1E1E
+        bg_opa: COVER
+        radius: 6
+        border_width: 0
+        text_color: 0xFFFFFF
+        text_font: roboto_20    # Globaler Standard für die Buttonbeschriftung!
+
+      pressed:
+        bg_color: 0x2C3E50  
+        bg_opa: COVER
+        text_color: 0x3498DB 
+
+      focused:
+        border_color: 0xD35400 
+        border_opa: COVER   
+        text_color: 0x14487B
+        border_width: 3     
+
+  # Statusbar
   top_layer:
     widgets:
       - obj:
           x: 0
           y: 0
           width: 100%
-          height: 40
+          height: 30
           bg_color: 0x222222
-          text_color: "0xFFFF00"
-          text_font: roboto_font_small
+          border_width: 0
+          text_color: 0xFFFF00
+          text_font: roboto_20
+          
+          # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
           widgets:
             - label:
-                id: lvgl_lvgl_label_title
+                id: lvgl_label_status_title
+                text: "TITLE"
+                text_color: 0xFFFF00
                 align: LEFT_MID
-                x: 0
-                width: 200
-                text: "TIILE"
+                x: 10
+                y: 0 
+
             - image:
                 id: lvgl_icon_wifi
                 src: img_wifi_0
                 align: RIGHT_MID
                 x: -10
-                width: SIZE_CONTENT
-                height: SIZE_CONTENT
-                recolor: 0xFFFFFF
-                recolor_opa: 100%
+                y: 0 
+                recolor: "0xFFFFFF"
+                recolor_opa: 100% 
+
+  # Die GUI-Elemente
   pages:
     - id: lvgl_page_boot
       on_load:
-        - lvgl.label.update:
-            id: lvgl_lvgl_label_title
-            text: "BOOT"
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "BOOTING..."
+
       widgets:
-        # 1. Das zentrale Musik-Logo
+        - label:
+            x: 0
+            y: 40
+            text: "Musicbox"
+            text_font: roboto_24
+            text_color: 0x00D2FF
+            align: TOP_MID
+
+        - spinner:
+            x: 0
+            y: 0
+            width: 100
+            height: 100
+            arc_length: 60deg
+            arc_width: 4
+            indicator:
+              arc_color: 0x0000ff
+              arc_width: 4
+            align: CENTER
+
         - image:
-            id: boot_logo
+            x: 0
+            y: 0
+            width: 64
+            height: 64
             src: img_boot_logo
             align: CENTER
-            y: -20 # Leicht nach oben versetzt
-            recolor: 0xFFFFFF # Weiß einfärben
-            recolor_opa: 100%
+            recolor: 0x0000FF
+            recolor_opa: 100% 
 
-        # 2. Ein animierter Ladekreis (Spinner) um das Logo herum
-        - spinner:
-            id: lvgl_spinner_boot
-            align: CENTER
+        - label:          
+            x: 0
             y: -20
-            width: 110
-            height: 110
-            spin_time: 1000ms
-            arc_length: 60
-            
-        # 3. Der Statustext darunter
-        - label:
-            id: lvgl_label_boot_status
-            align: CENTER
-            y: 70
-            text_color: "0xFFFFFF"
-            text_font: montserrat_12
-            text_align: CENTER
-            text: "System startet..."
-
-        # 4. Systeminfos ganz unten (nebeneinander oder untereinander)
-        - label:
-            id: lvgl_label_version_proj
-            align: CENTER
-            y: 90
-            text_color: "0x7f7fFF"
-            text_font: montserrat_12
-            text_align: CENTER
+            text_font: roboto_12
+            text_color: 0x00D2FF
+            align: BOTTOM_MID
             text: !lambda |-
-              return "App: " + std::string(ESPHOME_PROJECT_NAME) + " v" + std::string(ESPHOME_PROJECT_VERSION);
-
-        - label:
-            id: lvgl_label_version_sys
-            align: CENTER
-            y: 110
-            text_color: "0x7f7fFF"
-            text_font: montserrat_12
-            text_align: CENTER
-            text: !lambda |-
-              return "ESPHome: " + std::string(ESPHOME_VERSION);
+              return str_sprintf("PROJ %s | IDF: %s | ESP: %s", 
+                ESPHOME_PROJECT_VERSION, 
+                esp_get_idf_version(),                //IDF_VER
+                ESPHOME_VERSION
+              );
 
 
-    - id: lvgl_page_idle
+    - id: lvgl_page_info
       on_load:
-        - lvgl.label.update:
-            id: lvgl_lvgl_label_title
-            text: "IDLE"
-      widgets:
-        # Große Uhrzeit in der Mitte
-        - label:
-            id: lvgl_label_time
-            text: "--:--:--"
-            x: 10
-            y: 60
-            width: 300
-            text_color: "0xFFFFFF"
-            text_font: montserrat_48
-            text_align: CENTER
-            group: main_group
-            on_focus:
-              - lvgl.page.show:
-                  id: lvgl_page_idle
-                  animation: FADE_IN
-                  time: 300ms
-        # Datum unter der Uhrzeit
-        - label:
-            id: lvgl_label_date
-            text: "--.--.----"
-            x: 10
-            y: 150
-            width: 300
-            text_color: "0xAAAAAA" # Graue Schrift
-            text_font: montserrat_30
-            text_align: CENTER  
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "INFO"
 
-        # Wochentag unter dem Datum
+      widgets:
+        # 🕒 GROSSE DIGITALUHR (Zentriert im oberen Drittel)
         - label:
-            id: lvgl_label_weekday
-            text: "Wochentag"
+            id: info_clock
+            x: 0
+            y: 40
+            text: "00:00:00"
+            text_font: roboto_32
+            text_color: 0x00D2FF
+            align: TOP_MID
+
+        # 📅 DATUM & WOCHENTAG
+        - label:
+            id: info_date
+            x: 0
+            y: 80
+            text: "---"
+            text_font: roboto_16
+            text_color: 0xAAAAAA
+            align: TOP_MID
+
+        # 🌤️ WETTER COMPONENTEN (Icon links, Text daneben)
+        - image:
+            id: info_weather_icon
             x: 10
-            y: 180          # Platziert unter dem Datum
-            width: 300
-            text_color: "0xAAAAAA" # Graue Schrift
-            text_font: montserrat_30
-            text_align: CENTER            
+            y: 110
+            src: icon_weather_exceptional
+            recolor: "0xFFFFFF"
+            recolor_opa: 100% 
+
+        - label:
+            id: info_weather
+            x: 50                   
+            y: 115
+            text: "Wetter: Lade..."
+            text_font: roboto_16
+
+        # 📊 NEUE EXTRA-INFO LEISTE (Kompakt im unteren Bereich platziert)
+        # 🧪 Luftdruck (Ganz links)
+        - label:
+            id: info_barometer
+            x: 10
+            y: 140
+            text: "Luft: ---- hPa"
+            text_font: roboto_16    # Kleinere Schriftart für die Statusleiste
+            text_color: 0x888888
+
+        # 💧 Regenwahrscheinlichkeit (Mittig versetzt)
+        - label:
+            id: info_rain_prob
+            x: 110
+            y: 140
+            text: "Regen: --%"
+            text_font: roboto_16
+            text_color: 0x3498DB   # Dezentes Blau für Regen
+
+        # 💨 Windgeschwindigkeit (Ganz rechts versetzt)
+        - label:
+            id: info_wind
+            x: 210
+            y: 140
+            text: "Wind: -- km/h"
+            text_font: roboto_16
+            text_color: 0x2ECC71   # Dezentes Grün für Wind
+
+        - image:
+            id: info_sun_icon
+            x: 10
+            y: 170
+            src: icon_sun
+            recolor: "0xFFFFFF"
+            recolor_opa: 100% 
+
+        # ☀️ SONNENZEITEN (Unter dem Wetter)
+        - label:
+            id: info_sun
+            x: 50
+            y: 175
+            text: "Auf: --:--  •  Unter: --:--"
+            text_font: roboto_16
+            text_color: 0x888888
+
+        # 🌙 MONDPHASEN KOMPONENTEN
+        - image:
+            id: info_moon_icon
+            x: 10
+            y: 205
+            src: icon_moon_unknown
+            recolor: "0xFFFFFF"
+            recolor_opa: 100% 
+
+        - label:
+            id: info_moon_text
+            x: 50                   
+            y: 210
+            text: "Mond: ---"
+            text_font: roboto_16
+            text_color: 0x666666
+
+
+
+
 
 
     - id: lvgl_page_media
       on_load:
-        - lvgl.label.update:
-            id: lvgl_lvgl_label_title
-            text: "MEDIA"
-      widgets:
-        # Text-Label für den Album/Station (Über dem Songtitel)
-        - label:
-            id: lvgl_label_album
-            text: "-"
-            x: 10
-            y: 40
-            width: 300
-            long_mode: SCROLL
-            text_color: "0xFFFF00" # Gelbe Schrift
-            text_font: montserrat_18
-            text_align: CENTER
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "MEDIA"
 
-        # Text-Label für den Songtitel (Rechts neben dem Bild)
+      widgets:
+        # 🎵 TRACK INFOS (Aus dem vorherigen Schritt)
         - label:
-            id: lvgl_label_title
+            id: lvgl_label_media_title
+            x: 10
+            y: 35
+            width: 90%
             text: "Keine Wiedergabe"
-            x: 10
-            y: 60
-            width: 300
-            long_mode: SCROLL
-            text_color: "0xFFFFFF" # Weiße Schrift
-            text_font: montserrat_32
+            text_font: roboto_24
+            align: TOP_MID
             text_align: CENTER
-            group: main_group
-            on_focus:
-              - lvgl.page.show:
-                  id: lvgl_page_media
-                  animation: FADE_IN
-                  time: 300ms                  
-        # Text-Label für den Interpreten (Unter dem Songtitel)
+            long_mode: SCROLL_CIRCULAR
+
         - label:
-            id: lvgl_label_artist
-            text: "-"
+            id: lvgl_label_media_artist
             x: 10
-            y: 90
-            width: 300
-            long_mode: SCROLL
-            text_color: "0xAAAAAA" # Graue Schrift für besseren Kontrast
-            text_font: montserrat_28
+            y: 65
+            width: 90%
+            text: "---  •  ---"
+            text_font: roboto_16
+            text_color: 0xAAAAAA
+            align: TOP_MID
             text_align: CENTER
-        - image:
-            id: widget_cover_image
-            src: cover_image
-            x: 100
-            y: 140
-            width: 100
-            height: 100
+            long_mode: DOT
+
+        - label:
+            id: lvgl_label_media_album
+            x: 10
+            y: 85
+            width: 90%
+            text: "---"
+            text_font: roboto_16
+            text_color: 0x777777   # Etwas dunkleres Grau für die Album-Information
+            align: TOP_MID
+            text_align: CENTER
+            long_mode: DOT
+
+        # ⏳ NEU: KOMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
+        - obj:
+            x: 0
+            y: 110
+            width: 90%
+            height: 25
+            align: TOP_MID
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_main: SPACE_BETWEEN # Drückt Progress nach links und Length nach rechts
+              flex_align_cross: CENTER
+            widgets:
+              # Aktueller Fortschritt (Links)
+              - label:
+                  id: lvgl_label_progress
+                  text: "00:00:00"
+                  text_color: 0x00FFD2
+
+              # Gesamtlänge (Rechts - füttert deinen track_duration Sensor!)
+              - label:
+                  id: lvgl_label_duration
+                  text: "00:00:00"
+                  text_color: 0x888888 # Dezent gedimmtes Grau für die Gesamtlänge
+
+        # 📊 FORTSCHRITTSLEISTE (Direkt darunter bei y: 125)
+        - bar:
+            id: track_progress_bar
+            x: 0
+            y: 135
+            width: 90%
+            height: 5
+            align: TOP_MID
+            bg_color: 0x222222
+
+        # 🎛️ BUTTONBAR UNTEN (Der bündige Container am unteren Rand)
+        - obj:
+            align: BOTTOM_MID
+            x: 0
+            y: -5
+            width: 95%
+            height: 44
+            pad_all: 4
+            layout:
+              type: FLEX
+              flex_flow: ROW             
+              flex_align_main: SPACE_EVENLY
+              flex_align_cross: CENTER   
+            widgets:
+              # 📌 BUTTON: PREVIOUS
+              - button:
+                  id: lvgl_button_prev
+                  width: 22%
+                  height: 34
+                  text: "<<"
+                  group: encoder_group                  
+                  on_focus:
+                    then:
+                      - script.execute:
+                          id: show_page
+                          page: lvgl_page_media
+                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
+                      # - lvgl.page.show:
+                      #     id: lvgl_page_media
+                      #     animation: OVER_BOTTOM
+                      #     time: 300ms
+                  on_click:
+                    then:
+                      - logger.log: "prev via GUI"
+                      - media_player.previous: sendspin_player
+              # 📌 BUTTON: PLAY
+              - button:
+                  id: lvgl_button_play_stop
+                  width: 32%
+                  height: 34
+                  widgets:
+                    - label:
+                        id: lvgl_button_play_stop_label
+                        text: "Wait..."
+                        align: CENTER
+                  group: encoder_group                  
+                  on_focus:
+                    then:
+                      - script.execute:
+                          id: show_page
+                          page: lvgl_page_media
+                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
+                      # - lvgl.page.show:
+                      #     id: lvgl_page_media
+                      #     animation: FADE_IN
+                      #     time: 300ms
+                  on_click:
+                    then:
+                      - logger.log: "play via GUI"
+                      - media_player.toggle: sendspin_player
+
+              # 📌 BUTTON: NEXT
+              - button:
+                  id: lvgl_button_next
+                  width: 22%
+                  height: 34
+                  text: ">>"
+                  group: encoder_group                  
+                  on_focus:
+                    then:
+                      - script.execute:
+                          id: show_page
+                          page: lvgl_page_media
+                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
+                      # - lvgl.page.show:
+                      #     id: lvgl_page_media
+                      #     animation: FADE_IN
+                      #     time: 300ms
+                  on_click:
+                    then:
+                      - logger.log: "next via GUI"
+                      - media_player.next: sendspin_player
+
 
     - id: lvgl_page_volume
       on_load:
-        - lvgl.label.update:
-            id: lvgl_lvgl_label_title
-            text: "VOLUME"
-      widgets:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "VOLUME"
 
-        # Große Prozentanzeige in der Mitte
+      widgets:
+        # 🔊 DIGITALE LAUTSTÄRKEANZEIGE (Groß und zentriert im oberen Drittel)
         - label:
-            id: lvgl_label_volume_pct
-            text: "0 %"
-            x: 10
-            y: 120
-            width: 300
-            text_color: "0x0000FF" # Gelb
-            text_font: montserrat_30
+            id: lvgl_label_volume
+            x: 0
+            y: 50
+            text: "50 %"
+            text_font: roboto_24    # Ausnahme: Große Schrift für den Wert
+            text_color: 0x00FFD2   # Aqua-Akzentfarbe passend zur Timeline
+            align: TOP_MID
             text_align: CENTER
 
-        # Visueller Slider / Fortschrittsbalken
+        # 🎚️ INTEGRATIVER VOLUME-SLIDER (Elegant zentriert im unteren Drittel)
         - slider:
             id: lvgl_slider_volume
-            x: 35
-            y: 180
-            width: 250
-            height: 20
+            x: 0
+            y: 110
+            width: 85%
+            height: 16
+            align: TOP_MID
             min_value: 0
             max_value: 20
-            value: 42
-            group: main_group
+            value: 8
+            group: encoder_group                  
             on_focus:
-              - lvgl.page.show:
-                  id: lvgl_page_volume
-                  animation: FADE_IN
-                  time: 300ms
-            on_value:
               then:
-                - logger.log:
-                    format: "set Volume %.0f %%"
-                    args: [ 'x * 5.0f' ]
-                - homeassistant.service:
-                    action: media_player.volume_set
-                    data:
-                      entity_id: media_player.smart_speaker_2_audio_player_2
-                      volume_level: !lambda 'return (x / 20.0f);'
-                    on_success:
-                      - logger.log: "OK"
-                    on_error:
-                      - logger.log: "Error"
+                - script.execute:
+                    id: show_page
+                    page: lvgl_page_volume
+                # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "VOLUME");'
+                # - lvgl.page.show:
+                #     id: lvgl_page_volume
+                #     animation: FADE_IN
+                #     time: 300ms
 
+            on_change:
+              then:
+                - lvgl.label.update:
+                    id: lvgl_label_volume
+                    text: !lambda 'return str_sprintf("%0.0f %%", x * 5.0f);'
+                - media_player.volume_set:
+                    id: audio_player
+                    volume: !lambda 'return x / 20.0f;'
 
     - id: lvgl_page_backlight
       on_load:
-        - lvgl.label.update:
-            id: lvgl_lvgl_label_title
-            text: "BACKLIGHT"
-      widgets:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "BRIGHTNESS"
 
-        # Große Prozentanzeige in der Mitte
+      widgets:
+        # ☀️ DIGITALE HELLIGKEITSANZEIGE (Groß und zentriert)
         - label:
-            id: lvgl_label_backlight_pct
-            text: "0 %"
-            x: 10
-            y: 120
-            width: 300
-            text_color: "0xFF0000"
-            text_font: montserrat_30
+            id: lvgl_label_brightness
+            x: 0
+            y: 50
+            text: "50 %"
+            text_font: roboto_24    # Ausnahme: Große Schrift für den Wert
+            text_color: 0x00FFD2   # Aqua-Akzentfarbe passend zur Timeline
+            align: TOP_MID
             text_align: CENTER
 
-        # Visueller Slider / Fortschrittsbalken
+        # 🎚️ HELLIGKEITS-SLIDER (20 Rasten für flottes Drehen)
         - slider:
-            id: lvgl_slider_backlight
-            x: 35
-            y: 180
-            width: 250
-            height: 20
+            id: lvgl_slider_brightness
+            x: 0
+            y: 110
+            width: 85%
+            height: 16
+            align: TOP_MID
             min_value: 5
-            max_value: 20
-            value: 42
-            group: main_group
+            max_value: 20           # 20 Einzelschritte (5% pro Raste)
+            value: 15               # Startwert 75%
+            group: encoder_group                  
             on_focus:
-              - lvgl.page.show:
-                  id: lvgl_page_backlight
-                  animation: FADE_IN
-                  time: 300ms
-            on_value:
               then:
-                - logger.log:
-                    format: "set Backlight %.0f %%"
-                    args: [ 'x * 5.0f' ]
-                - lambda: |-
-                    // 1. Berechne den Ziel-Helligkeitswert (0.0 bis 1.0) aus dem Slider (0 bis 20)
-                    float target_brightness = x / 20.0f;
+                - script.execute:
+                    id: show_page
+                    page: lvgl_page_backlight
+                # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BACKLIGHT");'
+                # - lvgl.page.show:
+                #     id: lvgl_page_backlight
+                #     animation: FADE_IN
+                #     time: 300ms
+
+            # Event beim manuellen Drehen am KY-040
+            on_change:
+              then:
+                # 1. Prozentanzeige aktualisieren (x * 5)
+                - lvgl.label.update:
+                    id: lvgl_label_brightness
+                    text: !lambda |-
+                      return str_sprintf("%0.0f %%", x * 5.0f);
+                
+                # 2. Helligkeit an die monochromatic Light-Komponente übergeben
+                - light.turn_on:
+                    id: display_backlight
+                    # x (0-20) geteilt durch 20.0f ergibt den benötigten Float-Bereich (0.0 bis 1.0)
+                    brightness: !lambda |-
+                      return x / 20.0f;
+
+
+
                     
-                    // 2. Hole den aktuellen Ist-Wert des Lichts ab
-                    float current_brightness = id(display_backlight).remote_values.get_brightness();
-                    
-                    // 3. Prüfe mathematisch (mit minimaler Toleranz für Rundungsfehler), ob sich der Wert REAL geändert hat
-                    if (std::abs(target_brightness - current_brightness) > 0.02f) {
-                      
-                      // Nur wenn sich der Wert geändert hat, loggen wir und aktualisieren das Licht
-                      ESP_LOGD("main", "set Backlight %.0f %%", x * 5.0f);
-                      
-                      auto call = id(display_backlight).make_call();
-                      call.set_brightness(target_brightness);
-                      call.perform();
-                    }
+script:
+  - id: update_states
+    mode: single
+    then: 
+      - logger.log: "script: update_states"
+      - logger.log:
+          format: "Blocked: %s | Power: %s | Player-Status: %s"
+          args:
+            - 'id(is_blocked) ? "Yes" : "No"'
+            - 'id(ha_power_switch) ? "On" : "Off"'
+            - 'media_player::media_player_state_to_string(id(sendspin_player).state)' 
 
-    - id: lvgl_page_settings
-      on_load:
-        - lvgl.label.update:
-            id: lvgl_lvgl_label_title
-            text: "SETTINGS"
-      widgets:
-        - obj:
-            id: lvgl_list_settings
-            x: 5
-            y: 45
-            width: 310
-            height: 190
-            layout: VERTICAL
-            scrollbar_mode: AUTO
-            widgets:
-              - button:
-                  id: lvgl_button_settings_backlight
-                  text: "Helligkeit Display"
-                  group: main_group
-                  on_focus:
-                    - lvgl.page.show:
-                        id: lvgl_page_settings
-                        animation: FADE_IN
-                        time: 300ms
-              - button:
-                  id: lvgl_button_settings_ledstrip
-                  text: "Helligkeit LED"
-                  group: main_group
-                  on_focus:
-                    - lvgl.page.show:
-                        id: lvgl_page_settings
-                        animation: FADE_IN
-                        time: 300ms
-              - button:
-                  id: lvgl_button_settings_restart
-                  text: "Neustart"
-                  group: main_group
-                  on_focus:
-                    - lvgl.page.show:
-                        id: lvgl_page_settings
-                        animation: FADE_IN
-                        time: 300ms
-              - button:
-                  id: lvgl_button_settings_power
-                  text: "Zurück"
-                  group: main_group
-                  on_focus:
-                    - lvgl.page.show:
-                        id: lvgl_page_settings
-                        animation: FADE_IN
-                        time: 300ms
-
-    - id: lvgl_page_shutdown
+      - if:
+          condition:
+            lambda: 'return !id(is_blocked);'
+          then:
+            - if:
+                condition:
+                  - lvgl.page.is_showing: lvgl_page_boot
+                then:
+                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "BOOT");'
+            - if:
+                condition:
+                  - lvgl.page.is_showing: lvgl_page_info
+                then:
+                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "INFO");'
+            - if:
+                condition:
+                  - lvgl.page.is_showing: lvgl_page_media
+                then:
+                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "MEDIA");'
+            - if:
+                condition:
+                  - lvgl.page.is_showing: lvgl_page_volume
+                then:
+                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "VOLUME");'
+            - if:
+                condition:
+                  - lvgl.page.is_showing: lvgl_page_backlight
+                then:
+                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "BACKLIGHT");'
 
 
 
+            # SCHRITT 0: Wenn power off -> INFO; sonmst MEDIA
+            - if: 
+                condition: 
+                  lambda: "return !id(ha_power_switch).state;"
+                then: 
+                  - media_player.stop: sendspin_player
+                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "INFO");'
+                  - lvgl.page.show: lvgl_page_info
+                  # - lambda: 'id(backlight_pwm).set_level(0.15f);'
+
+                else: 
+                  - if:
+                      condition:
+                        or:
+                          - lvgl.page.is_showing: lvgl_page_boot
+                          - lvgl.page.is_showing: lvgl_page_info
+                      then:
+                        - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
+                        - lvgl.page.show: lvgl_page_media
+                        - lvgl.widget.focus: lvgl_button_play_stop
+                  # - lambda: |-
+                  #     float ha_brightness = id(display_backlight).remote_values.get_brightness();
+                  #     id(backlight_pwm).set_level(ha_brightness);
+
+                  # SCHRITT 1: Wenn offline (NONE) -> Beide Buttons sperren (Disabled)
+                  - if: 
+                      condition: 
+                        lambda: "return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_NONE;"
+                      then: 
+                        - lvgl.widget.disable: lvgl_button_play_stop
+
+                  # SCHRITT 2: Wenn online -> Beide Buttons freigeben (Enabled)
+                  - if: 
+                      condition: 
+                        lambda: "return id(sendspin_player).state != media_player::MEDIA_PLAYER_STATE_NONE;"
+                      then: 
+                        - lvgl.widget.enable: lvgl_button_play_stop
+
+                  # SCHRITT 3: Wenn Musik läuft (PLAYING) -> Play verstecken, Stop anzeigen
+                  - if: 
+                      condition: 
+                        lambda: "return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PLAYING;"
+                      then: 
+                        - lvgl.label.update:
+                            id: lvgl_button_play_stop_label
+                            text: "Pause"
+
+                  # SCHRITT 4: Wenn Musik pausiert/leerläuft (IDLE/PAUSED) -> Play anzeigen, Stop verstecken
+                  - if: 
+                      condition: 
+                        lambda: |-
+                          return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_IDLE || 
+                                id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PAUSED;
+                      then: 
+                        - lvgl.label.update:
+                            id: lvgl_button_play_stop_label
+                            text: "Play"
+      - logger.log: "LVGL Display-Updates beendet."
 
 
+  # - lvgl.page.show: lvgl_page_media
 
-substitutions:
-  PAGE_BOOT:      0
-  PAGE_IDLE:      1
-  PAGE_MEDIA:     2
-  PAGE_VOLUME:    3
-  PAGE_LIGHT:     4
-  PAGE_SETTINGS:  5
-  PAGE_SHUTDOWN:  6
+  - id: show_page
+    parameters: 
+      page: lvgl::LvPageType*
+    mode: single
+    then: 
+      - logger.log: "script: show_page"
+      - lambda: |-
+          if (id(is_blocked)) return;
 
-
-
-globals:
-  # im Boot/Shutdownvorgang true
-  - id: is_blocked
-    type: bool
-    restore_value: no
-    initial_value: 'false' 
+          if (page != nullptr) {
+              // get_parent() holt die übergeordnete LVGL-Komponente.
+              // show_page wechselt dann die Seite anhand des seiteninternen Index.
+              page->get_parent()->show_page(page->index, LV_SCREEN_LOAD_ANIM_FADE_ON, 300);
+          } else {
+              ESP_LOGE("main", "show_page aufgerufen, aber page ist ein nullptr!");
+          }

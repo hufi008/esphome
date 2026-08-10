@@ -1,6 +1,21 @@
 # voice-satellite/main.yaml
 ######################### Configuration
 
+esphome:
+  project:
+    name: "hufi.smart_speaker"
+    version: "0.9.1"
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            id(set_content_mode).execute(${CONTENT_BOOT});
+            id(is_booting) = true;
+    - priority: 200
+      then:
+        - lambda: |-
+            id(play_ui_sound).execute(snd_boot);
+
 substitutions:
   # Display Modes
   CONTENT_BOOT:     0
@@ -17,20 +32,6 @@ substitutions:
   OVERLAY_ERROR:    2
   OVERLAY_ALARM:    3
 
-esphome:
-  project:
-    name: "hufi.smart_speaker"
-    version: "0.9.1"
-  on_boot:
-    - priority: 250
-      then:
-        - lambda: |-
-            id(set_content_mode).execute(${CONTENT_BOOT});
-            id(is_booting) = true;
-    - priority: 200
-      then:
-        - lambda: |-
-            id(play_ui_sound).execute(snd_boot);
  
 json:
 

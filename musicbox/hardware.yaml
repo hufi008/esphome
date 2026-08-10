@@ -49,26 +49,22 @@ substitutions:
 # -------------------------------------------------------------------
 
 time:
-  - id: esptime
+  - id: ha_time
     platform: homeassistant
-
-sun:
-  id: sun_id
-  latitude: !secret latitude
-  longitude: !secret longitude
 
 button:
   - platform: restart
     name: "Restart"
+    icon: mdi:restart
     on_press:
       then:
         - safe_mode.mark_successful
 
 switch:
   - platform: template
+    id: ha_switch_power
     name: "Eingeschaltet"
     icon: mdi:power
-    id: ha_power_switch
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
 
@@ -86,18 +82,6 @@ text_sensor:
   - platform: homeassistant
     id: ha_sunset
     entity_id: sensor.sunset
-
-  - platform: sun
-    id: sunrise_id
-    name: "Sonnenaufgang"
-    type: sunrise
-    format: "%H:%M"
-  - platform: sun
-    id: sunset_id
-    name: "Sonnenuntergang"
-    type: sunset
-    format: "%H:%M"
-
   - platform: homeassistant
     id: ha_moonphase
     entity_id: sensor.moon_phase

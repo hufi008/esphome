@@ -27,7 +27,7 @@ globals:
 
 
 time:
-  - id: !extend esptime
+  - id: !extend ha_time
     on_time_sync:
       - lambda: |-
           ESP_LOGI(__FILE__, "on_time_time_sync");
@@ -59,14 +59,14 @@ time:
                 - lvgl.label.update:
                     id: info_clock
                     text: !lambda |-
-                      auto t = id(esptime).now();
+                      auto t = id(ha_time).now();
                       return str_sprintf("%02d:%02d", t.hour, t.minute);
 
                 # 2. DATUM & WOCHENTAG AKTUALISIEREN
                 - lvgl.label.update:
                     id: info_date
                     text: !lambda |-
-                      auto t = id(esptime).now();
+                      auto t = id(ha_time).now();
                       const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
                       return str_sprintf("%s, %02d.%02d.%04d", weekdays[t.day_of_week % 7], t.day_of_month, t.month, t.year);
 
@@ -114,8 +114,8 @@ time:
                 - lvgl.label.update:
                     id: info_sun
                     text: !lambda |-
-                      std::string sunrise = id(sunrise_id).state;
-                      std::string sunset = id(sunset_id).state;
+                      std::string sunrise = id(ha_sunrise).state;
+                      std::string sunset = id(ha_sunset).state;
                       if (sunrise.empty() || sunset.empty()) return "Aufgang: --:--  •  Untergang: --:--";
                       return str_sprintf("Sonne %s  •  %s", sunrise.c_str(), sunset.c_str());
 
@@ -184,7 +184,7 @@ time:
 
 
 switch:
-  - id: !extend ha_power_switch
+  - id: !extend ha_switch_power
     
     on_turn_on:
       then:
@@ -237,7 +237,7 @@ media_player:
     on_play:
       then:
         - logger.log: "SendSpin: on_play"
-        - switch.turn_on: ha_power_switch
+        - switch.turn_on: ha_switch_power
     on_pause:
       then:
         - logger.log: "SendSpin: on_pause"
@@ -533,7 +533,7 @@ binary_sensor:
           - ON for at most 2s
         then:
           - logger.log: "on_rotary_encoder_long_click"
-          # - switch.toggle: ha_power_switch
+          # - switch.toggle: ha_switch_power
 
 
 
@@ -782,7 +782,7 @@ lvgl:
     timeout: 60s
     then:
       logger.log: "lvgl: on_idle"
-      # switch.turn_off: ha_power_switch
+      # switch.turn_off: ha_switch_power
 
   on_pause:
     then:
@@ -1314,7 +1314,7 @@ script:
           format: "Blocked: %s | Power: %s | Player-Status: %s"
           args:
             - 'id(is_blocked) ? "Yes" : "No"'
-            - 'id(ha_power_switch) ? "On" : "Off"'
+            - 'id(ha_switch_power) ? "On" : "Off"'
             - 'media_player::media_player_state_to_string(id(sendspin_player).state)' 
 
       - if:
@@ -1352,7 +1352,7 @@ script:
             # SCHRITT 0: Wenn power off -> INFO; sonmst MEDIA
             - if: 
                 condition: 
-                  lambda: "return !id(ha_power_switch).state;"
+                  lambda: "return !id(ha_switch_power).state;"
                 then: 
                   - media_player.stop: sendspin_player
                   - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "INFO");'

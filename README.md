@@ -100,9 +100,15 @@ Das ist ein ESPHome-basiertes Smart Speaker / Voice Assistant Satellite Projekt 
       - btn_2_pin: GPIO12
       - btn_3_pin: GPIO13
       - btn_4_pin: GPIO14
-    notes:
+    - notes:
       - btn_vcc_pin: 3V3
       - btn_gnd_pin: GND
+  - power:
+    - type: USBC-Buchse mit 4 Adern
+      - Rot:     VIN 5V
+      - Schwarz: GND
+      - Weiss:   GPIO19
+      - Blau:    GPIO20
 
 - 2x speakers:
   - spec:

@@ -328,6 +328,13 @@ text_sensor:
         - lvgl.label.update:
             id: lvgl_label_media_title
             text: !lambda 'return x;'
+        # - lvgl.label.update:
+        #     id: lvgl_label_media_artist
+        #     text: "---"
+        # - lvgl.label.update:
+        #     id: lvgl_label_media_album
+        #     text: "---"
+
   - platform: sendspin
     type: artist
     name: Artist
@@ -361,7 +368,31 @@ text_sensor:
             args: [ 'x.c_str()' ]
         - online_image.set_url:
             id: current_album_art
-            url: !lambda 'return x;'
+            # url: !lambda 'return x;'
+            url: !lambda |-
+              // 1. Prüfen, ob die URL lokal ist (z.B. Home Assistant, lokale IPs oder .local)
+              bool is_local = (x.find("192.168.") != std::string::npos) || 
+                              (x.find(".local") != std::string::npos) ||
+                              (x.find("localhost") != std::string::npos);
+
+              if (is_local) {
+                // Lokale URL direkt und unverändert an online_image übergeben
+                ESP_LOGD("custom", "Lokale URL erkannt - Bypasse wsrv.nl: %s", x.c_str());
+                return x;
+              } else {
+                  // Externe URL über wsrv.nl jagen und verkleinern            
+                // Basis-Fragmente für den Proxy
+                std::string host_part = "https://wsrv.nl/";
+                std::string url_part = "?url=" + x;
+                std::string size_part = "&w=100&h=100&fit=cover";
+                std::string format_part = "&output=jpg";
+                
+                // Setzt die komplette URL-Struktur zusammen
+                std::string proxy_url = host_part + url_part + size_part + format_part;
+                
+                ESP_LOGD(__FILE__, "download image '%s'", proxy_url.c_str());
+                return proxy_url;
+              }
   # - platform: homeassistant
   #   id: ma_album_art_url
   #   # Ersetze dies durch die exakte Entity-ID deines Music Assistant Players in HA
@@ -392,69 +423,56 @@ sensor:
     name: "SendSpin Track Progress"
     on_value:
       then:
-        - if:
-            condition:
-              lambda: 'return x > 0;'      
-            then:
-              # - logger.log:
-              #     format: "SendSpin Fortschritt: %02d:%02d:%02d"
-              #     args:
-              #       - '(int)(x / 1000) / 3600'
-              #       - '((int)(x / 1000) % 3600) / 60'
-              #       - '(int)(x / 1000) % 60'
-              - lambda: |-
-                  static unsigned long last_log_time = 0;
-                  unsigned long now = millis();
+        - lambda: |-
+            static unsigned long last_log_time = 0;
+            unsigned long now = millis();
 
-                  // Trigger every 30 real-time seconds (30,000 milliseconds)
-                  if (now - last_log_time >= 30000) {
-                    last_log_time = now;
+            // Trigger every 30 real-time seconds (30,000 milliseconds)
+            if (now - last_log_time >= 30000) {
+              last_log_time = now;
 
-                    int total_seconds = x / 1000;
-                    ESP_LOGD("custom", "SendSpin Fortschritt: %02d:%02d:%02d", 
-                            total_seconds / 3600, 
-                            (total_seconds % 3600) / 60, 
-                            total_seconds % 60);
-                  }
+              int total_seconds = x / 1000;
+              ESP_LOGD("custom", "SendSpin Fortschritt: %02d:%02d:%02d", 
+                      total_seconds / 3600, 
+                      (total_seconds % 3600) / 60, 
+                      total_seconds % 60);
+            }
 
-              - lvgl.label.update:
-                  id: lvgl_label_progress
-                  text: !lambda |-
-                    int total_seconds = (int)(x / 1000);
-                    int hours = total_seconds / 3600;
-                    int minutes = (total_seconds % 3600) / 60;
-                    int seconds = total_seconds % 60;
-                    return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
-              - lvgl.bar.update:
-                  id: track_progress_bar
-                  value: !lambda 'return (int)x;'                    
+        - lvgl.label.update:
+            id: lvgl_label_progress
+            text: !lambda |-
+              int total_seconds = (int)(x / 1000);
+              int hours = total_seconds / 3600;
+              int minutes = (total_seconds % 3600) / 60;
+              int seconds = total_seconds % 60;
+              return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+        - lvgl.bar.update:
+            id: track_progress_bar
+            value: !lambda 'return (int)x;'                    
   - platform: sendspin
     type: track_duration
     name: "SendSpin Track Duration"
     on_value:
       then:
-        - if:
-            condition:
-              lambda: 'return x > 0;'      
-            then:
-              - logger.log:
-                  format: "SendSpin Gesamtlänge: %02d:%02d:%02d"
-                  args:
-                    - '(int)(x / 1000) / 3600'
-                    - '((int)(x / 1000) % 3600) / 60'
-                    - '(int)(x / 1000) % 60'
-              - lvgl.label.update:
-                  id: lvgl_label_duration
-                  text: !lambda |-
-                    int total_seconds = (int)(x / 1000);
-                    int hours = total_seconds / 3600;
-                    int minutes = (total_seconds % 3600) / 60;
-                    int seconds = total_seconds % 60;
-                    return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
-              - lvgl.bar.update:
-                  id: track_progress_bar
-                  min_value: 0
-                  max_value: !lambda 'return (int)x;'                    
+        - logger.log:
+            format: "SendSpin Gesamtlänge: %02d:%02d:%02d"
+            args:
+              - '(int)(x / 1000) / 3600'
+              - '((int)(x / 1000) % 3600) / 60'
+              - '(int)(x / 1000) % 60'
+        - lvgl.label.update:
+            id: lvgl_label_duration
+            text: !lambda |-
+              if (x == 0 ) return "";
+              int total_seconds = (int)(x / 1000);
+              int hours = total_seconds / 3600;
+              int minutes = (total_seconds % 3600) / 60;
+              int seconds = total_seconds % 60;
+              return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+        - lvgl.bar.update:
+            id: track_progress_bar
+            min_value: 0
+            max_value: !lambda 'return (int)x;'                    
   - platform: sendspin
     type: year
     name: "SendSpin Year"
@@ -463,6 +481,11 @@ sensor:
         - logger.log:
             format: "SendSpin Year: %.0f"
             args: [ 'x' ]
+        # - lvgl.label.update:
+        #     id: lvgl_label_year
+        #     text: !lambda |-
+        #       return str_sprintf("%4.0f", x);
+
   - platform: sendspin
     type: track
     name: "SendSpin Track"
@@ -471,6 +494,11 @@ sensor:
         - logger.log:
             format: "SendSpin Track: %.0f"
             args: [ 'x' ]
+        # - lvgl.label.update:
+        #     id: lvgl_label_track
+        #     text: !lambda |-
+        #       return str_sprintf("Track: %2.0f", x);
+
   - platform: wifi_signal
     id: wifi_rssi
     name: "Signalstärke"
@@ -646,7 +674,7 @@ image:
     url: "https://githubusercontent.com"
     format: JPG # Music Assistant liefert die Cover meist als JPG/PNG aus
     type: RGB565
-    resize: 80x80 # Skaliert das Bild direkt beim Download auf die perfekte UI-Größe
+    resize: 100x100 # Skaliert das Bild direkt beim Download auf die perfekte UI-Größe
     on_download_finished:
       then:
         # Zwingt LVGL das Bild auf dem Display neu zu zeichnen, sobald der Download fertig ist
@@ -1134,57 +1162,58 @@ lvgl:
         # 🖼️ NEU: ALBUM COVER (Links platziert, holt sich die Daten aus dem online_image)
         - image:
             id: lvgl_img_album_art
-            x: 10
-            y: 35
-            width: 80
-            height: 80
+            x: 0
+            y: 90
+            width: 100
+            height: 100
             src: current_album_art
 
         # 🎵 TRACK INFOS (Nach rechts verschoben, damit Platz für das Cover ist)
         - label:
             id: lvgl_label_media_title
-            x: 100 # Verspringen nach rechts
+            x: 10
             y: 35
-            width: 55% # Breite verringert, damit es nicht über den Rand ragt
+            width: 90% 
             text: "Keine Wiedergabe"
             text_font: roboto_24
-            align: TOP_LEFT # Ausrichtung geändert für besseren Textfluss neben dem Bild
+            align: TOP_LEFT
+            text_align: LEFT
+            long_mode: SCROLL
+
+        - label:
+            id: lvgl_label_media_artist
+            x: 10
+            y: 65
+            width: 90%
+            text: "---"
+            text_font: roboto_16
+            text_color: 0xBBBBBB
+            align: TOP_LEFT
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
 
         - label:
-            id: lvgl_label_media_artist
-            x: 100
-            y: 65
-            width: 55%
-            text: "---  •  ---"
-            text_font: roboto_16
-            text_color: 0xAAAAAA
-            align: TOP_LEFT
-            text_align: LEFT
-            long_mode: DOT
-
-        - label:
             id: lvgl_label_media_album
-            x: 100
+            x: 110
             y: 85
-            width: 55%
+            width: 60%
             text: "---"
             text_font: roboto_16
-            text_color: 0x777777
+            text_color: 0xBB4477
             align: TOP_LEFT
             text_align: LEFT
-            long_mode: DOT
+            long_mode: SCROLL_CIRCULAR
 
         # ⏳ NEU: KOMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
         - obj:
-            x: 0
-            y: 110
-            width: 90%
+            x: 110
+            y: 150
+            width: 60%
             height: 25
-            align: TOP_MID
+            align: TOP_LEFT
             bg_opa: TRANSP
-            border_width: 0
+            border_width: 2
+            border_color: 0xff007f
             pad_all: 0
             layout:
               type: FLEX
@@ -1198,23 +1227,23 @@ lvgl:
                   text: "00:00:00"
                   text_color: 0x00FFD2
 
-              # Gesamtlänge (Rechts - füttert deinen track_duration Sensor!)
+              # Gesamtlänge (Rechts)
               - label:
                   id: lvgl_label_duration
                   text: "00:00:00"
-                  text_color: 0x888888 # Dezent gedimmtes Grau für die Gesamtlänge
+                  text_color: 0xaaaaaa
 
-        # 📊 FORTSCHRITTSLEISTE (Direkt darunter bei y: 125)
+        # 📊 FORTSCHRITTSLEISTE
         - bar:
             id: track_progress_bar
-            x: 0
-            y: 135
-            width: 90%
+            x: 110
+            y: 175
+            width: 50%
             height: 5
-            align: TOP_MID
+            align: TOP_LEFT
             bg_color: 0x222222
 
-        # 🎛️ BUTTONBAR UNTEN (Der bündige Container am unteren Rand)
+        # 🎛️ BUTTONBAR UNTEN
         - obj:
             align: BOTTOM_MID
             x: 0
@@ -1314,14 +1343,14 @@ lvgl:
               text: "VOLUME"
 
       widgets:
-        # 🔊 DIGITALE LAUTSTÄRKEANZEIGE (Groß und zentriert im oberen Drittel)
+        # 🔊 DIGITALE LAUTSTÄRKEANZEIGE
         - label:
             id: lvgl_label_volume
             x: 0
             y: 50
             text: "50 %"
-            text_font: roboto_24    # Ausnahme: Große Schrift für den Wert
-            text_color: 0x00FFD2   # Aqua-Akzentfarbe passend zur Timeline
+            text_font: roboto_24
+            text_color: 0x00FFD2
             align: TOP_MID
             text_align: CENTER
 
@@ -1341,7 +1370,7 @@ lvgl:
               flex_align_cross: CENTER   
             widgets:
 
-              # 🎚️ INTEGRATIVER VOLUME-SLIDER (Elegant zentriert im unteren Drittel)
+              # 🎚️ INTEGRATIVER VOLUME-SLIDER
               - slider:
                   id: lvgl_slider_volume
                   width: 85%
@@ -1355,12 +1384,6 @@ lvgl:
                       - script.execute:
                           id: show_page
                           page: lvgl_page_volume
-                      # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "VOLUME");'
-                      # - lvgl.page.show:
-                      #     id: lvgl_page_volume
-                      #     animation: FADE_IN
-                      #     time: 300ms
-
                   on_change:
                     then:
                       - lvgl.label.update:
@@ -1398,8 +1421,8 @@ lvgl:
             x: 0
             y: 50
             text: "50 %"
-            text_font: roboto_24    # Ausnahme: Große Schrift für den Wert
-            text_color: 0x00FFD2   # Aqua-Akzentfarbe passend zur Timeline
+            text_font: roboto_24 
+            text_color: 0x00FFD2
             align: TOP_MID
             text_align: CENTER
 
@@ -1420,13 +1443,6 @@ lvgl:
                 - script.execute:
                     id: show_page
                     page: lvgl_page_backlight
-                # - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BACKLIGHT");'
-                # - lvgl.page.show:
-                #     id: lvgl_page_backlight
-                #     animation: FADE_IN
-                #     time: 300ms
-
-            # Event beim manuellen Drehen am KY-040
             on_change:
               then:
                 # 1. Prozentanzeige aktualisieren (x * 5)
@@ -1497,7 +1513,7 @@ script:
                   - media_player.stop: sendspin_player
                   - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "INFO");'
                   - lvgl.page.show: lvgl_page_info
-                  # - lambda: 'id(backlight_pwm).set_level(0.15f);'
+                  - lambda: 'id(backlight_pwm).set_level(0.15f);'
 
                 else: 
                   - if:
@@ -1509,9 +1525,9 @@ script:
                         - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
                         - lvgl.page.show: lvgl_page_media
                         - lvgl.widget.focus: lvgl_button_play_stop
-                  # - lambda: |-
-                  #     float ha_brightness = id(display_backlight).remote_values.get_brightness();
-                  #     id(backlight_pwm).set_level(ha_brightness);
+                  - lambda: |-
+                      float ha_brightness = id(display_backlight).remote_values.get_brightness();
+                      id(backlight_pwm).set_level(ha_brightness);
 
                   # SCHRITT 1: Wenn offline (NONE) -> Beide Buttons sperren (Disabled)
                   - if: 

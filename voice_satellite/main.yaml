@@ -116,6 +116,19 @@ time:
 
 number:
   - platform: template
+    name: "Display Kontrast"
+    id: display_contrast
+    min_value: 10
+    max_value: 100
+    step: 10
+    initial_value: 100
+    restore_value: True
+    unit_of_measurement: "%"
+    mode: slider
+    set_action:
+      lambda: |-
+        id(display_id).set_contrast(x / 100.0f);        
+  - platform: template
     id: content_mode_select
     name: "Content Mode"
     entity_category: diagnostic

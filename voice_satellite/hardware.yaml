@@ -736,16 +736,6 @@ interval:
           id(mic_peak_left) = 0;
           id(mic_peak_right) = 0;
 
-          ESP_LOGD(__FILE__, "Speaker Vol: %.2f | %.2f %.2f %.2f %.2f | %.2f %.2f",
-            id(hw_speaker).get_volume(),
-            id(va_sounds_resampler).get_volume(),
-            id(va_announcement_resampler).get_volume(),
-            id(mp_media_resampler).get_volume(),
-            id(mp_announcement_resampler).get_volume(),
-            id(va_player_id).volume,
-            id(media_player_id).volume
-          );
-
           
 
 # I2S Audio Bus
@@ -1020,21 +1010,21 @@ voice_assistant:
 
 micro_wake_word:
   id: mww
-  stop_after_detection: True
+  stop_after_detection: true
   task_stack_in_psram: true
   vad:
     model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json
-    probability_cutoff: 65%
+    probability_cutoff: 75%
     sliding_window_size: 5
   models:
     - model: github://esphome/micro-wake-word-models/models/v2/okay_nabu.json
-      probability_cutoff: 70%
+      probability_cutoff: 75%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_jarvis.json
-      probability_cutoff: 70%
+      probability_cutoff: 75%
     - model: github://esphome/micro-wake-word-models/models/v2/alexa.json
-      probability_cutoff: 70%
+      probability_cutoff: 75%
     - model: github://esphome/micro-wake-word-models/models/v2/hey_mycroft.json
-      probability_cutoff: 70%
+      probability_cutoff: 75%
 
 ###################################### Automation
 

@@ -45,7 +45,9 @@ substitutions:
 
 logger:
   level: DEBUG
-  initial_level: INFO
+  logs:
+    # Schaltet den extrem gesprächigen Media Player auf "WARN" herunter
+    speaker_media_player.pipeline: WARN   
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)

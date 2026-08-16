@@ -5,8 +5,11 @@ substitutions:
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
 
 logger:
-  level: INFO
-
+  level: DEBUG
+  logs:
+    # Schaltet den extrem gesprächigen Media Player auf "WARN" herunter
+    speaker_media_player.pipeline: WARN
+    
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-s3_devkitc_1.yaml

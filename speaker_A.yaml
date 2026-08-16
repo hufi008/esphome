@@ -1,7 +1,7 @@
 # speaker_4.yaml
 substitutions:
-  device_name: "esphome-web-d47dbc"
-  friendly_name: "Smart Speaker 3"
+  device_name: "esphome-web-462fd0"
+  friendly_name: "Smart Speaker A"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
 
   ### Pin-Belegung
@@ -14,7 +14,7 @@ substitutions:
   # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
   
 
-  # Microphone INMP441
+  # Microphone INMP441462fd0
   mic_ws_pin:    "GPIO06"   # WORD SELECT
   mic_sck_pin:   "GPIO05"   # SERIAL CLOCK
   mic_sd_pin:    "GPIO04"   # SERIAL DATA
@@ -56,8 +56,8 @@ packages:
   hardware: !include voice_satellite/hardware.yaml
   functions: !include voice_satellite/main.yaml
   scripts: !include voice_satellite/scripts.yaml
-  climate: !include common/bme280.yaml
-  # climate: !include common/htu21.yaml
+  # climate: !include common/bme280.yaml
+  climate: !include common/htu21.yaml
   sun: !include common/sunset_rise.yaml
   moon: !include common/moonphase.yaml
   weather: !include common/weather.yaml

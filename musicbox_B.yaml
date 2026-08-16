@@ -2,7 +2,7 @@
 
 substitutions:
   device_name: "esphome-web-46406c"
-  friendly_name: "Smart Speaker 5"
+  friendly_name: "MusicBox B"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home
 

@@ -1,39 +1,73 @@
-# box_1.yaml
+# box_2.yaml
 substitutions:
   device_name: "esphome-web-675044"
   friendly_name: "MusicBox_2"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
-
-# Pin-Belegung
-
+  
+# Pin assignment
+  # Pin for state of charge
+  bat_adc_pin: "GPIO13"
+  # Pin for On-Board WS2812 RGB-LED
+  board_rgb_pin: "GPIO48"
+  
+  # Battery voltage parameter (in Volts)
+  bat_min_voltage: "3.31"
+  bat_max_voltage: "4.20"
+  bat_warning_voltage: "3.50"
+  # Voltage drop compensation for the onboard protection diode
+  diode_drop_compensation: "0.65"
+  # USB detection thresholds (in Volts, including offset)
+  usb_charging_threshold: "4.90"
+  usb_filter_voltage: "4.40"
+  # Total capacity of your battery in mAh (e.g., 1000 for 1000mAh) - used for basic scale
+  battery_capacity_mah: "1000"
 
 logger:
   level: DEBUG
 
 packages:
-  # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-s3_supermini.yaml
-  # Holt die Funktionalität
-  # main: !include musicbox/main.yaml
+  base: !include common/base-s3_devkitc_1.yaml
 
 esphome:
   project:
     name: "hufi.musicbox"
-    version: "0.1.3"
+    version: "0.1.5"
   on_boot:
     - priority: -100
       then:
         - lambda: |-
             ESP_LOGI(__FILE__, "Starting up...");
+        - light.turn_on:
+            id: onboard_rgb
+            effect: "Rainbow Effect"
 
-light:
-  - platform: status_led
-    name: "Switch state"
-    pin: GPIO48
+globals:
+  - id: last_voltage
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: last_timestamp
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
 
 button:
   - platform: restart
     name: "Restart"
+
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: RGB
+    pin: ${board_rgb_pin}
+    num_leds: 1
+    chipset: WS2812
+    name: "Status LED"
+    id: onboard_rgb
+    effects:
+      - addressable_rainbow:
+          name: "Rainbow Effect"
+          speed: 5
+          width: 50
 
 text_sensor:
   # Wifi Informationen
@@ -57,9 +91,149 @@ text_sensor:
     power_save_mode:
       name: "Power Save"
       icon: "mdi:wifi"
-    # scan_results:
-    #   name: "Scan"
-    #   icon: "mdi:wifi"
 
 
-            
+sensor:
+  # Wifi Informationen
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi Signal dB"
+    update_interval: 30s
+  - platform: template
+    id: wifi_channel
+    name: "Channel"
+    icon: "mdi:wifi-marker"
+    entity_category: diagnostic
+    lambda: |-
+      if (id(wifi_id).is_connected())
+        return id(wifi_id).get_wifi_channel();
+      return -1;    
+    update_interval: 30s      
+
+  # Analog measurement via GPIO13 with diode compensation
+  - platform: adc
+    pin: ${bat_adc_pin}
+    id: battery_voltage_raw
+    attenuation: 12db
+    update_interval: 15s
+    internal: true
+    filters:
+      - multiply: 2.0
+      - offset: ${diode_drop_compensation}
+
+  # Output of the real battery voltage to Home Assistant
+  - platform: template
+    name: "Akkuspannung"
+    id: battery_voltage
+    unit_of_measurement: "V"
+    icon: "mdi:lightning-bolt"
+    accuracy_decimals: 2
+    update_interval: 15s
+    lambda: |-
+      float v = id(battery_voltage_raw).state;
+      if (v > ${usb_filter_voltage}) {
+        return ${bat_max_voltage}; 
+      }
+      return v;
+
+  # State of charge in percent
+  - platform: template
+    name: "Akku Ladestand"
+    id: battery_level
+    unit_of_measurement: "%"
+    icon: "mdi:battery"
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: |-
+      float voltage = id(battery_voltage_raw).state; 
+      if (std::isnan(voltage)) return {}; 
+      
+      if (voltage > ${usb_filter_voltage}) return 100.0;
+      if (voltage <= ${bat_min_voltage}) return 0.0;
+      
+      return (voltage - ${bat_min_voltage}) / (${bat_max_voltage} - ${bat_min_voltage}) * 100.0;
+
+  # 7. Estimated remaining battery life in hours
+  - platform: template
+    name: "Akku Restlaufzeit"
+    id: battery_runtime_estimation
+    unit_of_measurement: "h"
+    icon: "mdi:clock-outline"
+    accuracy_decimals: 1
+    update_interval: 60s
+    lambda: |-
+      // If charging, runtime is not calculable
+      if (id(battery_charging).state) {
+        return {};
+      }
+
+      float current_voltage = id(battery_voltage).state;
+      uint32_t current_time = millis();
+
+      // Check for first run initialization
+      if (id(last_voltage) == 0.0f) {
+        id(last_voltage) = current_voltage;
+        id(last_timestamp) = current_time;
+        return {};
+      }
+
+      // Calculate time delta in hours
+      float time_diff_hours = (float)(current_time - id(last_timestamp)) / 3600000.0f;
+      
+      // Calculate voltage delta
+      float voltage_drop = id(last_voltage) - current_voltage;
+
+      // Update globals for the next cycle
+      id(last_voltage) = current_voltage;
+      id(last_timestamp) = current_time;
+
+      // Avoid division by zero or negative drops due to ADC noise
+      if (voltage_drop <= 0.001f || time_diff_hours <= 0.0f) {
+        return {}; 
+      }
+
+      // Calculate remaining voltage buffer
+      float voltage_left = current_voltage - ${bat_min_voltage};
+      if (voltage_left <= 0.0f) return 0.0f;
+
+      // Compute estimated hours remaining
+      float voltage_drop_per_hour = voltage_drop / time_diff_hours;
+      float hours_remaining = voltage_left / voltage_drop_per_hour;
+
+      // Cap at a realistic maximum to smooth out micro-drops
+      if (hours_remaining > 24.0f) return 24.0f;
+
+      return hours_remaining;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 1
+
+binary_sensor:
+  # Detection of the charging state (USB plugged in)
+  - platform: template
+    name: "Akku wird geladen"
+    id: battery_charging
+    device_class: battery_charging
+    icon: "mdi:battery-charging"
+    lambda: |-
+      if (id(battery_voltage_raw).state > ${usb_charging_threshold}) {
+        return true;
+      } else {
+        return false;
+      }
+
+  # Low battery warning state
+  - platform: template
+    name: "Akku Ladewarnung"
+    id: battery_low
+    icon: "mdi:battery-alert"
+    lambda: |-
+      float v = id(battery_voltage).state;
+      if (std::isnan(v)) return {};
+
+      if (v < ${bat_warning_voltage}) {
+        return true;
+      } else {
+        return false;
+      }

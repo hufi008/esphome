@@ -1,26 +1,35 @@
-# box_2.yaml
 substitutions:
   device_name: "esphome-web-675044"
   friendly_name: "MusicBox_2"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
   
-# Pin assignment
-  # Pin for state of charge
+  # Pin assignment
   bat_adc_pin: "GPIO13"
-  # Pin for On-Board WS2812 RGB-LED
   board_rgb_pin: "GPIO48"
-  
-  # Battery voltage parameter (in Volts)
-  bat_min_voltage: "3.31"
-  bat_max_voltage: "4.20"
-  bat_warning_voltage: "3.50"
-  # Voltage drop compensation for the onboard protection diode
-  diode_drop_compensation: "0.65"
-  # USB detection thresholds (in Volts, including offset)
-  usb_charging_threshold: "4.90"
-  usb_filter_voltage: "4.40"
-  # Total capacity of your battery in mAh (e.g., 1000 for 1000mAh) - used for basic scale
-  battery_capacity_mah: "1000"
+
+  # I2S MAX98357
+  i2s_lrc_pin: GPIO10
+  i2s_bclk_pin: GPIO9
+  i2s_din_pin: GPIO8
+
+  # Akku-Spannungsmessung
+  battery_analog_pin: GPIO13
+
+  # SSD1306 OLED
+  oled_sda_pin: GPIO6
+  oled_scl_pin: GPIO7
+
+  # KY-040 Rotary Encoder
+  encoder_sw_pin: GPIO3
+  # ignore_strapping_warning: true
+  encoder_dt_pin: GPIO4
+  encoder_clk_pin: GPIO5
+
+  # Clean battery voltage configuration (in Volts)
+  bat_min_voltage: "3.31"             # Calibrated from your real shutdown
+  bat_max_voltage: "4.23"             # Real maximum voltage under load
+  bat_shutdown_voltage: "3.35"        # Forces safe infinite deep sleep to protect hardware
+  bat_recover_voltage: "3.40"  
 
 logger:
   level: DEBUG
@@ -42,14 +51,18 @@ esphome:
             effect: "Rainbow Effect"
 
 globals:
-  - id: last_voltage
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: last_timestamp
-    type: uint32_t
+  - id: low_battery_count
+    type: int
     restore_value: no
     initial_value: '0'
+
+deep_sleep:
+  id: deep_sleep_control
+  wakeup_pin:
+    number: ${encoder_sw_pin}
+    inverted: true
+    mode:
+      input: true
 
 button:
   - platform: restart
@@ -57,10 +70,10 @@ button:
 
 light:
   - platform: esp32_rmt_led_strip
+    chipset: WS2812
     rgb_order: RGB
     pin: ${board_rgb_pin}
     num_leds: 1
-    chipset: WS2812
     name: "Status LED"
     id: onboard_rgb
     effects:
@@ -92,7 +105,6 @@ text_sensor:
       name: "Power Save"
       icon: "mdi:wifi"
 
-
 sensor:
   # Wifi Informationen
   - platform: wifi_signal
@@ -110,130 +122,89 @@ sensor:
       return -1;    
     update_interval: 30s      
 
-  # Analog measurement via GPIO13 with diode compensation
+  # 1. Pure analog measurement via GPIO13 (with 1:1 voltage divider)
   - platform: adc
     pin: ${bat_adc_pin}
     id: battery_voltage_raw
     attenuation: 12db
-    update_interval: 15s
+    update_interval: 5s
     internal: true
     filters:
-      - multiply: 2.0
-      - offset: ${diode_drop_compensation}
+      - multiply: 2.149
 
-  # Output of the real battery voltage to Home Assistant
+  # 2. Output of the real battery voltage to Home Assistant
   - platform: template
     name: "Akkuspannung"
     id: battery_voltage
     unit_of_measurement: "V"
     icon: "mdi:lightning-bolt"
-    accuracy_decimals: 2
-    update_interval: 15s
+    accuracy_decimals: 3
+    update_interval: 5s
     lambda: |-
-      float v = id(battery_voltage_raw).state;
-      if (v > ${usb_filter_voltage}) {
-        return ${bat_max_voltage}; 
-      }
-      return v;
+      return id(battery_voltage_raw).state;
 
-  # State of charge in percent
+  # 3. State of charge in percent based on real cell limits
   - platform: template
     name: "Akku Ladestand"
     id: battery_level
     unit_of_measurement: "%"
     icon: "mdi:battery"
     accuracy_decimals: 0
-    update_interval: 15s
+    update_interval: 5s
     lambda: |-
       float voltage = id(battery_voltage_raw).state; 
-      if (std::isnan(voltage)) return {}; 
+      if (std::isnan(voltage)) return NAN; 
       
-      if (voltage > ${usb_filter_voltage}) return 100.0;
-      if (voltage <= ${bat_min_voltage}) return 0.0;
+      // Calculate pure percentage
+      float percentage = (voltage - ${bat_min_voltage}) / (${bat_max_voltage} - ${bat_min_voltage}) * 100.0f;
       
-      return (voltage - ${bat_min_voltage}) / (${bat_max_voltage} - ${bat_min_voltage}) * 100.0;
+      // Clean C++ clamping between 0.0 and 100.0
+      return std::clamp(percentage, 0.0f, 100.0f);
+    on_value:
+      then:
+        - lambda: |-
+            float voltage = id(battery_voltage_raw).state;
 
-  # 7. Estimated remaining battery life in hours
-  - platform: template
-    name: "Akku Restlaufzeit"
-    id: battery_runtime_estimation
-    unit_of_measurement: "h"
-    icon: "mdi:clock-outline"
-    accuracy_decimals: 1
-    update_interval: 60s
-    lambda: |-
-      // If charging, runtime is not calculable
-      if (id(battery_charging).state) {
-        return {};
-      }
+            if (std::isnan(voltage)) {
+              return;
+            }
 
-      float current_voltage = id(battery_voltage).state;
-      uint32_t current_time = millis();
+            // Unterhalb der Abschaltschwelle:
+            // Fehlerzähler erhöhen
+            if (voltage < ${bat_shutdown_voltage}) {
+              id(low_battery_count)++;
 
-      // Check for first run initialization
-      if (id(last_voltage) == 0.0f) {
-        id(last_voltage) = current_voltage;
-        id(last_timestamp) = current_time;
-        return {};
-      }
+              ESP_LOGW(
+                "power",
+                "Battery low: %.2f V (%d/3)",
+                voltage,
+                id(low_battery_count)
+              );
+            }
 
-      // Calculate time delta in hours
-      float time_diff_hours = (float)(current_time - id(last_timestamp)) / 3600000.0f;
-      
-      // Calculate voltage delta
-      float voltage_drop = id(last_voltage) - current_voltage;
+            // Erst oberhalb der Recover-Schwelle
+            // wird der Zähler wieder zurückgesetzt
+            else if (voltage > ${bat_recover_voltage}) {
+              if (id(low_battery_count) != 0) {
+                ESP_LOGI(
+                  "power",
+                  "Battery recovered: %.2f V - counter reset",
+                  voltage
+                );
+              }
 
-      // Update globals for the next cycle
-      id(last_voltage) = current_voltage;
-      id(last_timestamp) = current_time;
+              id(low_battery_count) = 0;
+            }
 
-      // Avoid division by zero or negative drops due to ADC noise
-      if (voltage_drop <= 0.001f || time_diff_hours <= 0.0f) {
-        return {}; 
-      }
+            // Zwischen shutdown und recover
+            // bleibt der aktuelle Zählerstand erhalten
 
-      // Calculate remaining voltage buffer
-      float voltage_left = current_voltage - ${bat_min_voltage};
-      if (voltage_left <= 0.0f) return 0.0f;
+            if (id(low_battery_count) >= 3) {
+              ESP_LOGE(
+                "power",
+                "Battery critical: %.2f V. Entering deep sleep.",
+                voltage
+              );
 
-      // Compute estimated hours remaining
-      float voltage_drop_per_hour = voltage_drop / time_diff_hours;
-      float hours_remaining = voltage_left / voltage_drop_per_hour;
-
-      // Cap at a realistic maximum to smooth out micro-drops
-      if (hours_remaining > 24.0f) return 24.0f;
-
-      return hours_remaining;
-    filters:
-      - sliding_window_moving_average:
-          window_size: 10
-          send_every: 1
-
-binary_sensor:
-  # Detection of the charging state (USB plugged in)
-  - platform: template
-    name: "Akku wird geladen"
-    id: battery_charging
-    device_class: battery_charging
-    icon: "mdi:battery-charging"
-    lambda: |-
-      if (id(battery_voltage_raw).state > ${usb_charging_threshold}) {
-        return true;
-      } else {
-        return false;
-      }
-
-  # Low battery warning state
-  - platform: template
-    name: "Akku Ladewarnung"
-    id: battery_low
-    icon: "mdi:battery-alert"
-    lambda: |-
-      float v = id(battery_voltage).state;
-      if (std::isnan(v)) return {};
-
-      if (v < ${bat_warning_voltage}) {
-        return true;
-      } else {
-        return false;
-      }
+              id(deep_sleep_control).begin_sleep();
+            }

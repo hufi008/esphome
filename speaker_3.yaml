@@ -53,6 +53,7 @@ packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-s3_devkitc_1.yaml
   # Holt die Funktionalität
+  # test: !include tests/test0.yaml
   hardware: !include voice_satellite/hardware.yaml
   functions: !include voice_satellite/main.yaml
   scripts: !include voice_satellite/scripts.yaml

@@ -1,4 +1,4 @@
-# speaker_5.yaml
+# musicbox_B.yaml
 
 substitutions:
   device_name: "esphome-web-46406c"
@@ -10,6 +10,17 @@ logger:
   level: DEBUG
   logs:
     xpt2046: INFO
+
+wifi:
+  id: wifi_id
+  ssid: "Home"
+  password: "Spellfireisnothere"
+  ap: 
+    ssid: "${friendly_name} Fallback"
+    password: "ESPHome12345"
+
+captive_portal:
+
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)

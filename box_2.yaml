@@ -8,7 +8,7 @@ substitutions:
   board_rgb_pin: "GPIO48"
 
   # I2S MAX98357
-  i2s_lrc_pin: GPIO10
+  i2s_lrclk_pin: GPIO10
   i2s_bclk_pin: GPIO9
   i2s_din_pin: GPIO8
 
@@ -16,12 +16,13 @@ substitutions:
   battery_analog_pin: GPIO13
 
   # SSD1306 OLED
-  oled_sda_pin: GPIO6
-  oled_scl_pin: GPIO7
+  i2c_sda_pin: GPIO6
+  i2c_scl_pin: GPIO7
+  # Display OLED SSD1306
+  ssd_addr:      "0x3C"
 
   # KY-040 Rotary Encoder
   encoder_sw_pin: GPIO3
-  # ignore_strapping_warning: true
   encoder_dt_pin: GPIO4
   encoder_clk_pin: GPIO5
 
@@ -35,31 +36,58 @@ logger:
   level: DEBUG
 
 packages:
-  base: !include common/base-s3_devkitc_1.yaml
+  base: !include common/base-s3_supermini.yaml
 
 esphome:
   project:
     name: "hufi.musicbox"
-    version: "0.1.5"
+    version: "0.1.7"
   on_boot:
-    - priority: -100
+    - priority: 600
       then:
         - lambda: |-
-            ESP_LOGI(__FILE__, "Starting up...");
+            ESP_LOGI(__FILE__, "Waking up...");
+    - priority: -100
+      then:
         - light.turn_on:
             id: onboard_rgb
             effect: "Rainbow Effect"
+            brightness: 50%
+        # EINMALIGER TEST-TEXT BEIM BOOTEN (Kein Dauerfeuer)
+        - lambda: |-
+            id(sendspin_title).publish_state("Waiting for Server");
+            id(sendspin_artist).publish_state("");
+            id(sendspin_album).publish_state("");
+        - script.execute: get_library
 
 globals:
+  - id: scroll_x
+    type: int
+    restore_value: no
+    initial_value: "0"
   - id: low_battery_count
     type: int
     restore_value: no
     initial_value: '0'
+  # Steuert den aktuellen Bedienmodus (0=Volume, 1=Play/Pause, 2=Track)
+  - id: control_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: user_has_turned
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: playlist_repository
+    type: JsonDocument
+    initial_value: 'JsonDocument()'
 
 deep_sleep:
   id: deep_sleep_control
   wakeup_pin:
+    ignore_strapping_warning: true
     number: ${encoder_sw_pin}
+    allow_other_uses: true
     inverted: true
     mode:
       input: true
@@ -82,6 +110,7 @@ light:
           speed: 5
           width: 50
 
+# region Sensors
 text_sensor:
   # Wifi Informationen
   - platform: wifi_info
@@ -104,6 +133,40 @@ text_sensor:
     power_save_mode:
       name: "Power Save"
       icon: "mdi:wifi"
+# -------------------------------------------------------------------
+# Sendspin Text-Sensoren
+# -------------------------------------------------------------------
+  - platform: sendspin
+    type: title
+    name: "Track Title"
+    id: sendspin_title
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "Track Title: %s"
+            args: [ 'x.c_str()' ] 
+  - platform: sendspin
+    type: artist
+    name: "Artist"
+    id: sendspin_artist
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "Artist: %s"
+            args: [ 'x.c_str()' ]
+  - platform: sendspin
+    type: album
+    name: "Album"
+    id: sendspin_album
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "Album: %s"
+            args: [ 'x.c_str()' ]
+
 
 sensor:
   # Wifi Informationen
@@ -206,5 +269,663 @@ sensor:
                 voltage
               );
 
-              id(deep_sleep_control).begin_sleep();
+              id(start_shutdown).execute();
             }
+  - platform: sendspin
+    type: track_progress
+    id: sendspin_progress
+    name: "SendSpin Track Progress"
+    # on_value:
+    #   then:
+    #     - logger.log:
+    #         format: "SendSpin Fortschritt: %02d:%02d:%02d"
+    #         args:
+    #           - '(int)(x / 1000) / 3600'
+    #           - '((int)(x / 1000) % 3600) / 60'
+    #           - '(int)(x / 1000) % 60'
+  - platform: sendspin
+    type: track_duration
+    id: sendspin_duration
+    name: "SendSpin Track Duration"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Gesamtlänge: %02d:%02d:%02d"
+            args:
+              - '(int)(x / 1000) / 3600'
+              - '((int)(x / 1000) % 3600) / 60'
+              - '(int)(x / 1000) % 60'
+  - platform: sendspin
+    type: year
+    id: sendspin_year
+    name: "SendSpin Year"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Year: %.0f"
+            args: [ 'x' ]
+  - platform: sendspin
+    type: track
+    id: sendspin_track
+    name: "SendSpin Track"
+    on_value:
+      then:
+        - logger.log:
+            format: "SendSpin Track: %.0f"
+            args: [ 'x' ]
+
+  - platform: rotary_encoder
+    id: my_encoder_pulse
+    pin_a:
+      number: ${encoder_clk_pin}
+      mode: INPUT_PULLUP
+    pin_b:
+      number: ${encoder_dt_pin}
+      mode: INPUT_PULLUP
+    resolution: 1
+    publish_initial_value: true
+    filters:
+      - debounce: 50ms
+      - throttle: 50ms
+    on_clockwise: 
+      then:
+        - lambda: |-
+            id(user_has_turned) = true;
+
+            auto call_audio = id(audio_player).make_call();
+            auto call_sendspin = id(sendspin_player).make_call();
+            switch(id(control_mode)) {
+              case 0: // Lautstärke erhöhen über das native Enum
+                ESP_LOGI(__FILE__,"MEDIA_PLAYER Volume Up");
+                call_audio.set_command(esphome::media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP);
+                call_audio.perform();
+                break;
+              case 1: // Rechts drehen = Stop
+                ESP_LOGI(__FILE__,"MEDIA_PLAYER Stop");
+                call_sendspin.set_command(esphome::media_player::MEDIA_PLAYER_COMMAND_STOP);
+                call_sendspin.perform();
+                break;
+              case 2: // Nächster Titel (Sendspin Gruppe)
+                ESP_LOGI(__FILE__,"MEDIA_PLAYER Next Track");
+                call_sendspin.set_command(esphome::media_player::MEDIA_PLAYER_COMMAND_NEXT);
+                call_sendspin.perform();
+                break;
+            }
+    on_anticlockwise: 
+      then:
+        - lambda: |-
+            id(user_has_turned) = true;
+
+            auto call_audio = id(audio_player).make_call();
+            auto call_sendspin = id(sendspin_player).make_call();
+            switch(id(control_mode)) {
+              case 0: // Lautstärke senken über das native Enum
+                ESP_LOGI(__FILE__,"MEDIA_PLAYER Volume Down");
+                call_audio.set_command(esphome::media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN);
+                call_audio.perform();
+                break;
+              case 1: // Links drehen = Play/Pause Toggle
+                ESP_LOGI(__FILE__,"MEDIA_PLAYER Play/Pause");
+                call_sendspin.set_command(esphome::media_player::MEDIA_PLAYER_COMMAND_TOGGLE);
+                call_sendspin.perform();
+                break;
+              case 2: // Vorheriger Titel (Sendspin Gruppe)
+                ESP_LOGI(__FILE__,"MEDIA_PLAYER Volume Prev Track");
+                call_sendspin.set_command(esphome::media_player::MEDIA_PLAYER_COMMAND_PREVIOUS);
+                call_sendspin.perform();
+                break;
+            }
+
+binary_sensor:
+  - platform: gpio
+    id: my_encoder_button
+    pin:
+      ignore_strapping_warning: true
+      number: ${encoder_sw_pin}
+      inverted: true
+      allow_other_uses: true
+      mode: INPUT_PULLUP
+    filters:
+      - delayed_on_off: 20ms
+    on_multi_click:
+      # 1. Kurzer Klick (Taste gedrückt für maximal 1 Sekunde, danach losgelassen)
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.2s
+        then:
+          - lambda: |-
+              if (id(show_volume).is_running()) {
+                ESP_LOGD(__FILE__, "show_volume stopped");
+                id(show_volume).stop(); 
+                id(control_mode) = -1;  // geht dann auf page_playback
+              }
+
+              id(control_mode)++;
+              if(id(control_mode) > 2) {
+                id(control_mode) = 0;
+              }
+
+              if (id(user_has_turned)) {
+                id(control_mode) = 0;
+                id(user_has_turned) = false;
+              }
+
+
+      # 2. Langer Klick / Gedrückthalten (Taste durchgehend für mindestens 2 Sekunden gedrückt)
+      - timing:
+          - ON for at least 2s
+        then:
+          - script.execute: start_shutdown
+# endregion
+
+# region Audio
+# -------------------------------------------------------------------
+# Audio
+# -------------------------------------------------------------------
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: ${i2s_lrclk_pin}
+    i2s_bclk_pin: ${i2s_bclk_pin}
+
+speaker:
+  - platform: i2s_audio
+    id: my_speaker
+    dac_type: external
+    i2s_dout_pin: ${i2s_din_pin}
+    i2s_audio_id: i2s_out
+    sample_rate: 48000
+    channel: mono
+    timeout: never
+    buffer_duration: 100ms
+
+sendspin:
+  id: sendspin_hub
+  task_stack_in_psram: true
+
+media_source:
+  - platform: sendspin
+    id: sendspin_media_source
+    task_stack_in_psram: true
+    decode_memory: psram
+    buffer_size: 500000
+    fixed_delay: 500us
+    initial_static_delay: 500ms
+    static_delay_adjustable: true
+
+  - platform: audio_http
+    id: audio_http_source
+    task_stack_in_psram: true
+    buffer_size: 50000
+
+media_player:
+  - platform: sendspin
+    id: sendspin_player
+    name: "Group"
+    on_state: 
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "sendspin onState - Neuer Zustand: %s"
+            args: [ "esphome::media_player::media_player_state_to_string(id(sendspin_player).state)" ]
+
+  - platform: speaker_source
+    id: audio_player
+    name: "Audio Player"
+    media_pipeline:
+      speaker: my_speaker
+      sources:
+        - sendspin_media_source
+        - audio_http_source
+    on_volume: 
+      then:
+        - lambda: 'ESP_LOGD(__FILE__, "speaker on_volume");'
+        - script.execute: show_volume
+# endregion
+
+i2c:
+  - id: i2c_bus
+    sda: ${i2c_sda_pin}
+    scl: ${i2c_scl_pin}
+    scan: true
+    frequency: 400kHz
+
+# region Video
+# -------------------------------------------------------------------
+# Video
+# -------------------------------------------------------------------
+font:
+  - id: font_small
+    file:
+      type: gfonts
+      family: Ubuntu
+      weight: 300
+    size: 8
+  - id: font_medium
+    file:
+      type: gfonts
+      family: Ubuntu
+      weight: 500
+    size: 11
+    glyphs:
+      - "äöüÄÖÜß°"
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: font_large
+    file:
+      type: gfonts
+      family: Ubuntu
+      weight: 700
+    size: 16
+    glyphs:
+      - "äöüÄÖÜß°"
+    glyphsets:
+      - GF_Latin_Kernel
+
+image:
+  - platform: file
+    file: mdi:wifi-plus
+    id: symbol_wifi_ap
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:wifi-strength-outline
+    id: symbol_wifi_0
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:wifi-strength-1
+    id: symbol_wifi_1
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:wifi-strength-2
+    id: symbol_wifi_2
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:wifi-strength-3
+    id: symbol_wifi_3
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:wifi-strength-4
+    id: symbol_wifi_4
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:home-assistant
+    id: symbol_api
+    type: binary
+    resize: 14x14
+  - platform: file
+    file: mdi:play
+    id: symbol_play
+    type: binary
+    resize: 24x24
+  - platform: file
+    file: mdi:pause
+    id: symbol_pause
+    type: binary
+    resize: 24x24
+  - platform: file
+    file: mdi:stop
+    id: symbol_stop
+    type: binary
+    resize: 24x24
+  - platform: file
+    file: mdi:skip-previous
+    id: symbol_prev
+    type: binary
+    resize: 24x24
+  - platform: file
+    file: mdi:skip-next
+    id: symbol_next
+    type: binary
+    resize: 24x24
+
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    id: my_display           # NEU: ID geändert auf my_display
+    address: ${ssd_addr}
+    update_interval: 100ms
+    lambda: |-
+      int w = it.get_width();
+      int h = it.get_height();
+      int cx = w / 2;
+
+      // =================================================================
+      // 1. STATISCHER RAHMEN: OBERE INFO-LEISTE (RECHTER TEIL)
+      // =================================================================
+      // =================================================================
+      // 1. STATISCHER RAHMEN: OBERE INFO-LEISTE (RECHTER TEIL MIT SYMBOLEN)
+      // =================================================================
+      
+      // icon_x ist die Startkoordinate für das erste Symbol (ganz rechts).
+      // Da die Icons 16x16 Pixel groß sind, platzieren wir das rechte Icon bei w - 16.
+      int icon_x = w - 16;
+      int icon_y = 0; // Bündig an der Oberkante
+
+      // --- 1. WIFI-SYMBOL GANZ RECHTS ---
+      float rssi = id(wifi_rssi).state;
+      
+      // Prüft, ob der ESP ein eigenes Netz aufspannt (AP-Modus)
+      if (id(wifi_id).is_ap_active()) {
+        it.image(icon_x, icon_y, id(symbol_wifi_ap)); // Ihr Symbol für AP-Modus
+      } 
+      // Falls nicht im AP-Modus, normales Signal anzeigen
+      else if (!std::isnan(rssi)) {
+        if (rssi > -50.0f) {
+          it.image(icon_x, icon_y, id(symbol_wifi_4));
+        } else if (rssi > -65.0f) {
+          it.image(icon_x, icon_y, id(symbol_wifi_3));
+        } else if (rssi > -75.0f) {
+          it.image(icon_x, icon_y, id(symbol_wifi_2));
+        } else if (rssi > -85.0f) {
+          it.image(icon_x, icon_y, id(symbol_wifi_1));
+        } else {
+          it.image(icon_x, icon_y, id(symbol_wifi_0));
+        }
+      } else {
+        it.image(icon_x, icon_y, id(symbol_wifi_0)); // Fallback für getrennt
+      }
+      
+      // 16 Pixel Platz nach links lassen (inklusive 2 Pixel Sicherheitsabstand)
+      icon_x -= 18; 
+
+      // --- 2. HOME ASSISTANT / API SYMBOL DANEBEN ---
+      // Das offizielle MDI-Logo wird nur gezeichnet, wenn die API-Verbindung steht.
+      if (id(api_id).is_connected()) {
+        it.image(icon_x, icon_y, id(symbol_api));
+      }
+      
+      icon_x -= 6; 
+      // --- 3. TRACK-NUMMER LINKS NEBEN DEN SYMBOLEN ---
+      float track_val = id(sendspin_track).state;
+      if (track_val > 0.0f) {
+        // TextAlign::TOP_RIGHT sorgt dafür, dass die Schrift exakt links neben den Icons aufhört
+        it.print(icon_x, 0, id(font_medium), TextAlign::TOP_RIGHT, str_sprintf("T.%.0f", track_val).c_str());
+      }
+
+      // =================================================================
+      // 2. SCROLL-PROZEDUR DEFINITION
+      // =================================================================
+      auto draw_scrollable_line = [&](const char* text, esphome::font::Font *font, int y_pos, int &scroll_pos, bool is_large) {
+        int tx, ty, tw, th;
+        const int gap = 40;
+        
+        it.get_text_bounds(cx + scroll_pos, y_pos, text, font, TextAlign::TOP_CENTER, &tx, &ty, &tw, &th);
+        it.print(cx + scroll_pos, y_pos, font, TextAlign::TOP_CENTER, text);
+
+        if (tw > w) {
+          it.print(cx + scroll_pos + tw + gap, y_pos, font, TextAlign::TOP_CENTER, text);
+          scroll_pos -= 1; 
+          if (scroll_pos <= -(tw + gap)) {
+            scroll_pos = 0;
+          }
+        } else {
+          scroll_pos = 0;
+        }
+      };
+
+      static int pos_title = 0;
+      static int pos_artist = 0;
+      static int pos_album = 0;
+
+      // =================================================================
+      // 3. MITTELTEIL (STATISCH): TITEL & ARTIST IMMER AN GLEICHER STELLE
+      // =================================================================
+      draw_scrollable_line(id(sendspin_title).state.c_str(),  id(font_large),  14, pos_title,  true);
+      draw_scrollable_line(id(sendspin_artist).state.c_str(), id(font_medium), 32, pos_artist, false);
+
+      // =================================================================
+      // 4. DYNAMISCHES BEDIENTEIL UNTEN (JETZT MIT GROSSEN 24x24 ICONS) &
+      // =================================================================
+      int y_control = 48; // Bleibt die Basishöhe für Text (Album/Volume)
+      int y_icons = 40;   // Höherer Startpunkt für die 24px hohen Icons
+      
+      float progress = id(sendspin_progress).state;
+      float duration = id(sendspin_duration).state;
+      float progress_pct = 0.0f;
+      if (duration > 0.0f && !std::isnan(progress)) {
+        progress_pct = progress / duration;
+        if (progress_pct > 1.0f) progress_pct = 1.0f;
+        if (progress_pct < 0.0f) progress_pct = 0.0f;
+      }
+
+      switch(id(control_mode)) {
+        
+        case 0: // MODUS 0: Standard-Album / Volume-Overlay
+          if (id(show_volume).is_running()) {
+            it.print(0, 0, id(font_medium), TextAlign::TOP_LEFT, "VOLUME");
+            
+            float vol = id(audio_player).volume;
+            if (std::isnan(vol)) vol = 0.0f;
+            it.print(cx, y_control, id(font_medium), TextAlign::TOP_CENTER, str_sprintf("%.0f %%", vol * 100.0f).c_str());
+            
+            int bar_x = 14;
+            int bar_y = 61; 
+            int bar_w = w - (bar_x * 2);
+            int bar_h = 2;
+            float fill_w = vol * bar_w;
+            if (fill_w > 0.0f) {
+              it.filled_rectangle(bar_x, bar_y, fill_w, bar_h);
+            }
+          } else {
+            it.print(0, 0, id(font_medium), TextAlign::TOP_LEFT, 
+                     id(audio_player).state == esphome::media_player::MEDIA_PLAYER_STATE_PLAYING ? "PLAY" :
+                     id(audio_player).state == esphome::media_player::MEDIA_PLAYER_STATE_PAUSED  ? "PAUSE" : "IDLE");
+            
+            draw_scrollable_line(id(sendspin_album).state.c_str(), id(font_medium), y_control, pos_album, false);
+            
+            if (progress_pct > 0.0f) {
+              it.horizontal_line(0, h - 1, progress_pct * w);
+            }
+          }
+          break;
+
+        case 1: // MODUS 1: CONTROL (Große Play/Pause & Stop Symbole)
+          it.print(0, 0, id(font_medium), TextAlign::TOP_LEFT, "CONTROL");
+          {
+            // Links-Knopp: Startet bei X=0, reicht bis X=24
+            if (id(audio_player).state == esphome::media_player::MEDIA_PLAYER_STATE_PLAYING) {
+              it.image(0, y_icons, id(symbol_pause));
+            } else {
+              it.image(0, y_icons, id(symbol_play));
+            }
+            
+            // Rechts-Knopp: Bündig rechts (128 - 24 = 104)
+            it.image(w - 24, y_icons, id(symbol_stop));
+            
+            if (progress_pct > 0.0f) {
+              it.horizontal_line(0, h - 1, progress_pct * w);
+            }
+          }
+          break;
+
+        case 2: // MODUS 2: TRACK (Große Zurück- & Vor-Skippen Symbole)
+          it.print(0, 0, id(font_medium), TextAlign::TOP_LEFT, "TRACK");
+          {
+            // Previous-Symbol ganz links
+            it.image(0, y_icons, id(symbol_prev));
+            
+            // Next-Symbol ganz rechts bündig (128 - 24 = 104)
+            it.image(w - 24, y_icons, id(symbol_next));
+            
+            if (progress_pct > 0.0f) {
+              it.horizontal_line(0, h - 1, progress_pct * w);
+            }
+          }
+          break;
+      }
+
+
+
+
+
+          
+# endregion
+
+interval:
+
+  - interval: 1min
+    startup_delay: 15sec      
+    then: 
+      - lambda: |-
+          ESP_LOGD(__FILE__, "test timer");
+      - homeassistant.action:
+          action: music_assistant.get_queue
+          data:
+            entity_id: media_player.musicbox_2
+          capture_response: true
+          # Hier mappen wir die Struktur aus deiner GUI-Antwort in ein flaches JSON-Objekt
+          response_template: >-
+            {% set player = response['media_player.musicbox_2'] %}
+            {% if player %}
+              {
+                "current": "{{ player.current_item.name if player.current_item else 'Unbekannt' }}",
+                "next": "{{ player.next_item.name if player.next_item else 'Kein nächster' }}"
+              }
+            {% else %}
+              {}
+            {% endif %}
+          
+          on_success:
+            - lambda: |-
+                // 1. Hole das generierte JSON-Objekt aus der Antwort
+                // Da das Template ein Objekt {} und kein Array [] erzeugt, nutzen wir JsonObjectConst
+                JsonObjectConst queue_data = response["response"].as<JsonObjectConst>();
+                
+                if (queue_data.containsKey("current") && queue_data.containsKey("next")) {
+                  std::string current_station = queue_data["current"].as<std::string>();
+                  std::string next_station    = queue_data["next"].as<std::string>();
+                  
+                  // 2. Ausgabe im ESPHome-Log
+                  ESP_LOGD(__FILE__, "Aktueller Sender: %s", current_station.c_str());
+                  ESP_LOGD(__FILE__, "Nächster Sender  : %s", next_station.c_str());
+                } else {
+                  ESP_LOGE(__FILE__, "Unerwartetes Antwortformat von get_queue");
+                }
+          
+          on_error: 
+            then:
+              - lambda: |-
+                  ESP_LOGD(__FILE__, "Fehler beim Abrufen der Music Assistant Queue");
+
+      - homeassistant.action:
+          action: music_assistant.get_library
+          data:
+            config_entry_id: "01KW38GX77NR90W1KNGBE82EPB"
+            media_type: playlist
+            favorite: "True"
+            limit: "10"
+          capture_response: true
+          response_template: >-
+            [
+              {% for p in response['items'] %}
+                {
+                  "name": "{{ p.name }}",
+                  "uri": "{{ p.uri }}"
+                }{% if not loop.last %},{% endif %}
+              {% endfor %}
+            ]
+          
+          on_success:
+            - lambda: |-
+                // 1. Tiefe Kopie in die globale Variable
+                id(playlist_repository) = response["response"];
+                
+                // 2. Offizielle Längenabfrage des Arrays im globalen Dokument
+                ESP_LOGD(__FILE__, "playlist_repository %zu items received.", id(playlist_repository).size());
+                
+                // 3. Schreibgeschützte Ansicht für die Schleife generieren
+                JsonArrayConst playlists = id(playlist_repository).as<JsonArrayConst>();
+                
+                // 4. Jedes Item auslesen und im ESPHome-Log ausgeben
+                size_t idx = 0;
+                for (JsonObjectConst playlist_data : playlists) {
+                  std::string name = playlist_data["name"].is<std::string>() ? playlist_data["name"].as<std::string>() : "Unbekannt";
+                  std::string uri  = playlist_data["uri"].is<std::string>() ? playlist_data["uri"].as<std::string>() : "";
+                  
+                  ESP_LOGD(__FILE__, "[#%02zu] Playlist: %-25s | URI: %s", 
+                            idx, name.c_str(), uri.c_str());
+                  idx++;
+                }
+
+                ESP_LOGD(__FILE__, "--- Ende Music Assistant Library ---");
+          on_error: 
+            then:
+            - lambda: |-
+                ESP_LOGD(__FILE__, "playlist_repository error");
+              
+
+# region Scripts
+script:
+  - id: start_shutdown
+    mode: single
+    then: 
+      - media_player.stop: sendspin_player
+      - light.turn_off: onboard_rgb
+      - lambda: 'id(my_display).turn_off();'
+      - wait_until:
+          and:
+            - light.is_off: onboard_rgb
+            - binary_sensor.is_off: my_encoder_button
+      - safe_mode.mark_successful:       
+      - delay: 200ms          
+      - logger.log: "Going to bed..."
+      - deep_sleep.enter: deep_sleep_control
+  - id: show_volume
+    mode: restart
+    then: 
+      - lambda: 'ESP_LOGD(__FILE__, "show_volume begin");'
+      - delay: 5s
+      - lambda: 'ESP_LOGD(__FILE__, "show_volume end");'
+  - id: get_library
+    mode: single
+    then:
+      - homeassistant.action:
+          action: music_assistant.get_library
+          data:
+            config_entry_id: "01KW38GX77NR90W1KNGBE82EPB"
+            limit: "10"
+            offset: "0"
+            favorite: "true"
+            media_type: playlist
+          capture_response: true
+          # Hier mappen wir die Music Assistant Struktur in kompakte JSON-Keys
+          response_template: >-
+            [
+              {% for p in response['items'] %}
+                {
+                  "name": "{{ p.name }}",
+                  "uri": "{{ p.uri }}"
+                }{% if not loop.last %},{% endif %}
+              {% endfor %}
+            ]
+          
+          on_success:
+            - lambda: |-
+                // 1. Tiefe Kopie in die globale Variable
+                id(playlist_repository) = response["response"];
+                
+                // 2. Offizielle Längenabfrage des Arrays im globalen Dokument
+                ESP_LOGD(__FILE__, "playlist_repository %zu items received.", id(playlist_repository).size());
+                
+                // 3. Schreibgeschützte Ansicht für die Schleife generieren
+                JsonArrayConst playlists = id(playlist_repository).as<JsonArrayConst>();
+                
+                // 4. Jedes Item auslesen und im ESPHome-Log ausgeben
+                size_t idx = 0;
+                for (JsonObjectConst playlist_data : playlists) {
+                  std::string name = playlist_data["name"].is<std::string>() ? playlist_data["name"].as<std::string>() : "Unbekannt";
+                  std::string uri  = playlist_data["uri"].is<std::string>() ? playlist_data["uri"].as<std::string>() : "";
+                  
+                  ESP_LOGD(__FILE__, "[#%02zu] Playlist: %-25s | URI: %s", 
+                            idx, name.c_str(), uri.c_str());
+                  idx++;
+                }
+
+                ESP_LOGD(__FILE__, "--- Ende Music Assistant Library ---");
+
+# endregion

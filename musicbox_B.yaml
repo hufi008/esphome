@@ -9,7 +9,7 @@ substitutions:
 logger:
   level: DEBUG
   logs:
-    xpt2046: INFO
+    # xpt2046: INFO
 
 wifi:
   id: wifi_id

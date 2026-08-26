@@ -27,10 +27,8 @@ substitutions:
   encoder_clk_pin: GPIO5
 
   # Clean battery voltage configuration (in Volts)
-  bat_min_voltage: "3.31"             # Calibrated from your real shutdown
+  bat_min_voltage: "3.75"             # starts deep_sleep
   bat_max_voltage: "4.23"             # Real maximum voltage under load
-  bat_shutdown_voltage: "3.35"        # Forces safe infinite deep sleep to protect hardware
-  bat_recover_voltage: "3.40"  
 
 logger:
   level: DEBUG
@@ -49,26 +47,40 @@ esphome:
             ESP_LOGI(__FILE__, "Waking up...");
     - priority: -100
       then:
-        - light.turn_on:
-            id: onboard_rgb
-            effect: "Rainbow Effect"
-            brightness: 50%
+        # - light.turn_on:
+        #     id: onboard_rgb
+        #     effect: "Rainbow Effect"
+        #     brightness: 50%
         # EINMALIGER TEST-TEXT BEIM BOOTEN (Kein Dauerfeuer)
         - lambda: |-
-            id(sendspin_title).publish_state("Waiting for Server");
+            id(sendspin_title).publish_state("Booting");
             id(sendspin_artist).publish_state("");
             id(sendspin_album).publish_state("");
         - script.execute: get_library
 
+wifi:
+  on_connect: 
+    then:
+      - lambda: |-
+          id(sendspin_title).publish_state("Searching Server");
+  on_disconnect: 
+    then:
+      - lambda: |-
+          id(sendspin_title).publish_state("Waiting for WLAN");
+      
+api:
+  on_client_connected: 
+    then:
+      - lambda: |-
+          id(sendspin_title).publish_state("Connecting");
+  on_client_disconnected: 
+    then:
+      - lambda: |-
+          id(sendspin_title).publish_state("Searching Server");
+      
+      
+      
 globals:
-  - id: scroll_x
-    type: int
-    restore_value: no
-    initial_value: "0"
-  - id: low_battery_count
-    type: int
-    restore_value: no
-    initial_value: '0'
   # Steuert den aktuellen Bedienmodus (0=Volume, 1=Play/Pause, 2=Track)
   - id: control_mode
     type: int
@@ -201,6 +213,7 @@ sensor:
     id: battery_voltage
     unit_of_measurement: "V"
     icon: "mdi:lightning-bolt"
+    device_class: power
     accuracy_decimals: 3
     update_interval: 5s
     lambda: |-
@@ -212,65 +225,84 @@ sensor:
     id: battery_level
     unit_of_measurement: "%"
     icon: "mdi:battery"
+    device_class: power
     accuracy_decimals: 0
     update_interval: 5s
     lambda: |-
       float voltage = id(battery_voltage_raw).state; 
       if (std::isnan(voltage)) return NAN; 
       
-      // Calculate pure percentage
       float percentage = (voltage - ${bat_min_voltage}) / (${bat_max_voltage} - ${bat_min_voltage}) * 100.0f;
-      
-      // Clean C++ clamping between 0.0 and 100.0
       return std::clamp(percentage, 0.0f, 100.0f);
+    # GLÄTTUNG HIER EINGEBAUT:
+    filters:
+      - sliding_window_moving_average:
+          window_size: 12  # 12 Werte * 5s Intervall = Glättung über die letzte Minute
+          send_every: 1    # Aktualisiert den Sensorwert bei jeder Messung
+
     on_value:
       then:
         - lambda: |-
-            float voltage = id(battery_voltage_raw).state;
+            if (std::isnan(x)) return;
 
-            if (std::isnan(voltage)) {
-              return;
-            }
-
-            // Unterhalb der Abschaltschwelle:
-            // Fehlerzähler erhöhen
-            if (voltage < ${bat_shutdown_voltage}) {
-              id(low_battery_count)++;
-
+            // Wenn der geglättete Wert 5% erreicht
+            if (x < 5.0f) {
               ESP_LOGW(
                 "power",
-                "Battery low: %.2f V (%d/3)",
-                voltage,
-                id(low_battery_count)
+                "Battery low: %.2f V",
+                id(battery_voltage_raw).state
               );
             }
 
-            // Erst oberhalb der Recover-Schwelle
-            // wird der Zähler wieder zurückgesetzt
-            else if (voltage > ${bat_recover_voltage}) {
-              if (id(low_battery_count) != 0) {
-                ESP_LOGI(
-                  "power",
-                  "Battery recovered: %.2f V - counter reset",
-                  voltage
-                );
-              }
-
-              id(low_battery_count) = 0;
-            }
-
-            // Zwischen shutdown und recover
-            // bleibt der aktuelle Zählerstand erhalten
-
-            if (id(low_battery_count) >= 3) {
+            // Wenn der geglättete Wert 0% erreicht
+            if (x <= 0.0f) {
               ESP_LOGE(
                 "power",
-                "Battery critical: %.2f V. Entering deep sleep.",
-                voltage
+                "Battery smoothed level is 0%%. Entering deep sleep."
               );
-
               id(start_shutdown).execute();
             }
+  - platform: template
+    name: "Akku wird geladen"
+    id: is_charging
+    device_class: power
+    update_interval: 5s
+    lambda: |-
+      float raw = id(battery_voltage_raw).state;
+      float level = id(battery_level).state; // Nutzen wir zur Validierung
+
+      if (std::isnan(raw) || std::isnan(level)) return {};
+
+      static float last_stable_v = 0.0f;
+
+      // Erstanlauf des ESPs absichern
+      if (last_stable_v == 0.0f) {
+        last_stable_v = raw;
+        return false;
+      }
+
+      // Berechnung des Unterschieds zur letzten stabilen Phase
+      float delta_u = raw - last_stable_v;
+
+      // 0.06V Schwelle filtert das ADC-Rauschen des S3 SuperMini sicher aus.
+      // Ein USB-Anschluss zieht die Kurve sofort deutlicher hoch.
+      if (delta_u > 0.06f) {
+        last_stable_v = raw; // Neuen oberen Pegel merken
+        return true;
+      } 
+      // Wenn das Kabel abgezogen wird, bricht die Spannung schlagartig ein
+      else if (delta_u < -0.06f) {
+        last_stable_v = raw; // Neuen unteren Pegel merken
+        return false;
+      }
+
+      // Innerhalb des Rauschbandes behalten wir den alten Zustand bei
+      return id(is_charging).state;
+
+
+
+
+
   - platform: sendspin
     type: track_progress
     id: sendspin_progress
@@ -526,37 +558,62 @@ image:
     file: mdi:wifi-plus
     id: symbol_wifi_ap
     type: binary
-    resize: 14x14
+    resize: 16x16
+  - platform: file
+    file: mdi:battery-outline
+    id: symbol_battery_0
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:battery-low
+    id: symbol_battery_1
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:battery-medium
+    id: symbol_battery_2
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:battery-high
+    id: symbol_battery_3
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:battery-charging
+    id: symbol_battery_charging
+    type: binary
+    resize: 16x16
   - platform: file
     file: mdi:wifi-strength-outline
     id: symbol_wifi_0
     type: binary
-    resize: 14x14
+    resize: 16x16
   - platform: file
     file: mdi:wifi-strength-1
     id: symbol_wifi_1
     type: binary
-    resize: 14x14
+    resize: 16x16
   - platform: file
     file: mdi:wifi-strength-2
     id: symbol_wifi_2
     type: binary
-    resize: 14x14
+    resize: 16x16
   - platform: file
     file: mdi:wifi-strength-3
     id: symbol_wifi_3
     type: binary
-    resize: 14x14
+    resize: 16x16
   - platform: file
     file: mdi:wifi-strength-4
     id: symbol_wifi_4
     type: binary
-    resize: 14x14
+    resize: 16x16
   - platform: file
     file: mdi:home-assistant
     id: symbol_api
     type: binary
-    resize: 14x14
+    resize: 16x16
   - platform: file
     file: mdi:play
     id: symbol_play
@@ -606,45 +663,69 @@ display:
       int icon_x = w - 16;
       int icon_y = 0; // Bündig an der Oberkante
 
-      // --- 1. WIFI-SYMBOL GANZ RECHTS ---
-      float rssi = id(wifi_rssi).state;
-      
-      // Prüft, ob der ESP ein eigenes Netz aufspannt (AP-Modus)
-      if (id(wifi_id).is_ap_active()) {
-        it.image(icon_x, icon_y, id(symbol_wifi_ap)); // Ihr Symbol für AP-Modus
-      } 
-      // Falls nicht im AP-Modus, normales Signal anzeigen
-      else if (!std::isnan(rssi)) {
-        if (rssi > -50.0f) {
-          it.image(icon_x, icon_y, id(symbol_wifi_4));
-        } else if (rssi > -65.0f) {
-          it.image(icon_x, icon_y, id(symbol_wifi_3));
-        } else if (rssi > -75.0f) {
-          it.image(icon_x, icon_y, id(symbol_wifi_2));
-        } else if (rssi > -85.0f) {
-          it.image(icon_x, icon_y, id(symbol_wifi_1));
-        } else {
-          it.image(icon_x, icon_y, id(symbol_wifi_0));
-        }
-      } else {
-        it.image(icon_x, icon_y, id(symbol_wifi_0)); // Fallback für getrennt
-      }
-      
-      // 16 Pixel Platz nach links lassen (inklusive 2 Pixel Sicherheitsabstand)
-      icon_x -= 18; 
+      {
+        // --- BATTERY-SYMBOL ---
+        float charge = id(battery_level).state;
 
-      // --- 2. HOME ASSISTANT / API SYMBOL DANEBEN ---
-      // Das offizielle MDI-Logo wird nur gezeichnet, wenn die API-Verbindung steht.
-      if (id(api_id).is_connected()) {
-        it.image(icon_x, icon_y, id(symbol_api));
+        // Zuerst prüfen, ob geladen wird
+        if (id(is_charging).state) {
+          it.image(icon_x, icon_y, id(symbol_battery_charging));
+        } 
+        // Wenn nicht geladen wird, normale Anzeige nach Ladestand
+        else {
+          if (charge > 76.0f) {
+            it.image(icon_x, icon_y, id(symbol_battery_3));
+          } else if (charge > 43.0f) {
+            it.image(icon_x, icon_y, id(symbol_battery_2));
+          } else if (charge > 10.0f) {
+            it.image(icon_x, icon_y, id(symbol_battery_1));
+          } else  {
+            it.image(icon_x, icon_y, id(symbol_battery_0));
+          }
+        }
       }
-      
+
+      icon_x -= 18; 
+      {
+        // --- WIFI-SYMBOL  ---
+        float rssi = id(wifi_rssi).state;
+        
+        // Prüft, ob der ESP ein eigenes Netz aufspannt (AP-Modus)
+        if (id(wifi_id).is_ap_active()) {
+          it.image(icon_x, icon_y, id(symbol_wifi_ap)); // Ihr Symbol für AP-Modus
+        } 
+        // Falls nicht im AP-Modus, normales Signal anzeigen
+        else if (!std::isnan(rssi)) {
+          if (rssi > -50.0f) {
+            it.image(icon_x, icon_y, id(symbol_wifi_4));
+          } else if (rssi > -65.0f) {
+            it.image(icon_x, icon_y, id(symbol_wifi_3));
+          } else if (rssi > -75.0f) {
+            it.image(icon_x, icon_y, id(symbol_wifi_2));
+          } else {
+            it.image(icon_x, icon_y, id(symbol_wifi_1));
+          }
+        } else {
+          it.image(icon_x, icon_y, id(symbol_wifi_0)); // Fallback für getrennt
+        }
+      }
+
+      icon_x -= 18; 
+      {
+        // --- HOME ASSISTANT / API SYMBOL ---
+        if (id(api_id).is_connected()) {
+          it.image(icon_x, icon_y, id(symbol_api));
+        }
+      }      
+
       icon_x -= 6; 
-      // --- 3. TRACK-NUMMER LINKS NEBEN DEN SYMBOLEN ---
-      float track_val = id(sendspin_track).state;
-      if (track_val > 0.0f) {
-        // TextAlign::TOP_RIGHT sorgt dafür, dass die Schrift exakt links neben den Icons aufhört
-        it.print(icon_x, 0, id(font_medium), TextAlign::TOP_RIGHT, str_sprintf("T.%.0f", track_val).c_str());
+      {
+        // --- TRACK-NUMMER LINKS NEBEN DEN SYMBOLEN ---
+        float track_val = id(sendspin_track).state;
+        if (track_val > 0.0f) {
+          // TextAlign::TOP_RIGHT sorgt dafür, dass die Schrift exakt links neben den Icons aufhört
+          it.print(icon_x, 0, id(font_medium), TextAlign::TOP_RIGHT, str_sprintf("T.%.0f", track_val).c_str());
+        }
       }
 
       // =================================================================
@@ -783,8 +864,10 @@ interval:
             {% set player = response['media_player.musicbox_2'] %}
             {% if player %}
               {
-                "current": "{{ player.current_item.name if player.current_item else 'Unbekannt' }}",
-                "next": "{{ player.next_item.name if player.next_item else 'Kein nächster' }}"
+                "cur_name": "{{ player.current_item.name }}",
+                "cur_title": "{{ player.current_item.stream_title }}",
+                "nxt_name": "{{ player.next_item.name }}",
+                "nxt_title": "{{ player.next_item.stream_title }}
               }
             {% else %}
               {}
@@ -796,16 +879,14 @@ interval:
                 // Da das Template ein Objekt {} und kein Array [] erzeugt, nutzen wir JsonObjectConst
                 JsonObjectConst queue_data = response["response"].as<JsonObjectConst>();
                 
-                if (queue_data.containsKey("current") && queue_data.containsKey("next")) {
-                  std::string current_station = queue_data["current"].as<std::string>();
-                  std::string next_station    = queue_data["next"].as<std::string>();
+                std::string current_station = queue_data["cur_name"].as<std::string>();
+                std::string current_title   = queue_data["cur_title"].as<std::string>();
+                std::string next_station    = queue_data["nxt_name"].as<std::string>();
+                std::string next_title      = queue_data["nxt_title"].as<std::string>();
                   
-                  // 2. Ausgabe im ESPHome-Log
-                  ESP_LOGD(__FILE__, "Aktueller Sender: %s", current_station.c_str());
-                  ESP_LOGD(__FILE__, "Nächster Sender  : %s", next_station.c_str());
-                } else {
-                  ESP_LOGE(__FILE__, "Unerwartetes Antwortformat von get_queue");
-                }
+                // 2. Ausgabe im ESPHome-Log
+                ESP_LOGD(__FILE__, "Aktueller Sender: %s # %s", current_station.c_str(), current_title.c_str());
+                ESP_LOGD(__FILE__, "Nächster Sender  : %s # %s", next_station.c_str(), next_station.c_str());
           
           on_error: 
             then:
@@ -816,8 +897,7 @@ interval:
           action: music_assistant.get_library
           data:
             config_entry_id: "01KW38GX77NR90W1KNGBE82EPB"
-            media_type: playlist
-            favorite: "True"
+            media_type: audiobook
             limit: "10"
           capture_response: true
           response_template: >-
@@ -873,7 +953,9 @@ script:
             - binary_sensor.is_off: my_encoder_button
       - safe_mode.mark_successful:       
       - delay: 200ms          
-      - logger.log: "Going to bed..."
+      - logger.log:
+          level: INFO
+          format: "Going to bed..."
       - deep_sleep.enter: deep_sleep_control
   - id: show_volume
     mode: restart

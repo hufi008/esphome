@@ -131,7 +131,7 @@ light:
     name: "Onboard RGB"
     pin: GPIO48
     num_leds: 1
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
     effects:
       - addressable_rainbow:
@@ -240,7 +240,7 @@ touchscreen:
       mirror_x: false
       mirror_y: false
     calibration:
-      x_min: 270
-      x_max: 3700
-      y_min: 450
+      x_min: 240
+      x_max: 3850
+      y_min: 350
       y_max: 3900

@@ -1,15 +1,15 @@
 # musicbox_B.yaml
 
 substitutions:
-  device_name: "esphome-web-46406c"
-  friendly_name: "MusicBox B"
+  device_name: "esphome-web-47a1fc"
+  friendly_name: "MusicBox 1"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home
 
 logger:
   level: DEBUG
-  # logs:
-    # xpt2046: INFO
+  logs:
+    xpt2046: INFO
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)

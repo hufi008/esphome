@@ -1,10 +1,10 @@
 # musicbox/main.yaml
 
 esphome:
-  min_version: 2026.7.3
+  min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.2.0
+    version: 0.3.0
   on_boot:
     priority: -100
     then:
@@ -22,8 +22,6 @@ esphome:
       - lvgl.page.show:
           id: lvgl_page_boot
 
-
-substitutions:
 
 globals:
   - id: is_blocked
@@ -237,8 +235,6 @@ light:
               // Aktualisiert den Text direkt im 100%-Format
               return str_sprintf("%0.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
 
-
-
 # 5. Der finale Mediaplayer, der den Netzwerkstream an den Speaker schickt
 media_player:
   - id: !extend sendspin_player
@@ -334,7 +330,6 @@ text_sensor:
         # - lvgl.label.update:
         #     id: lvgl_label_media_album
         #     text: "---"
-
   - platform: sendspin
     type: artist
     name: Artist
@@ -357,62 +352,6 @@ text_sensor:
         - lvgl.label.update:
             id: lvgl_label_media_album
             text: !lambda 'return x;'
-  - platform: sendspin
-    type: artwork_url
-    name: "Album Cover URL"
-    id: sendspin_artwork_url
-    on_value:
-      then:
-        - logger.log:
-            format: "Artwork URL: %s"
-            args: [ 'x.c_str()' ]
-        - online_image.set_url:
-            id: current_album_art
-            # url: !lambda 'return x;'
-            url: !lambda |-
-              // 1. Prüfen, ob die URL lokal ist (z.B. Home Assistant, lokale IPs oder .local)
-              bool is_local = (x.find("192.168.") != std::string::npos) || 
-                              (x.find(".local") != std::string::npos) ||
-                              (x.find("localhost") != std::string::npos);
-
-              if (is_local) {
-                // Lokale URL direkt und unverändert an online_image übergeben
-                ESP_LOGD("custom", "Lokale URL erkannt - Bypasse wsrv.nl: %s", x.c_str());
-                return x;
-              } else {
-                  // Externe URL über wsrv.nl jagen und verkleinern            
-                // Basis-Fragmente für den Proxy
-                std::string host_part = "https://wsrv.nl/";
-                std::string url_part = "?url=" + x;
-                std::string size_part = "&w=100&h=100&fit=cover";
-                std::string format_part = "&output=jpg";
-                
-                // Setzt die komplette URL-Struktur zusammen
-                std::string proxy_url = host_part + url_part + size_part + format_part;
-                
-                ESP_LOGD(__FILE__, "download image '%s'", proxy_url.c_str());
-                return proxy_url;
-              }
-  # - platform: homeassistant
-  #   id: ma_album_art_url
-  #   # Ersetze dies durch die exakte Entity-ID deines Music Assistant Players in HA
-  #   entity_id: ${media_player_entity_id}
-  #   attribute: entity_picture
-  #   # Sobald Home Assistant eine neue URL liefert, wird das Bild im Hintergrund geladen
-  #   on_value:
-  #     then:
-  #       - logger.log:
-  #           format: "Album Art URL: %s"
-  #           args: [ 'x.c_str()' ]
-  #       - online_image.set_url:
-  #           id: current_album_art
-  #           url: !lambda 'return x;'
-  
-external_components:
-  - source:
-      type: local
-      path: my_components
-    components: [ sendspin ]
 
 # -------------------------------------------------------------------
 # Wifi und Sensoren
@@ -485,7 +424,6 @@ sensor:
         #     id: lvgl_label_year
         #     text: !lambda |-
         #       return str_sprintf("%4.0f", x);
-
   - platform: sendspin
     type: track
     name: "SendSpin Track"
@@ -549,6 +487,15 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_0
+        # Access Point active
+        - if:
+            condition:
+              lambda: 'return id(wifi_id).is_ap_active();'
+            then:
+              - lvgl.image.update:
+                  id: lvgl_icon_wifi
+                  src: img_wifi_ap
+
   - platform: homeassistant
     id: weather_temperature
     entity_id: ${weather_forecast_id}
@@ -613,15 +560,6 @@ binary_sensor:
           # - switch.toggle: ha_switch_power
 
 
-
-
-
-
-
-
-
-
-
 # -------------------------------------------------------------------
 # Display und touch
 # -------------------------------------------------------------------
@@ -662,30 +600,17 @@ font:
     glyphsets:
       - GF_Latin_Kernel
 
-http_request:
-  timeout: 10s
-  verify_ssl: false 
-
-# Der Netzwerk-Bild-Downloader von ESPHome
 image:
-  - platform: online_image
-    id: current_album_art
-    # Eine Standard-Grafik (lokal), falls gerade nichts abgespielt wird oder beim Booten
-    url: "https://githubusercontent.com"
-    format: JPG # Music Assistant liefert die Cover meist als JPG/PNG aus
-    type: RGB565
-    resize: 100x100 # Skaliert das Bild direkt beim Download auf die perfekte UI-Größe
-    on_download_finished:
-      then:
-        # Zwingt LVGL das Bild auf dem Display neu zu zeichnen, sobald der Download fertig ist
-        - lvgl.image.update:
-            id: lvgl_img_album_art
-            src: current_album_art
   - platform: file
     file: "mdi:music-box-outline"
     id: img_boot_logo
     type: BINARY
     resize: 64x64
+  - platform: file
+    file: mdi:wifi-plus
+    id: img_wifi_ap
+    type: binary
+    resize: 32x32
   - platform: file
     file: "mdi:wifi-strength-outline"
     id: img_wifi_0
@@ -844,6 +769,38 @@ image:
     id: icon_weather_exceptional
     type: binary
     resize: 32x32
+
+  # Sendspin Album Cover
+  - platform: sendspin
+    id: album_slot
+    format: JPEG
+    type: RGB565
+    resize: 100x100
+    source: album
+    current_image:
+      id: current_album_art
+    on_image_display:
+      - logger.log:
+          format: "SendSpin album art image"
+      - lvgl.image.update:
+          id: lvgl_img_album_art
+          src: current_album_art
+  - platform: sendspin
+    id: artist_slot
+    format: PNG
+    type: RGB565
+    resize: 40x40
+    source: artist
+    current_image:
+      id: current_artist_art
+    on_image_display:
+      - logger.log:
+          format: "SendSpin artist art image"
+      # - lvgl.image.update:
+      #     id: lvgl_img_artist_art
+      #     src: current_artist_art
+
+
 
 # -------------------------------------------------------------------
 # GUI
@@ -1159,7 +1116,7 @@ lvgl:
               text: "MEDIA"
 
       widgets:
-        # 🖼️ NEU: ALBUM COVER (Links platziert, holt sich die Daten aus dem online_image)
+        # 🖼️ ALBUM COVER
         - image:
             id: lvgl_img_album_art
             x: 0
@@ -1167,6 +1124,15 @@ lvgl:
             width: 100
             height: 100
             src: current_album_art
+
+        # # 🖼️ ARTIST COVER 
+        # - image:
+        #     id: lvgl_img_artist_art
+        #     x: 280
+        #     y: 90
+        #     width: 40
+        #     height: 40
+        #     src: current_album_art
 
         # 🎵 TRACK INFOS (Nach rechts verschoben, damit Platz für das Cover ist)
         - label:
@@ -1319,7 +1285,6 @@ lvgl:
                     then:
                       - logger.log: "next via GUI"
                       - media_player.next: sendspin_player
-
 
     - id: lvgl_page_volume
       on_swipe_left:

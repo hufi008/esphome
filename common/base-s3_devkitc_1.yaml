@@ -20,7 +20,6 @@ wifi:
   power_save_mode: NONE
   fast_connect: true
   reboot_timeout: 15min
-  
 
 logger:
   level: DEBUG

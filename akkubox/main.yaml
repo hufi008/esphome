@@ -1,62 +1,9 @@
-substitutions:
-  device_name: "esphome-web-675044"
-  friendly_name: "MusicBox_2"
-  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
-  
-  # Pin assignment
-  bat_adc_pin: "GPIO13"
-  board_rgb_pin: "GPIO48"
-
-  # I2S MAX98357
-  i2s_lrclk_pin: GPIO10
-  i2s_bclk_pin: GPIO9
-  i2s_din_pin: GPIO8
-
-  # Akku-Spannungsmessung
-  battery_analog_pin: GPIO13
-
-  # SSD1306 OLED
-  i2c_sda_pin: GPIO6
-  i2c_scl_pin: GPIO7
-  # Display OLED SSD1306
-  ssd_addr:      "0x3C"
-
-  # KY-040 Rotary Encoder
-  encoder_sw_pin: GPIO3
-  encoder_dt_pin: GPIO4
-  encoder_clk_pin: GPIO5
-
-  # Clean battery voltage configuration (in Volts)
-  bat_min_voltage: "3.75"             # starts deep_sleep
-  bat_max_voltage: "4.23"             # Real maximum voltage under load
-
-logger:
-  level: DEBUG
-
-packages:
-  base: !include common/base-s3_supermini.yaml
+# akkubox/main.yaml
 
 esphome:
   project:
-    name: "hufi.musicbox"
-    version: "0.1.7"
-  on_boot:
-    - priority: 600
-      then:
-        - lambda: |-
-            ESP_LOGI(__FILE__, "Waking up...");
-    - priority: -100
-      then:
-        # - light.turn_on:
-        #     id: onboard_rgb
-        #     effect: "Rainbow Effect"
-        #     brightness: 50%
-        # EINMALIGER TEST-TEXT BEIM BOOTEN (Kein Dauerfeuer)
-        - lambda: |-
-            id(sendspin_title).publish_state("Booting");
-            id(sendspin_artist).publish_state("");
-            id(sendspin_album).publish_state("");
-        - script.execute: get_library
+    name: "hufi.akkubox"
+    version: "0.2.0"
 
 wifi:
   on_connect: 
@@ -77,9 +24,7 @@ api:
     then:
       - lambda: |-
           id(sendspin_title).publish_state("Searching Server");
-      
-      
-      
+
 globals:
   # Steuert den aktuellen Bedienmodus (0=Volume, 1=Play/Pause, 2=Track)
   - id: control_mode
@@ -94,60 +39,15 @@ globals:
     type: JsonDocument
     initial_value: 'JsonDocument()'
 
-deep_sleep:
-  id: deep_sleep_control
-  wakeup_pin:
-    ignore_strapping_warning: true
-    number: ${encoder_sw_pin}
-    allow_other_uses: true
-    inverted: true
-    mode:
-      input: true
-
-button:
-  - platform: restart
-    name: "Restart"
-
 light:
-  - platform: esp32_rmt_led_strip
-    chipset: WS2812
-    rgb_order: RGB
-    pin: ${board_rgb_pin}
-    num_leds: 1
-    name: "Status LED"
-    id: onboard_rgb
+  - id: !extend onboard_rgb
     effects:
       - addressable_rainbow:
           name: "Rainbow Effect"
           speed: 5
           width: 50
 
-# region Sensors
 text_sensor:
-  # Wifi Informationen
-  - platform: wifi_info
-    id: wifi_info
-    ip_address:
-      name: "IP"
-      icon: "mdi:wifi"
-    ssid:
-      name: "SSID"
-      icon: "mdi:wifi"
-    bssid:
-      name: "BSSID"
-      icon: "mdi:wifi"
-    mac_address:
-      name: "Mac"
-      icon: "mdi:wifi"
-    dns_address:
-      name: "DNS"
-      icon: "mdi:wifi"
-    power_save_mode:
-      name: "Power Save"
-      icon: "mdi:wifi"
-# -------------------------------------------------------------------
-# Sendspin Text-Sensoren
-# -------------------------------------------------------------------
   - platform: sendspin
     type: title
     name: "Track Title"
@@ -179,130 +79,7 @@ text_sensor:
             format: "Album: %s"
             args: [ 'x.c_str()' ]
 
-
 sensor:
-  # Wifi Informationen
-  - platform: wifi_signal
-    id: wifi_rssi
-    name: "WiFi Signal dB"
-    update_interval: 30s
-  - platform: template
-    id: wifi_channel
-    name: "Channel"
-    icon: "mdi:wifi-marker"
-    entity_category: diagnostic
-    lambda: |-
-      if (id(wifi_id).is_connected())
-        return id(wifi_id).get_wifi_channel();
-      return -1;    
-    update_interval: 30s      
-
-  # 1. Pure analog measurement via GPIO13 (with 1:1 voltage divider)
-  - platform: adc
-    pin: ${bat_adc_pin}
-    id: battery_voltage_raw
-    attenuation: 12db
-    update_interval: 5s
-    internal: true
-    filters:
-      - multiply: 2.149
-
-  # 2. Output of the real battery voltage to Home Assistant
-  - platform: template
-    name: "Akkuspannung"
-    id: battery_voltage
-    unit_of_measurement: "V"
-    icon: "mdi:lightning-bolt"
-    device_class: power
-    accuracy_decimals: 3
-    update_interval: 5s
-    lambda: |-
-      return id(battery_voltage_raw).state;
-
-  # 3. State of charge in percent based on real cell limits
-  - platform: template
-    name: "Akku Ladestand"
-    id: battery_level
-    unit_of_measurement: "%"
-    icon: "mdi:battery"
-    device_class: power
-    accuracy_decimals: 0
-    update_interval: 5s
-    lambda: |-
-      float voltage = id(battery_voltage_raw).state; 
-      if (std::isnan(voltage)) return NAN; 
-      
-      float percentage = (voltage - ${bat_min_voltage}) / (${bat_max_voltage} - ${bat_min_voltage}) * 100.0f;
-      return std::clamp(percentage, 0.0f, 100.0f);
-    # GLÄTTUNG HIER EINGEBAUT:
-    filters:
-      - sliding_window_moving_average:
-          window_size: 12  # 12 Werte * 5s Intervall = Glättung über die letzte Minute
-          send_every: 1    # Aktualisiert den Sensorwert bei jeder Messung
-
-    on_value:
-      then:
-        - lambda: |-
-            if (std::isnan(x)) return;
-
-            // Wenn der geglättete Wert 5% erreicht
-            if (x < 5.0f) {
-              ESP_LOGW(
-                "power",
-                "Battery low: %.2f V",
-                id(battery_voltage_raw).state
-              );
-            }
-
-            // Wenn der geglättete Wert 0% erreicht
-            if (x <= 0.0f) {
-              ESP_LOGE(
-                "power",
-                "Battery smoothed level is 0%%. Entering deep sleep."
-              );
-              id(start_shutdown).execute();
-            }
-  - platform: template
-    name: "Akku wird geladen"
-    id: is_charging
-    device_class: power
-    update_interval: 5s
-    lambda: |-
-      float raw = id(battery_voltage_raw).state;
-      float level = id(battery_level).state; // Nutzen wir zur Validierung
-
-      if (std::isnan(raw) || std::isnan(level)) return {};
-
-      static float last_stable_v = 0.0f;
-
-      // Erstanlauf des ESPs absichern
-      if (last_stable_v == 0.0f) {
-        last_stable_v = raw;
-        return false;
-      }
-
-      // Berechnung des Unterschieds zur letzten stabilen Phase
-      float delta_u = raw - last_stable_v;
-
-      // 0.06V Schwelle filtert das ADC-Rauschen des S3 SuperMini sicher aus.
-      // Ein USB-Anschluss zieht die Kurve sofort deutlicher hoch.
-      if (delta_u > 0.06f) {
-        last_stable_v = raw; // Neuen oberen Pegel merken
-        return true;
-      } 
-      // Wenn das Kabel abgezogen wird, bricht die Spannung schlagartig ein
-      else if (delta_u < -0.06f) {
-        last_stable_v = raw; // Neuen unteren Pegel merken
-        return false;
-      }
-
-      // Innerhalb des Rauschbandes behalten wir den alten Zustand bei
-      return id(is_charging).state;
-
-
-
-
-
   - platform: sendspin
     type: track_progress
     id: sendspin_progress
@@ -346,19 +123,7 @@ sensor:
             format: "SendSpin Track: %.0f"
             args: [ 'x' ]
 
-  - platform: rotary_encoder
-    id: my_encoder_pulse
-    pin_a:
-      number: ${encoder_clk_pin}
-      mode: INPUT_PULLUP
-    pin_b:
-      number: ${encoder_dt_pin}
-      mode: INPUT_PULLUP
-    resolution: 1
-    publish_initial_value: true
-    filters:
-      - debounce: 50ms
-      - throttle: 50ms
+  - id: !extend my_encoder_pulse
     on_clockwise: 
       then:
         - lambda: |-
@@ -409,16 +174,7 @@ sensor:
             }
 
 binary_sensor:
-  - platform: gpio
-    id: my_encoder_button
-    pin:
-      ignore_strapping_warning: true
-      number: ${encoder_sw_pin}
-      inverted: true
-      allow_other_uses: true
-      mode: INPUT_PULLUP
-    filters:
-      - delayed_on_off: 20ms
+  - id: !extend my_encoder_button
     on_multi_click:
       # 1. Kurzer Klick (Taste gedrückt für maximal 1 Sekunde, danach losgelassen)
       - timing:
@@ -448,204 +204,9 @@ binary_sensor:
           - ON for at least 2s
         then:
           - script.execute: start_shutdown
-# endregion
-
-# region Audio
-# -------------------------------------------------------------------
-# Audio
-# -------------------------------------------------------------------
-i2s_audio:
-  - id: i2s_out
-    i2s_lrclk_pin: ${i2s_lrclk_pin}
-    i2s_bclk_pin: ${i2s_bclk_pin}
-
-speaker:
-  - platform: i2s_audio
-    id: my_speaker
-    dac_type: external
-    i2s_dout_pin: ${i2s_din_pin}
-    i2s_audio_id: i2s_out
-    sample_rate: 48000
-    channel: mono
-    timeout: never
-    buffer_duration: 100ms
-
-sendspin:
-  id: sendspin_hub
-  task_stack_in_psram: true
-
-media_source:
-  - platform: sendspin
-    id: sendspin_media_source
-    task_stack_in_psram: true
-    decode_memory: psram
-    buffer_size: 500000
-    fixed_delay: 500us
-    initial_static_delay: 500ms
-    static_delay_adjustable: true
-
-  - platform: audio_http
-    id: audio_http_source
-    task_stack_in_psram: true
-    buffer_size: 50000
-
-media_player:
-  - platform: sendspin
-    id: sendspin_player
-    name: "Group"
-    on_state: 
-      then:
-        - logger.log:
-            level: DEBUG
-            format: "sendspin onState - Neuer Zustand: %s"
-            args: [ "esphome::media_player::media_player_state_to_string(id(sendspin_player).state)" ]
-
-  - platform: speaker_source
-    id: audio_player
-    name: "Audio Player"
-    media_pipeline:
-      speaker: my_speaker
-      sources:
-        - sendspin_media_source
-        - audio_http_source
-    on_volume: 
-      then:
-        - lambda: 'ESP_LOGD(__FILE__, "speaker on_volume");'
-        - script.execute: show_volume
-# endregion
-
-i2c:
-  - id: i2c_bus
-    sda: ${i2c_sda_pin}
-    scl: ${i2c_scl_pin}
-    scan: true
-    frequency: 400kHz
-
-# region Video
-# -------------------------------------------------------------------
-# Video
-# -------------------------------------------------------------------
-font:
-  - id: font_small
-    file:
-      type: gfonts
-      family: Ubuntu
-      weight: 300
-    size: 8
-  - id: font_medium
-    file:
-      type: gfonts
-      family: Ubuntu
-      weight: 500
-    size: 11
-    glyphs:
-      - "äöüÄÖÜß°"
-    glyphsets:
-      - GF_Latin_Kernel
-  - id: font_large
-    file:
-      type: gfonts
-      family: Ubuntu
-      weight: 700
-    size: 16
-    glyphs:
-      - "äöüÄÖÜß°"
-    glyphsets:
-      - GF_Latin_Kernel
-
-image:
-  - platform: file
-    file: mdi:wifi-plus
-    id: symbol_wifi_ap
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:battery-outline
-    id: symbol_battery_0
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:battery-low
-    id: symbol_battery_1
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:battery-medium
-    id: symbol_battery_2
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:battery-high
-    id: symbol_battery_3
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:battery-charging
-    id: symbol_battery_charging
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-outline
-    id: symbol_wifi_0
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-1
-    id: symbol_wifi_1
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-2
-    id: symbol_wifi_2
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-3
-    id: symbol_wifi_3
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-4
-    id: symbol_wifi_4
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:home-assistant
-    id: symbol_api
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:play
-    id: symbol_play
-    type: binary
-    resize: 24x24
-  - platform: file
-    file: mdi:pause
-    id: symbol_pause
-    type: binary
-    resize: 24x24
-  - platform: file
-    file: mdi:stop
-    id: symbol_stop
-    type: binary
-    resize: 24x24
-  - platform: file
-    file: mdi:skip-previous
-    id: symbol_prev
-    type: binary
-    resize: 24x24
-  - platform: file
-    file: mdi:skip-next
-    id: symbol_next
-    type: binary
-    resize: 24x24
 
 display:
-  - platform: ssd1306_i2c
-    model: SSD1306_128X64
-    id: my_display           # NEU: ID geändert auf my_display
-    address: ${ssd_addr}
-    update_interval: 100ms
+  - id: !extend my_display
     lambda: |-
       int w = it.get_width();
       int h = it.get_height();
@@ -840,13 +401,6 @@ display:
           break;
       }
 
-
-
-
-
-          
-# endregion
-
 interval:
 
   - interval: 1min
@@ -937,26 +491,8 @@ interval:
             then:
             - lambda: |-
                 ESP_LOGD(__FILE__, "playlist_repository error");
-              
 
-# region Scripts
 script:
-  - id: start_shutdown
-    mode: single
-    then: 
-      - media_player.stop: sendspin_player
-      - light.turn_off: onboard_rgb
-      - lambda: 'id(my_display).turn_off();'
-      - wait_until:
-          and:
-            - light.is_off: onboard_rgb
-            - binary_sensor.is_off: my_encoder_button
-      - safe_mode.mark_successful:       
-      - delay: 200ms          
-      - logger.log:
-          level: INFO
-          format: "Going to bed..."
-      - deep_sleep.enter: deep_sleep_control
   - id: show_volume
     mode: restart
     then: 
@@ -1009,5 +545,3 @@ script:
                 }
 
                 ESP_LOGD(__FILE__, "--- Ende Music Assistant Library ---");
-
-# endregion

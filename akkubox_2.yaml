@@ -1,0 +1,13 @@
+substitutions:
+  device_name: "esphome-web-675044"
+  friendly_name: "AkkuBox_2"
+  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }_audio_player"
+  
+logger:
+  level: DEBUG
+
+packages:
+  base: !include common/base-s3_supermini.yaml
+  hardware: !include akkubox/hardware.yaml
+  main: !include akkubox/main.yaml
+

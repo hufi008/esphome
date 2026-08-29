@@ -68,6 +68,12 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
 
+sun:
+  latitude: !secret latitude
+  longitude: !secret longitude
+
+
+
 # -------------------------------------------------------------------
 # Sensoren
 # -------------------------------------------------------------------
@@ -76,12 +82,14 @@ text_sensor:
   - platform: homeassistant
     id: ha_weather
     entity_id: weather.home
-  - platform: homeassistant
+  - platform: sun
     id: ha_sunrise
-    entity_id: sensor.sunrise
-  - platform: homeassistant
+    type: sunrise
+    format: "%H:%M"
+  - platform: sun
     id: ha_sunset
-    entity_id: sensor.sunset
+    type: sunset
+    format: "%H:%M"
   - platform: homeassistant
     id: ha_moonphase
     entity_id: sensor.moon_phase

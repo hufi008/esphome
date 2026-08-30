@@ -49,8 +49,9 @@ substitutions:
 # -------------------------------------------------------------------
 
 time:
-  - id: ha_time
-    platform: homeassistant
+  - platform: sntp
+    id: my_time
+    timezone: "Europe/Berlin"
 
 button:
   - platform: restart
@@ -66,13 +67,19 @@ switch:
     name: "Eingeschaltet"
     icon: mdi:power
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
+    restore_mode: RESTORE_DEFAULT_OFF
 
 sun:
   latitude: !secret latitude
   longitude: !secret longitude
 
 
+external_components:
+  - source:
+      type: local
+      path: my_components
+    components: 
+      - my_moon
 
 # -------------------------------------------------------------------
 # Sensoren
@@ -81,30 +88,68 @@ text_sensor:
   # 📡 Spiegelt die Wetter- und Umweltdaten aus deinem Home Assistant
   - platform: homeassistant
     id: ha_weather
+    name: "WetterH"
     entity_id: weather.home
   - platform: sun
-    id: ha_sunrise
+    id: my_sunrise
+    name: "Aufgang"
     type: sunrise
     format: "%H:%M"
   - platform: sun
-    id: ha_sunset
+    id: my_sunset
+    name: "Untergang"
     type: sunset
     format: "%H:%M"
-  - platform: homeassistant
-    id: ha_moonphase
-    entity_id: sensor.moon_phase
+  - platform: my_moon
+    id: my_moonphase
+    name: "MondphaseY"
+    update_interval: 10min
 
   - platform: wifi_info
     ip_address:
-      name: IP Address
+      name: "IP Address"
     ssid:
-      name: Connected SSID
-    scan_results:
-      name: Latest Scan Results
+      name: "SSID"
+    # scan_results:
+    #   name: Latest Scan Results
     power_save_mode:
       name: Wifi Power Save Mode
 
 sensor:
+  - platform: homeassistant
+    id: weather_temperature
+    entity_id: ${weather_forecast_id}
+    attribute: temperature
+    unit_of_measurement: "°C"
+  - platform: homeassistant
+    id: weather_humidity
+    entity_id: ${weather_forecast_id}
+    attribute: humidity
+    unit_of_measurement: "%"
+  - platform: homeassistant
+    id: weather_pressure
+    entity_id: ${weather_forecast_id}
+    attribute: pressure
+    unit_of_measurement: "hPa"
+  - platform: homeassistant
+    id: weather_wind_speed
+    entity_id: ${weather_forecast_id}
+    attribute: wind_speed
+    unit_of_measurement: "km/h"
+  - platform: homeassistant
+    id: weather_wind_bearing
+    entity_id: ${weather_forecast_id}
+    attribute: wind_bearing
+    unit_of_measurement: "°"
+  - platform: homeassistant
+    id: weather_wind_gust_speed
+    entity_id: ${weather_forecast_id}
+    attribute: wind_gust_speed
+  - platform: homeassistant
+    id: weather_uv_index
+    entity_id: ${weather_forecast_id}
+    attribute: uv_index
+
   - platform: rotary_encoder
     id: my_encoder_pulse
     pin_a:

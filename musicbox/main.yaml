@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.3.1
+    version: 0.3.3
   on_boot:
     priority: -100
     then:
@@ -29,12 +29,33 @@ globals:
     restore_value: no
     initial_value: 'true'
 
+api:
+  on_client_connected:
+    then:
+      - logger.log: "api: on_client_connected"
+      - wait_until:
+          condition:
+            api.connected:
+              state_subscription_only: true
+      - lvgl.widget.show: lvgl_icon_api
+  on_client_disconnected:
+    then:
+      - logger.log: "api: on_client_disconnected"
+      - if:
+          condition:
+            lambda: 'return (0 == client_info.find("Home Assistant "));'
+          then:
+            - lvgl.widget.hide: lvgl_icon_api
 
 time:
-  - id: !extend ha_time
+  - platform: homeassistant
     on_time_sync:
       - lambda: |-
-          ESP_LOGI(__FILE__, "on_time_time_sync");
+          ESP_LOGI(__FILE__, "ha_time: on_time_sync");
+          id(my_clock).update();
+          id(my_date).update();
+          id(my_sunrise).update();
+          id(my_sunset).update();
       - if:
           condition:
             lambda: 'return id(is_blocked);'
@@ -53,151 +74,22 @@ time:
                 }          
 
             - script.execute: update_states
-            - lvgl.widget.focus: lvgl_button_play_stop
+            # - lvgl.widget.focus: lvgl_button_play_stop
 
+  - id: !extend my_time
+    on_time_sync:
+      - lambda: |-
+          ESP_LOGI(__FILE__, "my_time: on_time_sync");
 
     on_time:
-      - seconds: /30
+      - seconds: /1
         then:
-          # # - logger.log: "[Interval] 30s-Takt:"
-          - if:
-              condition:
-                lambda: 'return !id(my_lvgl).is_ready();'
-              then:
-                # - logger.log: "LVGL noch nicht bereit – Update übersprungen!"
-              else:
-                # - logger.log: "LVGL ist bereit, führe Display-Updates aus."
-
-                - lambda: |-
-                    ESP_LOGI("time_trigger", "Läuft alle 30 Sekunden!");
-
-                # 1. UHRZEIT AKTUALISIEREN (Ohne Sekunden)
-                - lvgl.label.update:
-                    id: info_clock
-                    text: !lambda |-
-                      auto t = id(ha_time).now();
-                      return str_sprintf("%02d:%02d", t.hour, t.minute);
-
-                # 2. DATUM & WOCHENTAG AKTUALISIEREN
-                - lvgl.label.update:
-                    id: info_date
-                    text: !lambda |-
-                      auto t = id(ha_time).now();
-                      const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-                      return str_sprintf("%s, %02d.%02d.%04d", weekdays[t.day_of_week % 7], t.day_of_month, t.month, t.year);
-
-                # 3. WETTER-TEXT AKTUALISIEREN
-                - lvgl.label.update:
-                    id: info_weather
-                    text: !lambda |-
-                      std::string w = id(ha_weather).state;
-                      if (w == "partlycloudy") return "Leicht bewölkt";
-                      if (w == "clear_night" || w == "sunny") return "Klar";
-                      if (w == "cloudy") return "Bewölkt";
-                      if (w == "rainy") return "Regen";
-                      if (w == "pouring") return "Starker Regen";
-                      if (w == "fog") return "Nebel";
-                      return w;
-
-                # 4. WETTER-ICON AKTUALISIEREN
-                - lvgl.image.update:
-                    id: info_weather_icon
-                    src: !lambda |-
-                      static const std::map<std::string, const esphome::image::Image*> weather_icon_map = {
-                        {"sunny",           id(icon_weather_sunny)},
-                        {"clear-night",     id(icon_weather_clear_night)},
-                        {"partlycloudy",    id(icon_weather_partlycloudy)},
-                        {"cloudy",          id(icon_weather_cloudy)},
-                        {"fog",             id(icon_weather_fog)},
-                        {"pouring",         id(icon_weather_pouring)},
-                        {"rainy",           id(icon_weather_rainy)},
-                        {"hail",            id(icon_weather_hail)},
-                        {"snowy",           id(icon_weather_snowy)},
-                        {"snowy-rainy",     id(icon_weather_snowy_rainy)},
-                        {"lightning",       id(icon_weather_lightning)},
-                        {"lightning-rainy", id(icon_weather_lightning_rainy)},
-                        {"windy",           id(icon_weather_windy)},
-                        {"windy-variant",   id(icon_weather_windy)}
-                      };
-                      std::string current_weather = id(ha_weather).state;
-                      auto it = weather_icon_map.find(current_weather);
-                      if (it != weather_icon_map.end()) {
-                          return const_cast<esphome::image::Image*>(it->second);
-                      }
-                      return id(icon_weather_exceptional);
-
-                # 5. LOKALE SONNENZEITEN AKTUALISIEREN
-                - lvgl.label.update:
-                    id: info_sun
-                    text: !lambda |-
-                      std::string sunrise = id(ha_sunrise).state;
-                      std::string sunset = id(ha_sunset).state;
-                      if (sunrise.empty() || sunset.empty()) return "Aufgang: --:--  •  Untergang: --:--";
-                      return str_sprintf("Sonne %s  •  %s", sunrise.c_str(), sunset.c_str());
-
-                # 6. MOND-TEXT AKTUALISIEREN (Korrektur: [] und = hinzugefügt)
-                - lvgl.label.update:
-                    id: info_moon_text
-                    text: !lambda |-
-                      static const std::string moon_keys[] = {
-                        "unknown",
-                        "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
-                        "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
-                      };
-                      static const std::string moon_texts[] = {
-                        "Unbekannt",
-                        "Neumond", "1/4 Mond »", "Halbmond »", "3/4 Mond »", "Vollmond", "3/4 Mond «", "Halbmond «", "1/4 Mond «"
-                      };
-                      std::string phase = id(ha_moonphase).state;
-                      int index = 0;
-                      for (int i = 1; i < 9; i++) {
-                          if (moon_keys[i] == phase) { index = i; break; }
-                      }
-                      return str_sprintf("Mond (%d/8): %s", index, moon_texts[index].c_str());
-
-                # 7. MOND-ICON AKTUALISIEREN (Korrektur: [] und = hinzugefügt)
-                - lvgl.image.update:
-                    id: info_moon_icon
-                    src: !lambda |-
-                      static const std::string moon_keys[] = {
-                        "unknown",
-                        "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
-                        "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
-                      };
-                      static const esphome::image::Image* moon_icons[] = {
-                        id(icon_moon_unknown),
-                        id(icon_moon_new_moon), id(icon_moon_waxing_crescent), id(icon_moon_first_quarter), id(icon_moon_waxing_gibbous),
-                        id(icon_moon_full_moon), id(icon_moon_waning_gibbous), id(icon_moon_last_quarter), id(icon_moon_waning_crescent)
-                      };
-                      std::string phase = id(ha_moonphase).state;
-                      int index = 0;
-                      for (int i = 1; i < 9; i++) {
-                          if (moon_keys[i] == phase) { index = i; break; }
-                      }
-                      return const_cast<esphome::image::Image*>(moon_icons[index]);
-                # 8. LUFTDRUCK AKTUALISIEREN
-                - lvgl.label.update:
-                    id: info_barometer
-                    text: !lambda |-
-                      if (std::isnan(id(weather_pressure).state)) return std::string("---");
-                      return str_sprintf("%.0f hPa", id(weather_pressure).state);
-
-                # 9. LUFTFEUCHTIGKEIT AKTUALISIEREN (Nutzt deine ID 'info_rain_prob')
-                - lvgl.label.update:
-                    id: info_rain_prob
-                    text: !lambda |-
-                      if (std::isnan(id(weather_humidity).state)) return std::string("---");
-                      return str_sprintf("%.0f%%", id(weather_humidity).state);
-
-                # 10. WINDGESCHWINDIGKEIT AKTUALISIEREN
-                - lvgl.label.update:
-                    id: info_wind
-                    text: !lambda |-
-                      if (std::isnan(id(weather_wind_speed).state)) return std::string("---");
-                      return str_sprintf("%.1f km/h", id(weather_wind_speed).state);
-
-                # - logger.log: "[Interval] 30s-Takt: ...beendet"
-
+          - component.update: my_clock
+      - hours: 0
+        minutes: 0
+        seconds: 1
+        then:
+          - component.update: my_date
 
 switch:
   - id: !extend ha_switch_power
@@ -216,7 +108,6 @@ switch:
         - light.turn_off:
             id: onboard_led
         - script.execute: update_states
-
 
 light:
 # Display Backlight (PWM)
@@ -308,11 +199,137 @@ media_player:
     on_turn_off:
       then:
         - logger.log: "AudioPlayer: on_turn_off"
-
+      
 # -------------------------------------------------------------------
-# Sendspin Text-Sensoren
+# Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------
 text_sensor:
+  - platform: template
+    id: my_clock
+    update_interval: never
+    lambda: |-
+      auto t = id(my_time).now();
+      if (!t.is_valid()) {
+        return std::string("--:--:--");
+      }
+       return str_sprintf("%02d:%02d:%02d", t.hour, t.minute, t.second);
+    on_value:
+      - lvgl.label.update:
+          id: info_clock
+          text: !lambda |-
+            return x.c_str();     
+  - platform: template
+    id: my_date
+    update_interval: never
+    lambda: |-
+      auto t = id(my_time).now();
+      if (!t.is_valid()) {
+        return std::string("--.--.----");
+      }
+      const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+      return str_sprintf("%s, %02d.%02d.%04d", weekdays[t.day_of_week % 7], t.day_of_month, t.month, t.year);
+    on_value:
+      - lvgl.label.update:
+          id: info_date
+          text: !lambda |-
+            return x.c_str();     
+
+  - id: !extend ha_weather
+    on_value:
+        # WETTER-TEXT AKTUALISIEREN
+        - lvgl.label.update:
+            id: info_weather
+            text: !lambda |-
+              std::string w = x;
+              if (w == "partlycloudy") return "Leicht bewölkt";
+              if (w == "clear_night" || w == "sunny") return "Klar";
+              if (w == "cloudy") return "Bewölkt";
+              if (w == "rainy") return "Regen";
+              if (w == "pouring") return "Starker Regen";
+              if (w == "fog") return "Nebel";
+              return w;
+
+        # WETTER-ICON AKTUALISIEREN
+        - lvgl.image.update:
+            id: info_weather_icon
+            src: !lambda |-
+              static const std::map<std::string, const esphome::image::Image*> weather_icon_map = {
+                {"sunny",           id(icon_weather_sunny)},
+                {"clear-night",     id(icon_weather_clear_night)},
+                {"partlycloudy",    id(icon_weather_partlycloudy)},
+                {"cloudy",          id(icon_weather_cloudy)},
+                {"fog",             id(icon_weather_fog)},
+                {"pouring",         id(icon_weather_pouring)},
+                {"rainy",           id(icon_weather_rainy)},
+                {"hail",            id(icon_weather_hail)},
+                {"snowy",           id(icon_weather_snowy)},
+                {"snowy-rainy",     id(icon_weather_snowy_rainy)},
+                {"lightning",       id(icon_weather_lightning)},
+                {"lightning-rainy", id(icon_weather_lightning_rainy)},
+                {"windy",           id(icon_weather_windy)},
+                {"windy-variant",   id(icon_weather_windy)}
+              };
+              std::string current_weather = x;
+              auto it = weather_icon_map.find(current_weather);
+              if (it != weather_icon_map.end()) {
+                  return const_cast<esphome::image::Image*>(it->second);
+              }
+              return id(icon_weather_exceptional);
+  - id: !extend my_sunrise
+    on_value:
+      - lvgl.label.update:
+          id: info_sun
+          text: !lambda |-
+            std::string sunrise = id(my_sunrise).state;
+            std::string sunset = id(my_sunset).state;
+            if (sunrise.empty() || sunset.empty()) return "Aufgang: --:--  •  Untergang: --:--";
+            return str_sprintf("Sonne %s  •  %s", sunrise.c_str(), sunset.c_str());    
+  # - id: !extend ha_sunset    # bereits hier drüber erledigt
+  #   on_value:
+  - id: !extend my_moonphase
+    on_value:
+      then:
+        # MOND-TEXT AKTUALISIEREN 
+        - lvgl.label.update:
+            id: info_moon_text
+            text: !lambda |-
+              static const std::string moon_keys[] = {
+                "unknown",
+                "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+                "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
+              };
+              static const std::string moon_texts[] = {
+                "Unbekannt",
+                "Neumond", "1/4 Mond »", "Halbmond »", "3/4 Mond »", "Vollmond", "3/4 Mond «", "Halbmond «", "1/4 Mond «"
+              };
+              std::string phase = x; // 'x' enthält automatisch den aktuellen Zustand im on_value Trigger
+              int index = 0;
+              for (int i = 1; i < 9; i++) {
+                  if (moon_keys[i] == phase) { index = i; break; }
+              }
+              return str_sprintf("Mond (%d/8): %s", index, moon_texts[index].c_str());
+
+        # MOND-ICON AKTUALISIEREN
+        - lvgl.image.update:
+            id: info_moon_icon
+            src: !lambda |-
+              static const std::string moon_keys[] = {
+                "unknown",
+                "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+                "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
+              };
+              static const esphome::image::Image* moon_icons[] = {
+                id(icon_moon_unknown),
+                id(icon_moon_new_moon), id(icon_moon_waxing_crescent), id(icon_moon_first_quarter), id(icon_moon_waxing_gibbous),
+                id(icon_moon_full_moon), id(icon_moon_waning_gibbous), id(icon_moon_last_quarter), id(icon_moon_waning_crescent)
+              };
+              std::string phase = x; // Auch hier nutzen wir direkt das übergebene 'x'
+              int index = 0;
+              for (int i = 1; i < 9; i++) {
+                  if (moon_keys[i] == phase) { index = i; break; }
+              }
+              return const_cast<esphome::image::Image*>(moon_icons[index]);
+
   - platform: sendspin
     type: title
     name: Track Title
@@ -357,6 +374,47 @@ text_sensor:
 # Wifi und Sensoren
 # -------------------------------------------------------------------
 sensor:
+  - id: !extend weather_temperature
+    on_value:
+      then:
+        # TEMPERATUR AKTUALISIEREN
+        - lvgl.label.update:
+            id: info_temperature
+            text: !lambda |-
+              if (std::isnan(x)) return std::string("---");
+              return str_sprintf("%.1f °C", x);
+  - id: !extend weather_humidity
+    on_value:
+      then:
+        # LUFTFEUCHTIGKEIT AKTUALISIEREN
+        - lvgl.label.update:
+            id: info_rain_prob
+            text: !lambda |-
+              if (std::isnan(x)) return std::string("---");
+              return str_sprintf("%.0f%%", x);    
+  - id: !extend weather_pressure
+    on_value:
+      then:
+        # LUFTDRUCK AKTUALISIEREN
+        - lvgl.label.update:
+            id: info_barometer
+            text: !lambda |-
+              if (std::isnan(x)) return std::string("---");
+              return str_sprintf("%.0f hPa", x);        
+  - id: !extend weather_wind_speed
+    on_value:
+      then:
+        # WINDGESCHWINDIGKEIT AKTUALISIEREN
+        - lvgl.label.update:
+            id: info_wind
+            text: !lambda |-
+              if (std::isnan(x)) return std::string("---");
+              return str_sprintf("%.1f km/h", x);
+
+  - id: !extend weather_wind_bearing
+  - id: !extend weather_wind_gust_speed
+  - id: !extend weather_uv_index
+
   - platform: sendspin
     type: track_progress
     name: "SendSpin Track Progress"
@@ -496,40 +554,6 @@ sensor:
                   id: lvgl_icon_wifi
                   src: img_wifi_ap
 
-  - platform: homeassistant
-    id: weather_temperature
-    entity_id: ${weather_forecast_id}
-    attribute: temperature
-    unit_of_measurement: "°C"
-  - platform: homeassistant
-    id: weather_humidity
-    entity_id: ${weather_forecast_id}
-    attribute: humidity
-    unit_of_measurement: "%"
-  - platform: homeassistant
-    id: weather_pressure
-    entity_id: ${weather_forecast_id}
-    attribute: pressure
-    unit_of_measurement: "hPa"
-  - platform: homeassistant
-    id: weather_wind_speed
-    entity_id: ${weather_forecast_id}
-    attribute: wind_speed
-    unit_of_measurement: "km/h"
-  - platform: homeassistant
-    id: weather_wind_bearing
-    entity_id: ${weather_forecast_id}
-    attribute: wind_bearing
-    unit_of_measurement: "°"
-  - platform: homeassistant
-    id: weather_wind_gust_speed
-    entity_id: ${weather_forecast_id}
-    attribute: wind_gust_speed
-  - platform: homeassistant
-    id: weather_uv_index
-    entity_id: ${weather_forecast_id}
-    attribute: uv_index
-
   - id: !extend my_encoder_pulse
     on_value:
       - logger.log:
@@ -537,8 +561,10 @@ sensor:
           args: [ 'x' ]
     on_clockwise:
       - logger.log: "Turned Clockwise"
+      - switch.turn_on: ha_switch_power
     on_anticlockwise:
       - logger.log: "Turned Anticlockwise"        
+      - switch.turn_on: ha_switch_power
 
 
 binary_sensor:
@@ -552,12 +578,17 @@ binary_sensor:
     on_click:
       then:
         - logger.log: "on_rotary_encoder_click"
+        # - switch.turn_on: ha_switch_power
     on_multi_click:
       - timing:    
-          - ON for at most 2s
+          - ON for at least 2s
         then:
           - logger.log: "on_rotary_encoder_long_click"
           # - switch.toggle: ha_switch_power
+          - lvgl.widget.enable: lvgl_button_power              
+          - lvgl.widget.focus: lvgl_button_power
+          
+
 
 
 # -------------------------------------------------------------------
@@ -606,6 +637,16 @@ image:
     id: img_boot_logo
     type: BINARY
     resize: 64x64
+  - platform: file
+    file: mdi:power
+    id: img_power
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:home-assistant
+    id: img_api
+    type: binary
+    resize: 32x32
   - platform: file
     file: mdi:wifi-plus
     id: img_wifi_ap
@@ -784,7 +825,7 @@ image:
           format: "SendSpin album art image"
       - lvgl.image.update:
           id: lvgl_img_album_art
-          src: current_album_art
+          src: current_album_art          
   - platform: sendspin
     id: artist_slot
     format: PNG
@@ -799,8 +840,6 @@ image:
       # - lvgl.image.update:
       #     id: lvgl_img_artist_art
       #     src: current_artist_art
-
-
 
 # -------------------------------------------------------------------
 # GUI
@@ -823,7 +862,7 @@ lvgl:
   on_boot:
     then:
       - logger.log: "lvgl: on_boot"
-      - lvgl.widget.focus: lvgl_button_play_stop
+      # - lvgl.widget.focus: lvgl_button_play_stop
 
   on_idle:
     timeout: 60s
@@ -838,7 +877,6 @@ lvgl:
   on_resume:
     then:
       logger.log: "lvgl: on_resume"
-
 
   theme:
     dark_mode: true  
@@ -885,7 +923,6 @@ lvgl:
         border_opa: COVER   
         border_width: 2
 
-
   # Statusbar
   top_layer:
     widgets:
@@ -911,12 +948,22 @@ lvgl:
                 y: 0 
 
             - image:
+                id: lvgl_icon_api
+                src: img_api
+                align: RIGHT_MID
+                x: -45
+                y: 0 
+                recolor: "0xFFFF00"
+                recolor_opa: 100%
+                hidden: true
+
+            - image:
                 id: lvgl_icon_wifi
                 src: img_wifi_0
                 align: RIGHT_MID
                 x: -10
                 y: 0 
-                recolor: "0xFFFFFF"
+                recolor: "0xFFFF00"
                 recolor_opa: 100% 
 
   # Die GUI-Elemente
@@ -988,6 +1035,36 @@ lvgl:
               text: "INFO"
 
       widgets:
+        - button:
+            id: lvgl_button_power
+            align: TOP_LEFT
+            x: 0
+            y: 50
+            width: 32
+            height: 32
+            widgets:
+              - image:
+                  src: img_power
+                  recolor: "0xFFFF00"
+                  recolor_opa: 100%
+                  align: CENTER              
+            group: encoder_group                  
+            on_focus:
+              then:
+                - lambda: 'ESP_LOGD(__FILE__, "POWER: on_focus");'
+                - script.execute:
+                    id: show_page
+                    page: lvgl_page_info
+            on_click:
+              then:
+                - logger.log: "power via GUI"
+                - switch.toggle: ha_switch_power
+                - if:
+                    condition:
+                      switch.is_on: ha_switch_power
+                    then:
+                      - lvgl.widget.disable: lvgl_button_power                
+
         # 🕒 GROSSE DIGITALUHR (Zentriert im oberen Drittel)
         - label:
             id: info_clock
@@ -1024,17 +1101,24 @@ lvgl:
             text: "Wetter: Lade..."
             text_font: roboto_16
 
-        # 📊 NEUE EXTRA-INFO LEISTE (Kompakt im unteren Bereich platziert)
-        # 🧪 Luftdruck (Ganz links)
+        - label:
+            id: info_temperature
+            x: 180                   
+            y: 115
+            text: "--.- °C"
+            text_font: roboto_16
+            text_color: 0xFF9800 
+
+        # 🧪 Luftdruck 
         - label:
             id: info_barometer
             x: 10
             y: 140
             text: "Luft: ---- hPa"
             text_font: roboto_16    # Kleinere Schriftart für die Statusleiste
-            text_color: 0x888888
+            text_color: 0xc0c0c0
 
-        # 💧 Regenwahrscheinlichkeit (Mittig versetzt)
+        # 💧 Regenwahrscheinlichkeit
         - label:
             id: info_rain_prob
             x: 110
@@ -1043,7 +1127,7 @@ lvgl:
             text_font: roboto_16
             text_color: 0x3498DB   # Dezentes Blau für Regen
 
-        # 💨 Windgeschwindigkeit (Ganz rechts versetzt)
+        # 💨 Windgeschwindigkeit 
         - label:
             id: info_wind
             x: 210
@@ -1067,7 +1151,7 @@ lvgl:
             y: 175
             text: "Auf: --:--  •  Unter: --:--"
             text_font: roboto_16
-            text_color: 0x888888
+            text_color: 0xa0a0a0
 
         # 🌙 MONDPHASEN KOMPONENTEN
         - image:
@@ -1084,7 +1168,7 @@ lvgl:
             y: 210
             text: "Mond: ---"
             text_font: roboto_16
-            text_color: 0x666666
+            text_color: 0xa0a0a0
 
     - id: lvgl_page_media
       on_swipe_left:
@@ -1237,6 +1321,7 @@ lvgl:
                   group: encoder_group                  
                   on_focus:
                     then:
+                      - lambda: 'ESP_LOGD(__FILE__, "PREV: on_focus");'
                       - script.execute:
                           id: show_page
                           page: lvgl_page_media
@@ -1257,6 +1342,7 @@ lvgl:
                   group: encoder_group                  
                   on_focus:
                     then:
+                      - lambda: 'ESP_LOGD(__FILE__, "PLAY: on_focus");'
                       - script.execute:
                           id: show_page
                           page: lvgl_page_media
@@ -1278,6 +1364,7 @@ lvgl:
                   group: encoder_group                  
                   on_focus:
                     then:
+                      - lambda: 'ESP_LOGD(__FILE__, "NEXT: on_focus");'
                       - script.execute:
                           id: show_page
                           page: lvgl_page_media
@@ -1332,6 +1419,7 @@ lvgl:
             group: encoder_group                  
             on_focus:
               then:
+                - lambda: 'ESP_LOGD(__FILE__, "VOL: on_focus");'
                 - script.execute:
                     id: show_page
                     page: lvgl_page_settings
@@ -1368,6 +1456,7 @@ lvgl:
             group: encoder_group                  
             on_focus:
               then:
+                - lambda: 'ESP_LOGD(__FILE__, "BRIGHT: on_focus");'
                 - script.execute:
                     id: show_page
                     page: lvgl_page_settings
@@ -1407,10 +1496,6 @@ lvgl:
               id: lvgl_label_status_title
               text: "BRIGHTNESS"
 
-
-
-
-
                     
 script:
   - id: update_states
@@ -1421,7 +1506,7 @@ script:
           format: "Blocked: %s | Power: %s | Player-Status: %s"
           args:
             - 'id(is_blocked) ? "Yes" : "No"'
-            - 'id(ha_switch_power) ? "On" : "Off"'
+            - 'id(ha_switch_power).state ? "On" : "Off"'
             - 'media_player::media_player_state_to_string(id(sendspin_player).state)' 
 
       - if:
@@ -1461,12 +1546,14 @@ script:
                 condition: 
                   lambda: "return !id(ha_switch_power).state;"
                 then: 
+                  - lambda: 'ESP_LOGD(__FILE__, "update states: power off");'
                   - media_player.stop: sendspin_player
                   - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "INFO");'
                   - lvgl.page.show: lvgl_page_info
                   - lambda: 'id(backlight_pwm).set_level(0.15f);'
 
                 else: 
+                  - lambda: 'ESP_LOGD(__FILE__, "update states: power on");'
                   - if:
                       condition:
                         or:
@@ -1515,20 +1602,20 @@ script:
                             text: "Play"
       - logger.log: "LVGL Display-Updates beendet."
 
-
-  # - lvgl.page.show: lvgl_page_media
-
   - id: show_page
     parameters: 
       page: lvgl::LvPageType*
     mode: single
     then: 
-      - logger.log: "script: show_page"
       - lambda: |-
+          ESP_LOGD(__FILE__, "script: show_page");
           if (page != nullptr) {
-              ESP_LOGE(__FILE__, "show_page pageidx: %d", page->index);
-              if (id(is_blocked)) return;
-              page->get_parent()->show_page(page->index, LV_SCREEN_LOAD_ANIM_FADE_ON, 300);
+            if (id(is_blocked)) {
+              ESP_LOGE(__FILE__, "show_page blocked! pageidx: %d", page->index);
+              return;
+            }  
+            ESP_LOGD(__FILE__, "show_page pageidx: %d", page->index);
+            page->get_parent()->show_page(page->index, LV_SCREEN_LOAD_ANIM_FADE_ON, 300);
           } else {
               ESP_LOGE(__FILE__, "show_page aufgerufen, aber page ist ein nullptr!");
           }

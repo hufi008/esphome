@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.3.3
+    version: 0.3.4
   on_boot:
     priority: -100
     then:
@@ -21,7 +21,6 @@ esphome:
       - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BOOT");'
       - lvgl.page.show:
           id: lvgl_page_boot
-
 
 globals:
   - id: is_blocked
@@ -100,6 +99,10 @@ switch:
         - light.turn_on:
             id: onboard_led
             effect: "Rainbow"
+        - lvgl.widget.disable: lvgl_button_power
+        - lambda: |-
+            float ha_brightness = id(display_backlight).remote_values.get_brightness();
+            id(backlight_pwm).set_level(ha_brightness);
         - script.execute: update_states
 
     on_turn_off:
@@ -107,6 +110,8 @@ switch:
         - logger.log: "HA: Power OFF empfangen"
         - light.turn_off:
             id: onboard_led
+        - lvgl.widget.enable: lvgl_button_power
+        - lambda: 'id(backlight_pwm).set_level(0.15f);'
         - script.execute: update_states
 
 light:
@@ -331,6 +336,7 @@ text_sensor:
               return const_cast<esphome::image::Image*>(moon_icons[index]);
 
   - platform: sendspin
+    id: sendspin_title
     type: title
     name: Track Title
     on_value:
@@ -341,13 +347,8 @@ text_sensor:
         - lvgl.label.update:
             id: lvgl_label_media_title
             text: !lambda 'return x;'
-        # - lvgl.label.update:
-        #     id: lvgl_label_media_artist
-        #     text: "---"
-        # - lvgl.label.update:
-        #     id: lvgl_label_media_album
-        #     text: "---"
   - platform: sendspin
+    id: sendspin_artist
     type: artist
     name: Artist
     on_value:
@@ -359,6 +360,7 @@ text_sensor:
             id: lvgl_label_media_artist
             text: !lambda 'return x;'
   - platform: sendspin
+    id: sendspin_album
     type: album
     name: Album
     on_value:
@@ -425,7 +427,7 @@ sensor:
             unsigned long now = millis();
 
             // Trigger every 30 real-time seconds (30,000 milliseconds)
-            if (now - last_log_time >= 30000) {
+            if ((x < 10000) || (now - last_log_time >= 30000)) {
               last_log_time = now;
 
               int total_seconds = x / 1000;
@@ -433,6 +435,16 @@ sensor:
                       total_seconds / 3600, 
                       (total_seconds % 3600) / 60, 
                       total_seconds % 60);
+            }
+
+        - lambda: |-
+            // Wenn der Track gerade startet (Fortschritt nahe 0 oder genau 0)
+            if (x <= 1000) {
+              ESP_LOGD(__FILE__,"New Track %d", x);
+              // Erzwingt das Leeren aller Text-Zustände im ESP32-Speicher
+              id(sendspin_artist).publish_state("---");
+              id(sendspin_album).publish_state("---");
+              id(sendspin_title).publish_state("---");
             }
 
         - lvgl.label.update:
@@ -810,6 +822,11 @@ image:
     id: icon_weather_exceptional
     type: binary
     resize: 32x32
+  - platform: file
+    file: "mdi:alert"
+    id: img_art_error
+    type: BINARY
+    resize: 100x100
 
   # Sendspin Album Cover
   - platform: sendspin
@@ -825,7 +842,17 @@ image:
           format: "SendSpin album art image"
       - lvgl.image.update:
           id: lvgl_img_album_art
-          src: current_album_art          
+          src: current_album_art
+    on_image_clear:
+      - logger.log: "SendSpin album art cleared"
+      - lvgl.image.update:
+          id: lvgl_img_album_art
+          src: current_album_art
+    on_image_error:
+      - logger.log: "SendSpin album art error occurred"
+      - lvgl.image.update:
+          id: lvgl_img_album_art
+          src: img_art_error
   - platform: sendspin
     id: artist_slot
     format: PNG
@@ -1059,11 +1086,6 @@ lvgl:
               then:
                 - logger.log: "power via GUI"
                 - switch.toggle: ha_switch_power
-                - if:
-                    condition:
-                      switch.is_on: ha_switch_power
-                    then:
-                      - lvgl.widget.disable: lvgl_button_power                
 
         # 🕒 GROSSE DIGITALUHR (Zentriert im oberen Drittel)
         - label:
@@ -1550,7 +1572,7 @@ script:
                   - media_player.stop: sendspin_player
                   - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "INFO");'
                   - lvgl.page.show: lvgl_page_info
-                  - lambda: 'id(backlight_pwm).set_level(0.15f);'
+                  # - lambda: 'id(backlight_pwm).set_level(0.15f);'
 
                 else: 
                   - lambda: 'ESP_LOGD(__FILE__, "update states: power on");'
@@ -1563,9 +1585,9 @@ script:
                         - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "MEDIA");'
                         - lvgl.page.show: lvgl_page_media
                         - lvgl.widget.focus: lvgl_button_play_stop
-                  - lambda: |-
-                      float ha_brightness = id(display_backlight).remote_values.get_brightness();
-                      id(backlight_pwm).set_level(ha_brightness);
+                  # - lambda: |-
+                  #     float ha_brightness = id(display_backlight).remote_values.get_brightness();
+                  #     id(backlight_pwm).set_level(ha_brightness);
 
                   # SCHRITT 1: Wenn offline (NONE) -> Beide Buttons sperren (Disabled)
                   - if: 

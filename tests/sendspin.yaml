@@ -1,0 +1,377 @@
+# tests/sendspin.yaml
+
+substitutions:
+  # ========================================================
+  # --- LINKE SEITE: (3V3) ILI9341/TOUCH, Drehimpulsgeber --
+  # ========================================================
+  # --- ILI9341 Block ---
+  # 3V3                      # -> VCC  (ggf. J1 trennen)
+  # GND                      # -> GND
+  pin_ili9341_cs:    GPIO4   # -> CS (Display)
+  pin_ili9341_reset: GPIO5   # -> RESET (Display)
+  pin_ili9341_dc:    GPIO6   # -> D/C (Display)
+  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)         und   ---+
+  pin_spi_clk:       GPIO15  # -> SCK               und      |  -> T_CLK
+  pin_touch_cs:      GPIO16  # -> nix (SDO/MISO blind!)      |  -> T_CS
+  pin_ili9341_led:   GPIO17  # -> LED               und quer +---> T_DN
+  pin_spi_miso:      GPIO18  # -> nix                           -> T_OUT
+  pin_touch_irq:     GPIO8   # -> nix                           -> T_IRQ
+
+  # --- KY-040 Drehgeber Block ---
+  pin_encoder_clk:   GPIO12   # -> CLK
+  pin_encoder_dt:    GPIO13   # -> DT
+  pin_encoder_sw:    GPIO14  # -> SW
+  # 3V3 !!!                  # -> +
+  # GND                      # -> GND
+
+  # ========================================================
+  # --- RECHTE SEITE (5V): AUDIO, LED  ---
+  # ========================================================
+
+  # --- WS2812 RGB-LED ---
+  # 5V                       # -> +5V
+  pin_ws2812_din:    GPIO01  # -> DIN
+  # GND                      # -> GND
+
+  # --- MAX98357 I2S Audio Block ---
+  pin_max98357_lrc:  GPIO41  # -> LRC
+  pin_max98357_bclk: GPIO40  # -> BCLK
+  pin_max98357_din:  GPIO39  # -> DIN
+  # 100kOhm gegen GND        # -> GAIN
+  # frei für stereo          # -> SD
+  # GND                      # -> GND
+  # 5V                       # -> VIN
+
+
+esphome:
+  min_version: 2026.8.1
+  project:
+    name: "hufi.tests_sendspin"
+    version: 0.0.1
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'ESP_LOGD(__FILE__, "esphome: on_boot");'
+      - light.turn_on:
+          id: onboard_led
+          effect: "Rainbow"
+
+# Onboard WS2812 LED
+light:
+  - platform: esp32_rmt_led_strip
+    id: onboard_led
+    name: "Onboard RGB"
+    pin: GPIO48
+    num_leds: 1
+    channel_colors: GRB
+    chipset: WS2812
+    effects:
+      - addressable_rainbow:
+          id: effect_rainbow
+          name: "Rainbow"
+          speed: 10           
+    
+# Display Backlight (PWM)
+  - platform: monochromatic
+    id: display_backlight
+    output: backlight_pwm
+    name: "Display Hintergrundbeleuchtung"
+    restore_mode: RESTORE_DEFAULT_ON
+              
+output:
+  - platform: ledc
+    pin: ${pin_ili9341_led}
+    id: backlight_pwm
+    min_power: 0%
+    max_power: 80%
+    frequency: 1000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
+
+text_sensor:
+  - platform: sendspin
+    id: sendspin_title
+    type: title
+    name: Track Title
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "SendSpin Title: %s", x.c_str());
+  - platform: sendspin
+    id: sendspin_artist
+    type: artist
+    name: Artist
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "SendSpin Artist: %s", x.c_str());
+  - platform: sendspin
+    id: sendspin_album
+    type: album
+    name: Album
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "SendSpin Album: %s", x.c_str());
+
+sensor:
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi Signal RSSI"
+    update_interval: 10s
+
+  - platform: sendspin
+    id: sendspin_progress
+    type: track_progress
+    name: "SendSpin Track Progress"
+    on_value:
+      then:
+        - lambda: |-
+            int total_seconds = x / 1000;
+            if ((total_seconds < 30) || (total_seconds % 15 == 0)) {
+              ESP_LOGD(__FILE__, "SendSpin Progress: %02d:%02d:%02d",
+                      total_seconds / 3600, 
+                      (total_seconds % 3600) / 60, 
+                      total_seconds % 60);
+            }
+  - platform: sendspin
+    id: sendspin_duration
+    type: track_duration
+    name: "SendSpin Track Duration"
+    on_value:
+      then:
+        - lambda: |-
+            int total_seconds = x / 1000;
+            ESP_LOGD(__FILE__, "SendSpin Duration: %02d:%02d:%02d",
+                    total_seconds / 3600, 
+                    (total_seconds % 3600) / 60, 
+                    total_seconds % 60);
+  - platform: sendspin
+    id: sendspin_year
+    type: year
+    name: "SendSpin Year"
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "SendSpin Year: %.0f", x);
+  - platform: sendspin
+    id: sendspin_track
+    type: track
+    name: "SendSpin Track"
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "SendSpin Track: %.0f", x);
+
+  - platform: rotary_encoder
+    id: my_encoder_pulse
+    pin_a:
+      number: ${pin_encoder_clk}
+      mode: INPUT_PULLUP
+    pin_b:
+      number: ${pin_encoder_dt}
+      mode: INPUT_PULLUP
+    resolution: 1
+    publish_initial_value: true
+    filters:
+      - debounce: 50ms
+      - throttle: 50ms
+    on_clockwise:
+      - media_player.volume_up: audio_player
+    on_anticlockwise:
+      - media_player.volume_down: audio_player
+
+binary_sensor:
+  - platform: gpio
+    id: my_encoder_button
+    pin:
+      number: ${pin_encoder_sw}
+      inverted: true
+      mode: INPUT_PULLUP
+    filters:
+      - delayed_on_off: 20ms
+    on_press:
+      - media_player.toggle: audio_player
+
+# -------------------------------------------------------------------
+# Audio
+# -------------------------------------------------------------------
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: ${pin_max98357_lrc}
+    i2s_bclk_pin: ${pin_max98357_bclk}
+
+speaker:
+  - platform: i2s_audio
+    id: my_speaker
+    dac_type: external
+    i2s_dout_pin: ${pin_max98357_din}
+    i2s_audio_id: i2s_out
+    sample_rate: 48000
+    channel: mono
+    timeout: never
+    buffer_duration: 500ms
+
+sendspin:
+  id: sendspin_hub
+  task_stack_in_psram: true
+
+media_source:
+  - platform: sendspin
+    id: sendspin_media_source
+    task_stack_in_psram: true
+    decode_memory: psram
+    buffer_size: 1000000 
+
+media_player:
+  - platform: speaker_source
+    id: audio_player
+    name: "Audio Player"
+    media_pipeline:
+      speaker: my_speaker
+      sources:
+        - sendspin_media_source
+
+# -------------------------------------------------------------------
+# Display und Touch
+# -------------------------------------------------------------------
+spi:
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+  miso_pin: ${pin_spi_miso}
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto_12
+    size: 12
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_16
+    size: 16
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_20
+    size: 20
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_24
+    size: 24
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - file: "gfonts://Roboto"
+    id: roboto_32
+    size: 32
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+display:
+  - platform: mipi_spi
+    model: ILI9341
+    id: my_display
+    spi_mode: MODE0
+    cs_pin: ${pin_ili9341_cs}
+    dc_pin: ${pin_ili9341_dc}
+    reset_pin: ${pin_ili9341_reset}
+    invert_colors: false
+    auto_clear_enabled: true
+    update_interval: 50ms
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    dimensions:
+      height: 240
+      width: 320
+    lambda: |-
+      // --- FARBDEFINITIONEN ---
+      Color weiß   = Color(0xFFFFFF);
+      Color grau   = Color(0x9E9E9E);
+      Color grün   = Color(0x4CAF50);
+      Color blau   = Color(0x2196F3);
+      Color dunkel = Color(0x2C2C2C);
+
+      // Default-Ausrichtung definieren
+      TextAlign links = TextAlign::TOP_LEFT;
+
+      // --- TEXTBLÖCKE ---
+      // Parameter: X, Y, Font, Color, Alignment, Format-String, Variable
+      it.printf(0, 0, id(roboto_20), weiß, links, "%s", id(sendspin_title).state.c_str());
+      it.printf(0, 26, id(roboto_20), grau, links, "%s", id(sendspin_artist).state.c_str());
+      it.printf(0, 52, id(roboto_20), grau, links, "Album: %s", id(sendspin_album).state.c_str());
+
+      // --- STATUS (Dynamische Farbe je nach Zustand) ---
+      auto current_state = id(audio_player).state;
+      Color status_farbe = grau;
+      if (current_state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
+        status_farbe = grün;
+      } else if (current_state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
+        status_farbe = blau;
+      }
+      
+      const char* status_text = esphome::media_player::media_player_state_to_string(current_state);
+      it.printf(0, 88, id(roboto_20), status_farbe, links, "Status: %s", status_text);
+
+      // --- ZEITEN & FORTSCHRITTSBALKEN ---
+      int prog_sec = id(sendspin_progress).state / 1000;
+      int dur_sec = id(sendspin_duration).state / 1000;
+      
+      // Linksbündige Zeit
+      it.printf(0, 122, id(roboto_16), weiß, links, "%02d:%02d", (prog_sec % 3600) / 60, prog_sec % 60);
+      // Rechtsbündige Zeit am Displayrand (X=320)
+      it.printf(320, 122, id(roboto_16), grau, display::TextAlign::TOP_RIGHT, "%02d:%02d", (dur_sec % 3600) / 60, dur_sec % 60);
+      
+      // Balken-Hintergrund (X, Y, Breite, Höhe, Color)
+      it.filled_rectangle(0, 144, 320, 6, dunkel);
+      if (dur_sec > 0) {
+        float progress_pct = (float)prog_sec / (float)dur_sec;
+        int bar_width = (int)(progress_pct * 320.0f);
+        if (bar_width > 320) bar_width = 320;
+        it.filled_rectangle(0, 144, bar_width, 6, blau);
+      }
+
+      // Track-Info & Year
+      it.printf(0, 162, id(roboto_16), grau, links, "Track: %.0f  [%04.0f]", 
+                id(sendspin_track).state, 
+                id(sendspin_year).state);
+
+      // WLAN-Signalstärke in dBm
+      it.printf(320, 162, id(roboto_16), grau, display::TextAlign::TOP_RIGHT, "WiFi: %.0f dBm", 
+                id(wifi_rssi).state);
+                
+      // Lautstärke Text
+      float current_vol = id(audio_player).volume; // Wert 0.0f bis 1.0f
+      it.printf(0, 196, id(roboto_16), weiß, links, "Vol: %.0f%%", current_vol * 100.0f);
+      
+      // Lautstärkebalken
+      it.filled_rectangle(80, 202, 150, 6, dunkel);
+      int vol_bar_width = (int)(current_vol * 150.0f);
+      it.filled_rectangle(80, 202, vol_bar_width, 6, grün);
+      
+touchscreen:
+  - platform: xpt2046
+    id: my_touch
+    cs_pin: ${pin_touch_cs}
+    interrupt_pin: ${pin_touch_irq}
+    update_interval: never
+    threshold: 400
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: false
+    calibration:
+      x_min: 240
+      x_max: 3850
+      y_min: 350
+      y_max: 3900
+

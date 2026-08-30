@@ -226,18 +226,19 @@ speaker:
     sample_rate: 48000
     channel: mono
     timeout: never
-    buffer_duration: 100ms
+    buffer_duration: 500ms
 
 sendspin:
   id: sendspin_hub
-  task_stack_in_psram: true
+  task_stack_in_psram: false
 
 media_source:
   - platform: sendspin
     id: sendspin_media_source
-    task_stack_in_psram: true
-    decode_memory: psram
-    buffer_size: 500000
+    task_stack_in_psram: false
+    decode_memory: internal
+    buffer_size: 262144 # 256kB
+
 
 media_player:
   - platform: sendspin

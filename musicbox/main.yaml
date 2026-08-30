@@ -427,7 +427,7 @@ sensor:
             unsigned long now = millis();
 
             // Trigger every 30 real-time seconds (30,000 milliseconds)
-            if ((x < 10000) || (now - last_log_time >= 30000)) {
+            if ((x < 30000) || (now - last_log_time >= 30000)) {
               last_log_time = now;
 
               int total_seconds = x / 1000;
@@ -437,15 +437,15 @@ sensor:
                       total_seconds % 60);
             }
 
-        - lambda: |-
-            // Wenn der Track gerade startet (Fortschritt nahe 0 oder genau 0)
-            if (x <= 1000) {
-              ESP_LOGD(__FILE__,"New Track %d", x);
-              // Erzwingt das Leeren aller Text-Zustände im ESP32-Speicher
-              id(sendspin_artist).publish_state("---");
-              id(sendspin_album).publish_state("---");
-              id(sendspin_title).publish_state("---");
-            }
+        # - lambda: |-
+        #     // Wenn der Track gerade startet (Fortschritt nahe 0 oder genau 0)
+        #     if (x <= 3000) {
+        #       ESP_LOGD(__FILE__,"New Track %d", x);
+        #       // Erzwingt das Leeren aller Text-Zustände im ESP32-Speicher
+        #       id(sendspin_artist).publish_state("---");
+        #       id(sendspin_album).publish_state("---");
+        #       id(sendspin_title).publish_state("---");
+        #     }
 
         - lvgl.label.update:
             id: lvgl_label_progress

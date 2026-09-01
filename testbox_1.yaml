@@ -6,6 +6,8 @@ substitutions:
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home
 
+esphome:
+
 logger:
   level: DEBUG
   # logs:

@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.3.4
+    version: 0.3.5
   on_boot:
     priority: -100
     then:
@@ -129,7 +129,7 @@ light:
             id: lvgl_label_brightness
             text: !lambda |-
               // Aktualisiert den Text direkt im 100%-Format
-              return str_sprintf("%0.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
+              return str_sprintf("Brightness: %0.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
 
 # 5. Der finale Mediaplayer, der den Netzwerkstream an den Speaker schickt
 media_player:
@@ -197,7 +197,7 @@ media_player:
         - lvgl.label.update:
             id: lvgl_label_volume
             text: !lambda |-
-              return str_sprintf("%0.0f %%", id(audio_player).volume * 100.0f);        
+              return str_sprintf("Volume: %0.0f %%", id(audio_player).volume * 100.0f);
     on_turn_on:
       then:
         - logger.log: "AudioPlayer: on_turn_on"
@@ -423,65 +423,60 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            static unsigned long last_log_time = 0;
-            unsigned long now = millis();
+            if (std::isnan(x)) {
+              ESP_LOGD(__FILE__, "SendSpin Progress: NAN");
+              return;
+            } 
 
-            // Trigger every 30 real-time seconds (30,000 milliseconds)
-            if ((x < 30000) || (now - last_log_time >= 30000)) {
-              last_log_time = now;
+            int progress = (int)(x / 1000.0f);
 
-              int total_seconds = x / 1000;
-              ESP_LOGD("custom", "SendSpin Fortschritt: %02d:%02d:%02d", 
-                      total_seconds / 3600, 
-                      (total_seconds % 3600) / 60, 
-                      total_seconds % 60);
+            int log_interval = (progress / 30) + 1;
+
+            if (progress % log_interval == 0) {
+              ESP_LOGD(__FILE__, "SendSpin Progress: %02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
             }
 
-        # - lambda: |-
-        #     // Wenn der Track gerade startet (Fortschritt nahe 0 oder genau 0)
-        #     if (x <= 3000) {
-        #       ESP_LOGD(__FILE__,"New Track %d", x);
-        #       // Erzwingt das Leeren aller Text-Zustände im ESP32-Speicher
-        #       id(sendspin_artist).publish_state("---");
-        #       id(sendspin_album).publish_state("---");
-        #       id(sendspin_title).publish_state("---");
-        #     }
+            // if (progress <= 1) {
+            //   ESP_LOGD(__FILE__,"New Track %d", x);
+            //   // Erzwingt das Leeren aller Text-Zustände im ESP32-Speicher
+            //   id(sendspin_artist).publish_state("---");
+            //   id(sendspin_album).publish_state("---");
+            //   id(sendspin_title).publish_state("---");
+            // }
 
         - lvgl.label.update:
             id: lvgl_label_progress
             text: !lambda |-
-              int total_seconds = (int)(x / 1000);
-              int hours = total_seconds / 3600;
-              int minutes = (total_seconds % 3600) / 60;
-              int seconds = total_seconds % 60;
-              return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+              if (std::isnan(x)) return "---:--:--";
+              int progress = (int)(x / 1000.0f);
+              return str_sprintf("%02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
         - lvgl.bar.update:
             id: track_progress_bar
-            value: !lambda 'return (int)x;'                    
+            value: !lambda 'return x;'                    
   - platform: sendspin
     type: track_duration
     name: "SendSpin Track Duration"
     on_value:
       then:
-        - logger.log:
-            format: "SendSpin Gesamtlänge: %02d:%02d:%02d"
-            args:
-              - '(int)(x / 1000) / 3600'
-              - '((int)(x / 1000) % 3600) / 60'
-              - '(int)(x / 1000) % 60'
+        - lambda: |-
+            if (std::isnan(x)) {
+              ESP_LOGD(__FILE__, "SendSpin Duration: NAN");
+              return;
+            } 
+            int progress = (int)(x / 1000.0f);
+            ESP_LOGD(__FILE__, "SendSpin Duration: %02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
         - lvgl.label.update:
             id: lvgl_label_duration
             text: !lambda |-
-              if (x == 0 ) return "";
-              int total_seconds = (int)(x / 1000);
-              int hours = total_seconds / 3600;
-              int minutes = (total_seconds % 3600) / 60;
-              int seconds = total_seconds % 60;
-              return str_sprintf("%02d:%02d:%02d", hours, minutes, seconds);
+              if (std::isnan(x)) return "---:--:--";
+              if (x == 0) return "";
+              int duration = (int)(x / 1000.0f);
+              return str_sprintf("%02d:%02d:%02d", duration / 3600, (duration % 3600) / 60, duration % 60);
         - lvgl.bar.update:
             id: track_progress_bar
             min_value: 0
-            max_value: !lambda 'return (int)x;'                    
+            max_value: !lambda |-
+              return x;
   - platform: sendspin
     type: year
     name: "SendSpin Year"
@@ -827,6 +822,11 @@ image:
     id: img_art_error
     type: BINARY
     resize: 100x100
+  - platform: file
+    file: "mdi:music-box-outline"
+    id: img_art_clear
+    type: BINARY
+    resize: 100x100
 
   # Sendspin Album Cover
   - platform: sendspin
@@ -843,16 +843,24 @@ image:
       - lvgl.image.update:
           id: lvgl_img_album_art
           src: current_album_art
+          image_recolor_opa: TRANSP
+
     on_image_clear:
       - logger.log: "SendSpin album art cleared"
       - lvgl.image.update:
           id: lvgl_img_album_art
-          src: current_album_art
+          src: img_art_clear
+          image_recolor: 0xFFFF00 
+          image_recolor_opa: COVER
+
     on_image_error:
       - logger.log: "SendSpin album art error occurred"
       - lvgl.image.update:
           id: lvgl_img_album_art
           src: img_art_error
+          image_recolor: 0xFFFF00
+          image_recolor_opa: 100% 
+
   - platform: sendspin
     id: artist_slot
     format: PNG
@@ -1296,13 +1304,13 @@ lvgl:
               # Aktueller Fortschritt (Links)
               - label:
                   id: lvgl_label_progress
-                  text: "00:00:00"
+                  text: ""
                   text_color: 0x00FFD2
 
               # Gesamtlänge (Rechts)
               - label:
                   id: lvgl_label_duration
-                  text: "00:00:00"
+                  text: ""
                   text_color: 0xaaaaaa
 
         # 📊 FORTSCHRITTSLEISTE
@@ -1447,9 +1455,6 @@ lvgl:
                     page: lvgl_page_settings
             on_change:
               then:
-                - lvgl.label.update:
-                    id: lvgl_label_volume
-                    text: !lambda 'return str_sprintf("Volume: %0.0f %%", x * 5.0f);'
                 - media_player.volume_set:
                     id: audio_player
                     volume: !lambda 'return x / 20.0f;'
@@ -1484,13 +1489,6 @@ lvgl:
                     page: lvgl_page_settings
             on_change:
               then:
-                # 1. Prozentanzeige aktualisieren (x * 5)
-                - lvgl.label.update:
-                    id: lvgl_label_brightness
-                    text: !lambda |-
-                      return str_sprintf("Brightness: %0.0f %%", x * 5.0f);
-                
-                # 2. Helligkeit an die monochromatic Light-Komponente übergeben
                 - light.turn_on:
                     id: display_backlight
                     # x (0-20) geteilt durch 20.0f ergibt den benötigten Float-Bereich (0.0 bis 1.0)

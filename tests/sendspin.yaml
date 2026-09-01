@@ -43,6 +43,13 @@ substitutions:
   # 5V                       # -> VIN
 
 
+# external_components:
+#   - source:
+#       type: git
+#       url: https://github.com/esphome/esphome
+#       ref: 2026.7.4
+#     components: [ sendspin ]
+
 esphome:
   min_version: 2026.8.1
   project:
@@ -55,6 +62,10 @@ esphome:
       - light.turn_on:
           id: onboard_led
           effect: "Rainbow"
+
+wifi:
+  power_save_mode: NONE
+  output_power: 20.5dBm
 
 # Onboard WS2812 LED
 light:
@@ -230,6 +241,23 @@ media_player:
       sources:
         - sendspin_media_source
 
+image:
+  # Sendspin Album Cover
+  - platform: sendspin
+    id: album_slot
+    format: JPEG
+    type: RGB565
+    resize: 100x100
+    source: album
+    current_image:
+      id: current_album_art
+    on_image_display:
+      - logger.log:
+          format: "SendSpin album art image"
+      # - lvgl.image.update:
+      #     id: lvgl_img_album_art
+      #     src: current_album_art
+
 # -------------------------------------------------------------------
 # Display und Touch
 # -------------------------------------------------------------------
@@ -304,11 +332,15 @@ display:
       // Default-Ausrichtung definieren
       TextAlign links = TextAlign::TOP_LEFT;
 
+      // --- ALBUM COVER ANZEIGEN ---
+      // Platziert das 100x100 Bild oben rechts (X: 320 - 100 = 220)
+      it.image(0, 26, id(current_album_art));
+
       // --- TEXTBLÖCKE ---
       // Parameter: X, Y, Font, Color, Alignment, Format-String, Variable
       it.printf(0, 0, id(roboto_20), weiß, links, "%s", id(sendspin_title).state.c_str());
-      it.printf(0, 26, id(roboto_20), grau, links, "%s", id(sendspin_artist).state.c_str());
-      it.printf(0, 52, id(roboto_20), grau, links, "Album: %s", id(sendspin_album).state.c_str());
+      it.printf(100, 26, id(roboto_16), grau, links, "%s", id(sendspin_artist).state.c_str());
+      it.printf(100, 52, id(roboto_16), grau, links, "%s", id(sendspin_album).state.c_str());
 
       // --- STATUS (Dynamische Farbe je nach Zustand) ---
       auto current_state = id(audio_player).state;
@@ -320,14 +352,14 @@ display:
       }
       
       const char* status_text = esphome::media_player::media_player_state_to_string(current_state);
-      it.printf(0, 88, id(roboto_20), status_farbe, links, "Status: %s", status_text);
+      it.printf(100, 88, id(roboto_20), status_farbe, links, "Status: %s", status_text);
 
       // --- ZEITEN & FORTSCHRITTSBALKEN ---
       int prog_sec = id(sendspin_progress).state / 1000;
       int dur_sec = id(sendspin_duration).state / 1000;
       
       // Linksbündige Zeit
-      it.printf(0, 122, id(roboto_16), weiß, links, "%02d:%02d", (prog_sec % 3600) / 60, prog_sec % 60);
+      it.printf(100, 122, id(roboto_16), weiß, links, "%02d:%02d", (prog_sec % 3600) / 60, prog_sec % 60);
       // Rechtsbündige Zeit am Displayrand (X=320)
       it.printf(320, 122, id(roboto_16), grau, display::TextAlign::TOP_RIGHT, "%02d:%02d", (dur_sec % 3600) / 60, dur_sec % 60);
       
@@ -356,8 +388,8 @@ display:
       // Lautstärkebalken
       it.filled_rectangle(80, 202, 150, 6, dunkel);
       int vol_bar_width = (int)(current_vol * 150.0f);
-      it.filled_rectangle(80, 202, vol_bar_width, 6, grün);
-      
+      it.filled_rectangle(80, 202, vol_bar_width, 6, blau);
+            
 touchscreen:
   - platform: xpt2046
     id: my_touch

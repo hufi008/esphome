@@ -26,7 +26,6 @@ DOMAIN = "sendspin"
 
 CONF_DISPLAY_OFFSET = "display_offset"
 CONF_SENDSPIN_ID = "sendspin_id"
-CONF_ON_COLOR = "on_color"
 
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
@@ -59,7 +58,6 @@ AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObj
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
 ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
 ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
-ServerColorStateObject = sendspin_library_ns.struct("ServerColorStateObject") 
 
 # MemoryLocation enum (from sendspin/types.h) controls SPIRAM-vs-internal-RAM placement
 # preference for the player role's transfer buffers.
@@ -92,7 +90,6 @@ SendspinSwitchCommandAction = sendspin_ns.class_(
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
-    color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
     player_support: bool = False
@@ -111,10 +108,6 @@ def _get_data() -> SendspinConfiguration:
 def request_artwork_support() -> None:
     """Request artwork role support for Sendspin."""
     _get_data().artwork_support = True
-
-def request_color_support() -> None:
-    """Request color role support for Sendspin."""
-    _get_data().color_support = True
 
 
 def request_controller_support() -> None:
@@ -190,7 +183,6 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
-            cv.Optional(CONF_ON_COLOR): automation.validate_automation,
         }
     ),
     cv.only_on_esp32,
@@ -248,12 +240,8 @@ async def to_code(config: ConfigType) -> None:
 
     data = _get_data()
 
-    # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
-    # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
-    if data.color_support:
-        cg.add_define("USE_SENDSPIN_COLOR", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
+    # The color role is not yet wired up in ESPHome; disable it in the library for now.
+    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -349,8 +337,3 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_SENDSPIN_VISUALIZER", True)
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_VISUALIZER", False)
-    if CONF_ON_COLOR in config:
-        request_color_support()
-        for conf in config[CONF_ON_COLOR]:
-            trigger = cg.new_Pvariable(conf[CONF_ID], var.get_color_trigger())
-            await automation.build_automation(trigger, [(sendspin_library_ns.class_("ServerColorStateObject").operator("const").operator("reference"), "x")], conf)

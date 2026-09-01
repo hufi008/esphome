@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
@@ -6,9 +6,13 @@ from esphome.components import esp32, network, psram, socket, wifi
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_FORMAT,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_SAMPLE_RATE,
+    CONF_SOURCE,
     CONF_TASK_STACK_IN_PSRAM,
+    CONF_WIDTH,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import TemplateArgsType
@@ -20,11 +24,18 @@ CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
 
+CONF_DISPLAY_OFFSET = "display_offset"
 CONF_SENDSPIN_ID = "sendspin_id"
 
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 CONF_DECODE_MEMORY = "decode_memory"
+
+CONF_ON_COLOR = "on_color"
+CONF_ON_COLOR_CLEAR = "on_color_clear"
+
+# Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
+MAX_ARTWORK_SLOTS = 4
 
 # sendspin-cpp library lives in the global `sendspin` namespace.
 sendspin_library_ns = cg.global_ns.namespace("sendspin")
@@ -36,9 +47,21 @@ CODEC_FORMAT_OPUS = SendspinCodecFormat.enum("OPUS")
 CODEC_FORMAT_PCM = SendspinCodecFormat.enum("PCM")
 CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
 
+SendspinImageFormat = sendspin_library_ns.enum("SendspinImageFormat", is_class=True)
+IMAGE_FORMAT_JPEG = SendspinImageFormat.enum("JPEG")
+IMAGE_FORMAT_PNG = SendspinImageFormat.enum("PNG")
+IMAGE_FORMAT_BMP = SendspinImageFormat.enum("BMP")
+
+SendspinImageSource = sendspin_library_ns.enum("SendspinImageSource", is_class=True)
+IMAGE_SOURCE_ALBUM = SendspinImageSource.enum("ALBUM")
+IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
+
 # Library Structs
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
+ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
+ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
+ServerColorStateObject = sendspin_library_ns.struct("ServerColorStateObject") 
 
 # MemoryLocation enum (from sendspin/types.h) controls SPIRAM-vs-internal-RAM placement
 # preference for the player role's transfer buffers.
@@ -67,15 +90,24 @@ SendspinSwitchCommandAction = sendspin_ns.class_(
     cg.Parented.template(SendspinHub),
 )
 
+SendspinColorUpdateTrigger = sendspin_ns.class_(
+    "SendspinColorUpdateTrigger", automation.Trigger.template(sendspin_library_ns.class_("ServerColorStateObject")), cg.Component
+)
+SendspinColorClearTrigger = sendspin_ns.class_(
+    "SendspinColorClearTrigger", automation.Trigger.template(), cg.Component
+)
+
 
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
+    color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
     player_support: bool = False
     visualizer_support: bool = False
 
+    artwork_preferences: list[ConfigType] = field(default_factory=list)
     player_config: ConfigType | None = None
 
 
@@ -88,6 +120,10 @@ def _get_data() -> SendspinConfiguration:
 def request_artwork_support() -> None:
     """Request artwork role support for Sendspin."""
     _get_data().artwork_support = True
+
+def request_color_support() -> None:
+    """Request color role support for Sendspin."""
+    _get_data().color_support = True
 
 
 def request_controller_support() -> None:
@@ -108,6 +144,22 @@ def request_player_support() -> None:
 def request_visualizer_support() -> None:
     """Request visualizer role support for Sendspin."""
     _get_data().visualizer_support = True
+
+
+def register_artwork_preference(config: ConfigType) -> int:
+    """Register an artwork slot preference and return the slot it was given.
+
+    A slot is a preference's position in the list, which is also the order the roles are
+    advertised to the server in.
+    """
+    request_artwork_support()
+    preferences = _get_data().artwork_preferences
+    if len(preferences) >= MAX_ARTWORK_SLOTS:
+        raise cv.Invalid(
+            f"Too many Sendspin image slots. Maximum is {MAX_ARTWORK_SLOTS}."
+        )
+    preferences.append(config)
+    return len(preferences) - 1
 
 
 def register_player_config(config: ConfigType) -> None:
@@ -141,18 +193,30 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     wifi.enable_runtime_roaming_suppression()
     return config
 
+_COLOR_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_COLOR,
+        "add_color_update_callback",
+        [(sendspin_library_ns.class_("ServerColorStateObject").operator("const").operator("ref"), "x")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_COLOR_CLEAR, 
+        "add_color_clear_callback"
+    ),
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_ON_COLOR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_COLOR_CLEAR): automation.validate_automation({}),
         }
     ),
     cv.only_on_esp32,
     _request_high_performance_networking,
 )
-
 
 def _request_controller_role(config: ConfigType) -> ConfigType:
     """Request the controller role for the sendspin.switch action."""
@@ -198,19 +262,46 @@ async def to_code(config: ConfigType) -> None:
         psram.request_external_task_stack()
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.0")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.2")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
     data = _get_data()
 
-    # The color role is not yet wired up in ESPHome; disable it in the library for now.
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
+    # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
+    # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
     if data.artwork_support:
         cg.add_define("USE_SENDSPIN_ARTWORK", True)
+
+        # require_frame_done is always on: SendspinImageSlot always acks a delivery, either
+        # immediately or from the transition_finished action.
+        preference_structs = [
+            cg.StructInitializer(
+                ImageSlotPreference,
+                ("source", pref[CONF_SOURCE]),
+                ("format", pref[CONF_FORMAT]),
+                ("width", pref[CONF_WIDTH]),
+                ("height", pref[CONF_HEIGHT]),
+                ("require_frame_done", True),
+                ("display_offset_ms", pref[CONF_DISPLAY_OFFSET]),
+            )
+            for pref in data.artwork_preferences
+        ]
+
+        artwork_psram_stack = bool(config.get(CONF_TASK_STACK_IN_PSRAM))
+        artwork_config = cg.StructInitializer(
+            ArtworkRoleConfig,
+            ("preferred_formats", preference_structs),
+            ("psram_stack", artwork_psram_stack),
+        )
+        cg.add(var.set_artwork_config(artwork_config))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
 
@@ -278,3 +369,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_SENDSPIN_VISUALIZER", True)
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_VISUALIZER", False)
+
+    # <-- DIESEN BLOCK ERSETZEN / HINZUFÜGEN
+    if CONF_ON_COLOR in config or CONF_ON_COLOR_CLEAR in config:
+        request_color_support()
+        await automation.build_callback_automations(var, config, _COLOR_CALLBACK_AUTOMATIONS)

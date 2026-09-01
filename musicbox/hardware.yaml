@@ -80,6 +80,7 @@ external_components:
       path: my_components
     components: 
       - my_moon
+      - sendspin
 
 # -------------------------------------------------------------------
 # Sensoren
@@ -231,6 +232,19 @@ speaker:
 sendspin:
   id: sendspin_hub
   task_stack_in_psram: false
+  on_color:
+    then:
+      - lambda: |-
+          if (x.primary.has_value()) {
+            // Wenn die Primärfarbe gesetzt ist, LED einschalten
+            auto color = x.primary.value();
+            auto call = id(onboard_led).turn_on();
+            call.set_rgb(color[0] / 255.0f, color[1] / 255.0f, color[2] / 255.0f);
+            call.perform();
+          } else {
+            // Wenn keine Farbe geliefert wird, LED ausschalten
+            id(onboard_led).turn_off().perform();
+          }
 
 media_source:
   - platform: sendspin

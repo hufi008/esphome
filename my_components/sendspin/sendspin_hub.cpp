@@ -48,11 +48,6 @@ void SendspinHub::setup() {
   this->artwork_role_->set_listener(this);
 #endif
 
-#ifdef USE_SENDSPIN_COLOR
-  this->color_role_ = &this->client_->add_color();
-  this->color_role_->set_listener(this);
-#endif
-
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
@@ -223,17 +218,6 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
   if (this->artwork_role_ != nullptr) {
     this->artwork_role_->frame_done(slot);
   }
-}
-#endif
-
-#ifdef USE_SENDSPIN_COLOR
-void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
-  this->color_update_callbacks_.call(color);
-  this->color_trigger_.trigger(color);
-}
-
-void SendspinHub::on_color_clear() {
-  this->color_update_callbacks_.call(sendspin::ServerColorStateObject{});
 }
 #endif
 

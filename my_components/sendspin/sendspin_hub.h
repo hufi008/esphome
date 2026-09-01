@@ -16,9 +16,6 @@
 #ifdef USE_SENDSPIN_ARTWORK
 #include <sendspin/artwork_role.h>
 #endif
-#ifdef USE_SENDSPIN_COLOR
-#include <sendspin/color_role.h>
-#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -77,9 +74,6 @@ struct StaticDelayPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_ARTWORK
                           public sendspin::ArtworkRoleListener,
-#endif
-#ifdef USE_SENDSPIN_COLOR
-                          public sendspin::ColorRoleListener,
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
@@ -151,12 +145,6 @@ class SendspinHub final : public Component,
   }
   template<typename F> void add_image_clear_callback(F &&callback) {
     this->artwork_image_clear_callbacks_.add(std::forward<F>(callback));
-  }
-#endif
-
-#ifdef USE_SENDSPIN_COLOR
-  template<typename F> void add_color_update_callback(F &&callback) {
-    this->color_update_callbacks_.add(std::forward<F>(callback));
   }
 #endif
 
@@ -234,18 +222,6 @@ class SendspinHub final : public Component,
       artwork_image_decode_callbacks_{};
   CallbackManager<void(uint8_t, uint32_t)> artwork_image_display_callbacks_{};
   CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
-#endif
-
-#ifdef USE_SENDSPIN_COLOR
-  void on_color(const sendspin::ServerColorStateObject &color) override;
-  void on_color_clear() override;
-
-  Trigger<sendspin::ServerColorStateObject> *get_color_trigger() { return &this->color_trigger_; }
-
-  sendspin::ColorRole *color_role_{nullptr};
-  CallbackManager<void(const sendspin::ServerColorStateObject &)> color_update_callbacks_{};
-  
-  Trigger<sendspin::ServerColorStateObject> color_trigger_;  
 #endif
 
 #ifdef USE_SENDSPIN_CONTROLLER

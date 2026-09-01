@@ -232,15 +232,21 @@ speaker:
 sendspin:
   id: sendspin_hub
   task_stack_in_psram: false
-  on_color_test:
+  on_color:
     then:
+      - logger.log:
+          format: "SendSpin Color geändert: %d, %d, %d"
+          args:
+            - x.r
+            - x.g
+            - x.b
       - light.turn_on:
           id: onboard_led
           effect: None 
-          red: !lambda return x.r;
-          green: !lambda return x.g;
-          blue: !lambda return x.b;
-          brightness: 0.5
+          red: !lambda return x.r / 255.0f;
+          green: !lambda return x.g / 255.0f;
+          blue: !lambda return x.b / 255.0f;
+          brightness: 0.25
 
 media_source:
   - platform: sendspin

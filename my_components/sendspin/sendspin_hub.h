@@ -17,6 +17,9 @@
 #ifdef USE_SENDSPIN_ARTWORK
 #include <sendspin/artwork_role.h>
 #endif
+#ifdef USE_SENDSPIN_COLOR 
+#include <sendspin/color_role.h>
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -75,6 +78,9 @@ struct StaticDelayPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_ARTWORK
                           public sendspin::ArtworkRoleListener,
+#endif
+#ifdef USE_SENDSPIN_COLOR
+                          public sendspin::ColorRoleListener,
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
@@ -185,8 +191,8 @@ class SendspinHub final : public Component,
 #endif
 
   // Hufi: Test-Callback-Registrierung für Farbwerte
-  void add_color_test_callback(std::function<void(Color)> &&callback) {
-    this->color_test_callbacks_.add(std::move(callback));
+  void add_color_callback(std::function<void(Color)> &&callback) {
+    this->color_callbacks_.add(std::move(callback));
   }
 
  protected:
@@ -228,6 +234,14 @@ class SendspinHub final : public Component,
       artwork_image_decode_callbacks_{};
   CallbackManager<void(uint8_t, uint32_t)> artwork_image_display_callbacks_{};
   CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_COLOR
+  void on_color(const sendspin::ServerColorStateObject &color) override;
+  void on_color_clear() override;
+
+  sendspin::ColorRole *color_role_{nullptr};
+  CallbackManager<void(esphome::Color)> color_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
@@ -272,8 +286,6 @@ class SendspinHub final : public Component,
 
   // Callback fan-out to child components
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
-  // Hufi: CallbackManager für Farbwerte
-  CallbackManager<void(Color)> color_test_callbacks_{};
 
 
   bool task_stack_in_psram_{false};

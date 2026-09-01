@@ -48,6 +48,11 @@ void SendspinHub::setup() {
   this->artwork_role_->set_listener(this);
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  this->color_role_ = &this->client_->add_color();
+  this->color_role_->set_listener(this);
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
@@ -67,6 +72,8 @@ void SendspinHub::setup() {
     this->mark_failed();
     return;
   }
+  // Hufi: Bei Systemstart fest 0xFF00FF triggern (255, 0, 255)
+  this->color_test_callbacks_.call(Color(255, 0, 255));   
 }
 
 void SendspinHub::loop() { this->client_->loop(); }
@@ -218,6 +225,25 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
   if (this->artwork_role_ != nullptr) {
     this->artwork_role_->frame_done(slot);
   }
+}
+#endif
+
+#ifdef USE_SENDSPIN_COLOR
+// THREAD CONTEXT: Main loop (wird von der Sendspin-Bibliothek aufgerufen)
+void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
+  if (color.primary.has_value()) {
+    auto rgb = color.primary.value();
+    // Hufi: Debug-Log für empfangene Primärfarbe hinzufügen
+    ESP_LOGD(TAG, "Received new primary color from server: R=%d, G=%d, B=%d", rgb[0], rgb[1], rgb[2]);
+    this->color_test_callbacks_.call(esphome::Color(rgb[0], rgb[1], rgb[2]));
+  } else {
+    ESP_LOGD(TAG, "Primary color cleared by server");
+    this->color_test_callbacks_.call(esphome::Color(0, 0, 0));
+  }
+}
+
+void SendspinHub::on_color_clear() {
+  this->color_test_callbacks_.call(esphome::Color(0, 0, 0));
 }
 #endif
 

@@ -8,6 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/color.h"
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -183,6 +184,11 @@ class SendspinHub final : public Component,
   sendspin::PlayerRole *get_player_role();
 #endif
 
+  // Hufi: Test-Callback-Registrierung für Farbwerte
+  void add_color_test_callback(std::function<void(Color)> &&callback) {
+    this->color_test_callbacks_.add(std::move(callback));
+  }
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
@@ -266,6 +272,9 @@ class SendspinHub final : public Component,
 
   // Callback fan-out to child components
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
+  // Hufi: CallbackManager für Farbwerte
+  CallbackManager<void(Color)> color_test_callbacks_{};
+
 
   bool task_stack_in_psram_{false};
 };

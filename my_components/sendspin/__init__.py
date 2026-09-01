@@ -34,6 +34,9 @@ CONF_DECODE_MEMORY = "decode_memory"
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
 
+# Hufi: Color_Test
+CONF_ON_COLOR_TEST = "on_color_test"
+
 # sendspin-cpp library lives in the global `sendspin` namespace.
 sendspin_library_ns = cg.global_ns.namespace("sendspin")
 
@@ -183,6 +186,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            # Hufi: Schema-Validierung für den Test-Trigger
+            cv.Optional(CONF_ON_COLOR_TEST): automation.validate_automation({}),
         }
     ),
     cv.only_on_esp32,
@@ -337,3 +342,19 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_SENDSPIN_VISUALIZER", True)
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_VISUALIZER", False)
+    # Hufi: Verknüpfung der YAML-Automation mit dem C++ CallbackManager
+    if CONF_ON_COLOR_TEST in config:
+        # Aktiviert das korrekte C++ Makro für den Compiler
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+        
+        await automation.build_callback_automations(
+            var,
+            config,
+            (
+                automation.CallbackAutomation(
+                    CONF_ON_COLOR_TEST,
+                    "add_color_test_callback",
+                    [(cg.esphome_ns.class_("Color"), "x")],
+                ),
+            ),
+        )

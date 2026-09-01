@@ -11,3 +11,5 @@ __pycache__/
 *.pyc
 .vscode/
 .continue/
+my_components/.backup/
+my_components/

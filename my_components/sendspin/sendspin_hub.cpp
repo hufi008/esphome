@@ -229,18 +229,16 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
 #ifdef USE_SENDSPIN_COLOR
 // THREAD CONTEXT: Main loop (wird von der Sendspin-Bibliothek aufgerufen)
 void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
-  if (color.primary.has_value()) {
-    auto rgb = color.primary.value();
-    ESP_LOGD(TAG, "Received new primary color from server: R=%d, G=%d, B=%d", rgb[0], rgb[1], rgb[2]);
-    this->color_callbacks_.call(esphome::Color(rgb[0], rgb[1], rgb[2]));
-  } else {
-    ESP_LOGD(TAG, "Primary color cleared by server");
-    this->color_callbacks_.call(esphome::Color(0, 0, 0));
-  }
+  ESP_LOGD(TAG, "Received color palette update from server (Timestamp: %lld)", color.timestamp);
+  // Konvertiere das rohe Bibliotheksobjekt in unsere stabile Abstraktion
+  SendspinColorPalette palette(color);
+  this->color_callbacks_.call(palette);
 }
 
 void SendspinHub::on_color_clear() {
-  this->color_callbacks_.call(esphome::Color(0, 0, 0));
+  ESP_LOGD(TAG, "Color palette cleared");
+  // Sende eine komplett leere Farbpalette (alles Schwarz)
+  this->color_callbacks_.call(SendspinColorPalette{});
 }
 #endif
 

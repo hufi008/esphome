@@ -82,6 +82,8 @@ SendspinHub = sendspin_ns.class_(
     cg.Component,
 )
 
+# Hufi: Neue Abstraktionsklasse dem Python-Codegen bekannt machen
+SendspinColorPalette = sendspin_ns.class_("SendspinColorPalette")
 
 SendspinSwitchCommandAction = sendspin_ns.class_(
     "SendspinSwitchCommandAction",
@@ -359,7 +361,8 @@ async def to_code(config: ConfigType) -> None:
                     automation.CallbackAutomation(
                         CONF_ON_COLOR,
                         "add_color_callback",
-                        [(cg.esphome_ns.class_("Color"), "x")],
+                        # Nutzt jetzt die stabile esphome::sendspin_::SendspinColorPalette Klasse:
+                        [(SendspinColorPalette.operator("const").operator("ref"), "x")],
                     ),
                 ),
             )

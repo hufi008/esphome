@@ -1,0 +1,46 @@
+# -------------------------------------------------------------------
+# Audio
+# -------------------------------------------------------------------
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: ${pin_max98357_lrc}
+    i2s_bclk_pin: ${pin_max98357_bclk}
+
+speaker:
+  - platform: i2s_audio
+    id: my_speaker
+    dac_type: external
+    i2s_dout_pin: ${pin_max98357_din}
+    i2s_audio_id: i2s_out
+    sample_rate: 48000
+    channel: mono
+    timeout: never
+    buffer_duration: 500ms
+
+sendspin:
+  id: sendspin_hub
+  task_stack_in_psram: true
+
+media_source:
+  - platform: sendspin
+    id: sendspin_media_source
+    task_stack_in_psram: true
+    decode_memory: internal
+    buffer_size: 262144 # 256kB
+
+
+media_player:
+  - platform: sendspin
+    id: sendspin_player
+    name: "Group"
+    disabled_by_default: true
+
+  - platform: speaker_source
+    id: audio_player
+    name: "Audio Player"
+    media_pipeline:
+      speaker: my_speaker
+      sources:
+        - sendspin_media_source
+    disabled_by_default: true
+

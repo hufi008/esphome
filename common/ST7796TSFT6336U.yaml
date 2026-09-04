@@ -1,0 +1,47 @@
+substitutions:
+  cover_image_dimension: 166x166
+
+# -------------------------------------------------------------------
+# Display und Touch
+# -------------------------------------------------------------------
+spi:
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+  miso_pin: ${pin_spi_miso}
+
+i2c:
+  - id: my_i2c
+    sda: ${pin_i2c_sda}
+    scl: ${pin_i2c_scl}
+
+display:
+  - platform: mipi_spi
+    model: ST7796
+    id: my_display
+    spi_mode: MODE0
+    data_rate: 26.67MHz
+    cs_pin: ${pin_display_cs}
+    dc_pin: ${pin_display_dc}
+    reset_pin: ${pin_display_reset}
+    invert_colors: false
+    auto_clear_enabled: false
+    update_interval: never
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    dimensions:
+      height: 320
+      width: 480
+
+touchscreen:
+  - platform: ft63x6
+    id: my_touch
+    i2c_id: my_i2c
+    interrupt_pin: ${pin_touch_irq}
+    reset_pin: ${pin_touch_reset}
+    update_interval: never
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false

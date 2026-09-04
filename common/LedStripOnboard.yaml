@@ -1,0 +1,17 @@
+# -------------------------------------------------------------------
+# Lighting
+# -------------------------------------------------------------------
+# Onboard WS2812 LED
+light:
+  - platform: esp32_rmt_led_strip
+    id: onboard_led
+    name: "Onboard RGB"
+    pin: GPIO48
+    num_leds: 1
+    channel_colors: GRB
+    chipset: WS2812
+    effects:
+      - addressable_rainbow:
+          id: effect_rainbow
+          name: "Rainbow"
+          speed: 10           

@@ -7,13 +7,13 @@ substitutions:
   # --- ILI9341 Block ---
   # 3V3                      # -> VCC  (ggf. J1 trennen)
   # GND                      # -> GND
-  pin_ili9341_cs:    GPIO4   # -> CS (Display)
-  pin_ili9341_reset: GPIO5   # -> RESET (Display)
-  pin_ili9341_dc:    GPIO6   # -> D/C (Display)
+  pin_display_cs:    GPIO4   # -> CS (Display)
+  pin_display_reset: GPIO5   # -> RESET (Display)
+  pin_display_dc:    GPIO6   # -> D/C (Display)
   pin_spi_mosi:      GPIO7   # -> SDI(MOSI)         und   ---+
   pin_spi_clk:       GPIO15  # -> SCK               und      |  -> T_CLK
   pin_touch_cs:      GPIO16  # -> nix (SDO/MISO blind!)      |  -> T_CS
-  pin_ili9341_led:   GPIO17  # -> LED               und quer +---> T_DN
+  pin_display_led:   GPIO17  # -> LED               und quer +---> T_DN
   pin_spi_miso:      GPIO18  # -> nix                           -> T_OUT
   pin_touch_irq:     GPIO8   # -> nix                           -> T_IRQ
 
@@ -63,10 +63,6 @@ esphome:
           id: onboard_led
           effect: "Rainbow"
 
-wifi:
-  power_save_mode: NONE
-  output_power: 20.5dBm
-
 # Onboard WS2812 LED
 light:
   - platform: esp32_rmt_led_strip
@@ -91,7 +87,7 @@ light:
               
 output:
   - platform: ledc
-    pin: ${pin_ili9341_led}
+    pin: ${pin_display_led}
     id: backlight_pwm
     min_power: 0%
     max_power: 80%
@@ -308,9 +304,9 @@ display:
     model: ILI9341
     id: my_display
     spi_mode: MODE0
-    cs_pin: ${pin_ili9341_cs}
-    dc_pin: ${pin_ili9341_dc}
-    reset_pin: ${pin_ili9341_reset}
+    cs_pin: ${pin_display_cs}
+    dc_pin: ${pin_display_dc}
+    reset_pin: ${pin_display_reset}
     invert_colors: false
     auto_clear_enabled: true
     update_interval: 50ms

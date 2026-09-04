@@ -1,30 +1,33 @@
 # musicbox_1.yaml
 
 substitutions:
-  device_name: "esphome-web-47a1fc"
-  friendly_name: "MusicBox 1"
+  device_name: "esphome-web-479ce4"
+  friendly_name: "MusicBox 2"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home
 
   # ========================================================
-  # --- LINKE SEITE: (3V3) ILI9341/TOUCH, Drehimpulsgeber --
+  # --- LINKE SEITE: (3V3) DISPLAY/TOUCH, Drehimpulsgeber --
   # ========================================================
   # --- ILI9341 Block ---
-  # 3V3                      # -> VCC  (ggf. J1 trennen)
+  # 3V3                      # -> VCC 
   # GND                      # -> GND
-  pin_display_cs:    GPIO4   # -> CS (Display)
-  pin_display_reset: GPIO5   # -> RESET (Display)
-  pin_display_dc:    GPIO6   # -> D/C (Display)
-  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)         und   ---+
-  pin_spi_clk:       GPIO15  # -> SCK               und      |  -> T_CLK
-  pin_touch_cs:      GPIO16  # -> nix (SDO/MISO blind!)      |  -> T_CS
-  pin_display_led:   GPIO17  # -> LED               und quer +---> T_DN
-  pin_spi_miso:      GPIO18  # -> nix                           -> T_OUT
-  pin_touch_irq:     GPIO8   # -> nix                           -> T_IRQ
+  pin_display_cs:    GPIO4   # -> LCD_CS
+  pin_display_reset: GPIO5   # -> LCD_RST
+  pin_display_dc:    GPIO6   # -> LCD_DS
+  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)
+  pin_spi_clk:       GPIO15  # -> SCK
+  pin_display_led:   GPIO16  # -> LED
+  pin_spi_miso:      GPIO17  # -> SDO(MISO) nicht verbinden
+
+  pin_touch_irq:     GPIO18  # -> CTP_INT
+  pin_touch_reset:   GPIO08  # -> CTP_RST
+  pin_i2c_scl:       GPIO09  # -> CTP_SCL
+  pin_i2c_sda:       GPIO10  # -> CTP_SDA
 
   # --- KY-040 Drehgeber Block ---
-  pin_encoder_clk:   GPIO12   # -> CLK
-  pin_encoder_dt:    GPIO13   # -> DT
+  pin_encoder_clk:   GPIO12  # -> CLK
+  pin_encoder_dt:    GPIO13  # -> DT
   pin_encoder_sw:    GPIO14  # -> SW
   # 3V3 !!!                  # -> +
   # GND                      # -> GND
@@ -60,8 +63,9 @@ logger:
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-s3_devkitc_1.yaml
-  display: !include common/ILI9341TSXPT2046.yaml
+  display: !include common/ST7796TSFT6336U.yaml
   sound: !include common/MediaPlayerSendspin.yaml
   light: !include common/LedStripOnboard.yaml
   hardware: !include musicbox/hardware.yaml
   functions: !include musicbox/main.yaml
+

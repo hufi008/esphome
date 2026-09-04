@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.4.0
+    version: 0.4.1
   on_boot:
     priority: -100
     then:
@@ -153,17 +153,17 @@ sendspin:
           blue: !lambda return x.get_primary().b / 255.0f;
           brightness: 0.25
      
-      # 🔊 Externe Smart Speaker Status-LED in Home Assistant auf die ACCENT-Farbe setzen
-      - homeassistant.service:
-          service: light.turn_on
-          data:
-            entity_id: light.smart_speaker_2_led_status
-          # Der harte Fakt: Das Template MUSS einen formatierten String zurückgeben!
-          data_template:
-            brightness: "64"
-            rgb_color: !lambda |-
-              auto ac = x.get_accent();
-              return esphome::str_snprintf("%d,%d,%d", 15, ac.r, ac.g, ac.b);
+      # # 🔊 Externe Smart Speaker Status-LED in Home Assistant auf die ACCENT-Farbe setzen
+      # - homeassistant.service:
+      #     service: light.turn_on
+      #     data:
+      #       entity_id: light.smart_speaker_2_led_status
+      #     # Der harte Fakt: Das Template MUSS einen formatierten String zurückgeben!
+      #     data_template:
+      #       brightness: "64"
+      #       rgb_color: !lambda |-
+      #         auto ac = x.get_accent();
+      #         return esphome::str_snprintf("%d,%d,%d", 15, ac.r, ac.g, ac.b);
                             
       - lvgl.page.update:
           id: lvgl_page_media
@@ -511,7 +511,7 @@ sensor:
               return str_sprintf("%02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
         - lvgl.bar.update:
             id: track_progress_bar
-            value: !lambda 'return x;'                    
+            value: !lambda 'return x / 2000.0f;'                    
   - platform: sendspin
     type: track_duration
     name: "SendSpin Track Duration"
@@ -528,14 +528,13 @@ sensor:
             id: lvgl_label_duration
             text: !lambda |-
               if (std::isnan(x)) return "---:--:--";
-              if (x == 0) return "";
+              if (x == 0) return "---:--:--";
               int duration = (int)(x / 1000.0f);
               return str_sprintf("%02d:%02d:%02d", duration / 3600, (duration % 3600) / 60, duration % 60);
         - lvgl.bar.update:
             id: track_progress_bar
             min_value: 0
-            max_value: !lambda |-
-              return x;
+            max_value: !lambda 'return x / 2000.0f;'
   - platform: sendspin
     type: year
     name: "SendSpin Year"
@@ -880,19 +879,19 @@ image:
     file: "mdi:alert"
     id: img_art_error
     type: BINARY
-    resize: 120x120
+    resize: ${cover_image_dimension}
   - platform: file
     file: "mdi:music-box-outline"
     id: img_art_clear
     type: BINARY
-    resize: 120x120
+    resize: ${cover_image_dimension}
 
   # Sendspin Album Cover
   - platform: sendspin
     id: album_slot
     format: JPEG
     type: RGB565
-    resize: 120x120
+    resize: ${cover_image_dimension}
     source: album
     current_image:
       id: current_album_art
@@ -940,10 +939,11 @@ image:
 # -------------------------------------------------------------------
 lvgl:
   id: my_lvgl
+  buffer_size: 100%
   displays:
     - my_display
-  touchscreens:
-    - my_touch
+  # touchscreens:
+  #   - my_touch
 
 
   encoders:
@@ -1289,15 +1289,23 @@ lvgl:
               text: "MEDIA"
 
       widgets:
-        # 🖼️ ALBUM COVER
-        - image:
-            id: lvgl_img_album_art
+        # 🖼️ ALBUM COVER MIT RAHMEN
+        - obj:
             align: TOP_LEFT
             x: "0%"
-            y: "30%"
-            width: 120
-            height: 120
-            src: current_album_art
+            y: "32%"
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            bg_opa: TRANSP
+            border_width: 2
+            border_color: 0xD4AF37
+            pad_all: 0
+            scrollable: false
+            widgets:
+              - image:
+                  id: lvgl_img_album_art
+                  src: img_art_clear
+                  align: CENTER
 
         # 🎵 TRACK INFOS (Nutzen jetzt die volle Breite oberhalb des Covers)
         - label:
@@ -1307,7 +1315,7 @@ lvgl:
             y: "12%"
             width: "92%" 
             text: "Keine Wiedergabe"
-            text_font: roboto_24
+            text_font: roboto_32
             text_align: LEFT
             long_mode: SCROLL
 
@@ -1318,7 +1326,7 @@ lvgl:
             y: "22%"
             width: "92%"
             text: "---"
-            text_font: roboto_16
+            text_font: roboto_20
             text_color: 0xBBBBBB
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
@@ -1327,11 +1335,11 @@ lvgl:
         - label:
             id: lvgl_label_media_album
             align: TOP_LEFT
-            x: "40%"
+            x: "44%"
             y: "34%"
-            width: "60%"
+            width: "56%"
             text: "---"
-            text_font: roboto_16
+            text_font: roboto_20
             text_color: 0xBB4477
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
@@ -1339,41 +1347,53 @@ lvgl:
         # ⏳ COMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
         - obj:
             align: TOP_LEFT
-            x: "40%"
-            y: "48%"
-            width: "60%"      # Nutzt den verbleibenden Platz rechts
-            height: 30        # Leicht erhöht für bessere Lesbarkeit
+            x: "44%"
+            y: "50%"
+            width: "52%"
+            height: 45        
             bg_opa: TRANSP
             border_width: 2
             border_color: 0xff007f
-            pad_all: 0
+            pad_all: 4        
             layout:
               type: FLEX
-              flex_flow: ROW
-              flex_align_main: SPACE_BETWEEN 
-              flex_align_cross: CENTER
+              flex_flow: COLUMN              # Elemente untereinander
+              flex_align_main: SPACE_BETWEEN # Zeitleiste oben, Balken unten
+              flex_align_cross: CENTER       # Korrigierter Fallback für die Kreuzachse
             widgets:
-              # Aktueller Fortschritt (Links)
-              - label:
-                  id: lvgl_label_progress
-                  text: ""
-                  text_color: 0x00FFD2
+            
+              # ⏱️ Obere Zeile für die Zeitangaben
+              - obj:
+                  width: 100%                # Explizit auf volle Breite der Hauptbox gezwungen
+                  height: 20
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW           
+                    flex_align_main: SPACE_BETWEEN 
+                    flex_align_cross: CENTER
+                  widgets:
+                    # Aktueller Fortschritt (Links)
+                    - label:
+                        id: lvgl_label_progress
+                        text: ""
+                        text_color: 0x00FFD2
 
-              # Gesamtlänge (Rechts)
-              - label:
-                  id: lvgl_label_duration
-                  text: ""
-                  text_color: 0xaaaaaa
+                    # Gesamtlänge (Rechts)
+                    - label:
+                        id: lvgl_label_duration
+                        text: ""
+                        text_color: 0xaaaaaa
 
-        # 📊 FORTSCHRITTSLEISTE (Direkt unter der Zeitleiste)
-        - bar:
-            id: track_progress_bar
-            align: TOP_LEFT
-            x: "36%"
-            y: "60%"
-            width: "60%"
-            height: 4
-            bg_color: 0x222222
+              # 📊 Integrierte FORTSCHRITTSLEISTE
+              - bar:
+                  id: track_progress_bar
+                  width: 100%                # Verhindert das Schrumpfen, füllt die Box voll aus
+                  height: 4
+                  bg_color: 0x804020
+
 
         # 🎛️ BUTTONBAR UNTEN (Dank Flexbox extrem dankbar beim Skalieren!)
         - obj:
@@ -1381,7 +1401,7 @@ lvgl:
             x: 0
             y: 0
             width: "100%"
-            height: 42
+            height: 40
             bg_color: 0x606060
             pad_all: 4
             layout:

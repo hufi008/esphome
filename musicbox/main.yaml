@@ -180,13 +180,13 @@ sendspin:
       - lvgl.label.update:
           id: lvgl_label_media_artist
           text_color: !lambda |-
-            auto c = x.get_accent();
+            auto c = x.get_on_dark();
             return lv_color_make(c.r, c.g, c.b);
 
       - lvgl.label.update:
           id: lvgl_label_media_album
           text_color: !lambda |-
-            auto c = x.get_accent();
+            auto c = x.get_on_dark();
             return lv_color_make(c.r, c.g, c.b);
 
 
@@ -661,36 +661,36 @@ binary_sensor:
 # -------------------------------------------------------------------
 font:
   - file: "gfonts://Roboto"
-    id: roboto_12
-    size: 12
+    id: roboto_small
+    size: ${font_size_small}
     glyphs:
       - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
   - file: "gfonts://Roboto"
-    id: roboto_16
-    size: 16
+    id: roboto_medium
+    size: ${font_size_medium}
     glyphs:
       - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
   - file: "gfonts://Roboto"
-    id: roboto_20
-    size: 20
+    id: roboto_large
+    size: ${font_size_large}
     glyphs:
       - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
   - file: "gfonts://Roboto"
-    id: roboto_24
-    size: 24
+    id: roboto_huge
+    size: ${font_size_huge}
     glyphs:
       - äöüÄÖÜß°»«
     glyphsets:
       - GF_Latin_Kernel
   - file: "gfonts://Roboto"
-    id: roboto_32
-    size: 32
+    id: roboto_giant
+    size: ${font_size_giant}
     glyphs:
       - äöüÄÖÜß°»«
     glyphsets:
@@ -985,7 +985,7 @@ lvgl:
 
     label:
       text_color: 0xFFFFFF
-      text_font: roboto_20    # Globaler Standard für Text-Widgets!
+      text_font: roboto_medium    # Globaler Standard für Text-Widgets!
 
     # 🔘 Globale Button-Stile (Gilt für ALLE Buttons)
     button:
@@ -994,7 +994,7 @@ lvgl:
       radius: 6
       border_width: 0
       text_color: 0xFFFFFF
-      text_font: roboto_20    # Globaler Standard für die Buttonbeschriftung!
+      text_font: roboto_medium    # Globaler Standard für die Buttonbeschriftung!
 
       pressed:
         bg_color: 0x2C3E50  
@@ -1028,7 +1028,7 @@ lvgl:
           bg_color: 0x606060
           border_width: 0
           text_color: 0xFFFF00
-          text_font: roboto_20
+          # text_font: roboto_medium
           scrollable: false        
           
           # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
@@ -1074,13 +1074,13 @@ lvgl:
             x: 0
             y: 40
             text: "Musicbox"
-            text_font: roboto_24
+            text_font: roboto_large
             text_color: 0x00D2FF
             align: TOP_MID
 
         - spinner:
             x: 0
-            y: 0
+            y: 16
             width: 120
             height: 120
             arc_length: 60deg
@@ -1092,7 +1092,7 @@ lvgl:
 
         - image:
             x: 0
-            y: 0
+            y: 16
             width: 64
             height: 64
             src: img_boot_logo
@@ -1103,7 +1103,7 @@ lvgl:
         - label:          
             x: 0
             y: -20
-            text_font: roboto_12
+            text_font: roboto_small
             text_color: 0x00D2FF
             align: BOTTOM_MID
             text: !lambda |-
@@ -1158,9 +1158,9 @@ lvgl:
         - label:
             id: info_clock
             x: 0
-            y: 40
+            y: 30
             text: "00:00:00"
-            text_font: roboto_32
+            text_font: roboto_giant
             text_color: 0x00D2FF
             align: TOP_MID
 
@@ -1168,9 +1168,9 @@ lvgl:
         - label:
             id: info_date
             x: 0
-            y: 80
+            y: 33%
             text: "---"
-            text_font: roboto_16
+            # text_font: roboto_medium
             text_color: 0xAAAAAA
             align: TOP_MID
 
@@ -1178,52 +1178,52 @@ lvgl:
         - image:
             id: info_weather_icon
             x: 5%
-            y: 44%
+            y: 46%
             src: icon_weather_exceptional
             recolor: "0xFFFFFF"
             recolor_opa: 100% 
 
         - label:
             id: info_weather
-            x: 14%
-            y: 45%
+            x: 18%
+            y: 49%
             text: "Wetter: Lade..."
-            text_font: roboto_16
+            # text_font: roboto_medium
 
         - label:
             id: info_temperature
-            x: 55%
-            y: 45%
+            x: 52%
+            y: 49%
             text: "--.- °C"
-            text_font: roboto_16
+            # text_font: roboto_medium
             text_color: 0xFF9800 
 
         # 🧪 Luftdruck 
         - label:
             id: info_barometer
-            x: 5%
-            y: 58%
+            x: 18%
+            y: 60%
             text: "Luft: ---- hPa"
-            text_font: roboto_16    # Kleinere Schriftart für die Statusleiste
+            # text_font: roboto_medium
             text_color: 0xc0c0c0
 
         # 💧 Regenwahrscheinlichkeit
         - label:
             id: info_rain_prob
-            x: 38%
-            y: 58%
+            x: 52%
+            y: 60%
             text: "Regen: --%"
-            text_font: roboto_16
-            text_color: 0x3498DB   # Dezentes Blau für Regen
+            # text_font: roboto_medium
+            text_color: 0x3498DB
 
         # 💨 Windgeschwindigkeit 
         - label:
             id: info_wind
             x: 68%
-            y: 58%
+            y: 60%
             text: "Wind: -- km/h"
-            text_font: roboto_16
-            text_color: 0x2ECC71   # Dezentes Grün für Wind
+            # text_font: roboto_medium
+            text_color: 0x2ECC71
 
         # ☀️ SONNENZEITEN (Unter dem Wetter)
         - image:
@@ -1236,10 +1236,10 @@ lvgl:
 
         - label:
             id: info_sun
-            x: 14%
+            x: 18%
             y: 73%
             text: "Auf: --:--  •  Unter: --:--"
-            text_font: roboto_16
+            # text_font: roboto_medium
             text_color: 0xa0a0a0
 
         # 🌙 MONDPHASEN KOMPONENTEN
@@ -1253,10 +1253,10 @@ lvgl:
 
         - label:
             id: info_moon_text
-            x: 14%
+            x: 18%
             y: 86%
             text: "Mond: ---"
-            text_font: roboto_16
+            # text_font: roboto_medium
             text_color: 0xa0a0a0
 
     - id: lvgl_page_media
@@ -1271,7 +1271,7 @@ lvgl:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
         - logger.log: "Nach rechts gewischt von lvgl_page_media!"
         - lvgl.page.show:
-            id: lvgl_page_backlight
+            id: lvgl_page_settings
             animation: move_right
             time: 300ms
       on_swipe_bottom:
@@ -1293,7 +1293,7 @@ lvgl:
         - obj:
             align: TOP_LEFT
             x: "0%"
-            y: "32%"
+            y: "33%"
             width: SIZE_CONTENT
             height: SIZE_CONTENT
             bg_opa: TRANSP
@@ -1311,22 +1311,22 @@ lvgl:
         - label:
             id: lvgl_label_media_title
             align: TOP_LEFT
-            x: "4%"
-            y: "12%"
-            width: "92%" 
-            text: "Keine Wiedergabe"
-            text_font: roboto_32
-            text_align: LEFT
+            x: "2%"
+            y: "13%"
+            width: "96%"
+            text: "Warte auf Server"
+            text_font: roboto_huge
+            text_align: CENTER
             long_mode: SCROLL
 
         - label:
             id: lvgl_label_media_artist
             align: TOP_LEFT
-            x: "4%"
-            y: "22%"
-            width: "92%"
+            x: "40%"
+            y: "32%"
+            width: "96%"
             text: "---"
-            text_font: roboto_20
+            # text_font: roboto_medium
             text_color: 0xBBBBBB
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
@@ -1335,21 +1335,21 @@ lvgl:
         - label:
             id: lvgl_label_media_album
             align: TOP_LEFT
-            x: "44%"
-            y: "34%"
-            width: "56%"
+            x: "40%"
+            y: "42%"
+            width: "58%"
             text: "---"
-            text_font: roboto_20
+            # text_font: roboto_medium
             text_color: 0xBB4477
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
 
         # ⏳ COMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
         - obj:
-            align: TOP_LEFT
-            x: "44%"
-            y: "50%"
-            width: "52%"
+            align: BOTTOM_RIGHT
+            x: "0"
+            y: "-50"
+            width: "60%"
             height: 45        
             bg_opa: TRANSP
             border_width: 2
@@ -1479,7 +1479,7 @@ lvgl:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
         - logger.log: "Nach links gewischt von lvgl_page_settings!"
         - lvgl.page.show:
-            id: lvgl_page_backlight
+            id: lvgl_page_media
             animation: move_left
             time: 300ms
       on_swipe_right:
@@ -1503,7 +1503,7 @@ lvgl:
             x: 0
             y: 15%
             text: "50 %"
-            text_font: roboto_24
+            text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
         # 🎚️ VOLUME-SLIDER
@@ -1537,7 +1537,7 @@ lvgl:
             x: 0
             y: 50%
             text: "50 %"
-            text_font: roboto_24 
+            text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
         # 🎚️ HELLIGKEITS-SLIDER 
@@ -1566,26 +1566,26 @@ lvgl:
                     brightness: !lambda |-
                       return x / 20.0f;
 
-    - id: lvgl_page_backlight
-      on_swipe_left:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_backlight!"
-        - lvgl.page.show:
-            id: lvgl_page_media
-            animation: move_left
-            time: 300ms
-      on_swipe_right:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_backlight!"
-        - lvgl.page.show:
-            id: lvgl_page_settings
-            animation: move_right
-            time: 300ms
-      on_load:
-        then:
-          - lvgl.label.update:
-              id: lvgl_label_status_title
-              text: "BRIGHTNESS"
+    # - id: lvgl_page_backlight
+    #   on_swipe_left:
+    #     - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+    #     - logger.log: "Nach links gewischt von lvgl_page_backlight!"
+    #     - lvgl.page.show:
+    #         id: lvgl_page_media
+    #         animation: move_left
+    #         time: 300ms
+    #   on_swipe_right:
+    #     - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+    #     - logger.log: "Nach rechts gewischt von lvgl_page_backlight!"
+    #     - lvgl.page.show:
+    #         id: lvgl_page_settings
+    #         animation: move_right
+    #         time: 300ms
+    #   on_load:
+    #     then:
+    #       - lvgl.label.update:
+    #           id: lvgl_label_status_title
+    #           text: "BRIGHTNESS"
 
                     
 script:
@@ -1624,13 +1624,6 @@ script:
                   - lvgl.page.is_showing: lvgl_page_settings
                 then:
                   - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "VOLUME");'
-            - if:
-                condition:
-                  - lvgl.page.is_showing: lvgl_page_backlight
-                then:
-                  - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_is_showing %s", "BACKLIGHT");'
-
-
 
             # SCHRITT 0: Wenn power off -> INFO; sonmst MEDIA
             - if: 

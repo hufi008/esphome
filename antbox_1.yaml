@@ -55,7 +55,7 @@ esphome:
 
 wifi:
   power_save_mode: NONE
-  output_power: 8.5dBm
+  output_power: 15.0dBm
 
 logger:
   level: DEBUG
@@ -67,7 +67,7 @@ logger:
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-s3_devkitc_1.yaml
-  display: !include common/ST7796TS.yaml
+  display: !include common/ILI9341TSFT6336U.yaml
   sound: !include common/MediaPlayerSendspin.yaml
   light: !include common/LedStripOnboard.yaml
   hardware: !include musicbox/hardware.yaml

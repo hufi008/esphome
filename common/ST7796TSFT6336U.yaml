@@ -1,5 +1,10 @@
 substitutions:
   cover_image_dimension: 166x166
+  font_size_small: 18
+  font_size_medium: 22
+  font_size_large: 28
+  font_size_huge: 36
+  font_size_giant: 58
 
 # -------------------------------------------------------------------
 # Display und Touch

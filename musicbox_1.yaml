@@ -50,6 +50,10 @@ substitutions:
 
 esphome:
 
+wifi:
+  power_save_mode: NONE
+  output_power: 19.5dBm
+
 logger:
   level: DEBUG
   logs:

@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.4.1
+    version: 0.4.2
   on_boot:
     priority: -100
     then:
@@ -53,8 +53,10 @@ time:
           ESP_LOGI(__FILE__, "ha_time: on_time_sync");
           id(my_clock).update();
           id(my_date).update();
+          id(my_sunset).update();
           id(my_sunrise).update();
           id(my_sunset).update();
+          id(my_moonphase).update();
       - if:
           condition:
             lambda: 'return id(is_blocked);'
@@ -563,7 +565,7 @@ sensor:
   - platform: wifi_signal
     id: wifi_rssi
     name: "Signalstärke"
-    update_interval: 15s
+    update_interval: 5s
     on_value:
       then:
         # Ausgezeichnetes Signal

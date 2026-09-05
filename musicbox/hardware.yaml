@@ -145,7 +145,7 @@ output:
     id: backlight_pwm
     min_power: 0%
     max_power: 80%
-    frequency: 1000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
+    frequency: 20000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
 
 
 

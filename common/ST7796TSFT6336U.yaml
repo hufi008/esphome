@@ -24,7 +24,7 @@ display:
     model: ST7796
     id: my_display
     spi_mode: MODE0
-    data_rate: 26.67MHz
+    data_rate: 20.0MHz
     cs_pin: ${pin_display_cs}
     dc_pin: ${pin_display_dc}
     reset_pin: ${pin_display_reset}

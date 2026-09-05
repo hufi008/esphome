@@ -28,7 +28,7 @@ display:
     cs_pin: ${pin_display_cs}
     dc_pin: ${pin_display_dc}
     reset_pin: ${pin_display_reset}
-    invert_colors: false
+    invert_colors: true
     auto_clear_enabled: false
     update_interval: never
     transform:

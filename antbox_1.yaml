@@ -53,16 +53,28 @@ substitutions:
 
 esphome:
 
-wifi:
-  power_save_mode: NONE
-  output_power: 15.0dBm
-
 logger:
   level: DEBUG
   logs:
     xpt2046: INFO
     esp-idf.httpd: ERROR
     sendspin.player: ERROR    
+
+sensor:
+  - platform: htu21d
+    id: climate_id
+    update_interval: 60s
+    address: 0x40
+    temperature:
+      id: room_temp
+      name: "Temperature"
+      device_class: temperature
+      state_class: measurement
+    humidity:
+      id: room_hum
+      name: "Humidity"
+      device_class: humidity
+      state_class: measurement
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)

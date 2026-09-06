@@ -69,7 +69,10 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
-      # - script.execute: load_mass_library
+      - script.execute:
+          id: request_mass_library 
+          category: "audiobook"
+
       - if:
           condition:
             lambda: 'return id(is_blocked);'
@@ -1647,20 +1650,8 @@ lvgl:
                           page: lvgl_page_library
                   on_click:
                     then:
-                      - logger.log: "Hörbuch-Start via GUI Knopfdruck"
-                      - homeassistant.action:
-                          action: music_assistant.play_media
-                          data:
-                            entity_id: ${media_player_entity_id}
-                            media_id: !lambda |-
-                              size_t idx = id(my_audiobook).active_index().value_or(0);
-                              ESP_LOGD(__FILE__, "AUDIO_PLAY: %s %s", "${media_player_entity_id}", id(current_library_uris)[idx].c_str());
-                              return id(current_library_uris)[idx];
-                          on_success:
-                            - logger.log: "Success"
-                            - lvgl.widget.focus: lvgl_button_play_stop
-                          on_error:
-                            - logger.log: "Error"
+                      - script.execute: library_item_click
+
 select:
   - platform: lvgl
     name: "Audiobook Roller"
@@ -1678,8 +1669,8 @@ select:
 
 
 interval:
-  - interval: 1min
-    startup_delay: 15sec
+  - interval: 1h
+    # startup_delay: 15sec
     then: 
       - script.execute:
           id: request_mass_library
@@ -1807,6 +1798,7 @@ script:
       category: std::string
 
     then:
+      - delay: 5sec
       - lambda: |-
           id(current_library_path) = category;
           id(current_library_names).clear();
@@ -1844,76 +1836,63 @@ script:
                 JsonArrayConst incoming_data =
                     response["response"].as<JsonArrayConst>();
 
-                ESP_LOGD(
-                  __FILE__,
-                  "Library response for '%s': %zu items.",
-                  id(current_library_path).c_str(),
-                  incoming_data.size()
-                );
+                ESP_LOGD(__FILE__, "Library response for '%s': %zu items.", id(current_library_path).c_str(), incoming_data.size());
 
                 // Clear current library data
                 id(current_library_names).clear();
                 id(current_library_uris).clear();
 
-                if (incoming_data.size() > 0) {
+                // Add "back"
+                id(current_library_names).push_back("..");
+                id(current_library_uris).push_back("special://");
 
-                  // Names must remain persistent because the roller stores char pointers.
-                  static std::vector<std::string> persistent_names;
-                  persistent_names.clear();
-                  persistent_names.reserve(incoming_data.size());
+                size_t idx = 0;
 
-                  esphome::FixedVector<const char*> options_vector;
-                  options_vector.init(incoming_data.size());
+                for (JsonObjectConst item : incoming_data) {
+                  std::string name =
+                      item["name"].is<std::string>()
+                        ? item["name"].as<std::string>()
+                        : "Unknown";
 
-                  size_t idx = 0;
+                  std::string uri =
+                      item["uri"].is<std::string>()
+                        ? item["uri"].as<std::string>()
+                        : "";
 
-                  for (JsonObjectConst item : incoming_data) {
+                  id(current_library_names).push_back(name);
+                  id(current_library_uris).push_back(uri);
 
-                    std::string name =
-                        item["name"].is<std::string>()
-                          ? item["name"].as<std::string>()
-                          : "Unknown";
+                  // ESP_LOGD(__FILE__, "[#%02zu] Name: %-30s | URI: %s", idx, name.c_str(), uri.c_str());
 
-                    std::string uri =
-                        item["uri"].is<std::string>()
-                          ? item["uri"].as<std::string>()
-                          : "";
-
-                    id(current_library_names).push_back(name);
-                    id(current_library_uris).push_back(uri);
-
-                    persistent_names.push_back(name);
-                    options_vector.push_back(persistent_names.back().c_str());
-
-                    ESP_LOGD(
-                      __FILE__,
-                      "[#%02zu] Name: %-30s | URI: %s",
-                      idx,
-                      name.c_str(),
-                      uri.c_str()
-                    );
-
-                    idx++;
-                  }
-
-                  // Update LVGL roller
-                  id(lvgl_roller_audiobooks).set_options(std::move(options_vector));
-                  id(lvgl_roller_audiobooks).set_selected_index(0, LV_ANIM_OFF);
-
-                  ESP_LOGD(
-                    __FILE__,
-                    "Audiobook roller updated with %zu items.",
-                    id(current_library_names).size()
-                  );
+                  idx++;
                 }
 
-                ESP_LOGD(
-                  __FILE__,
-                  "Library path '%s' contains %zu items.",
-                  id(current_library_path).c_str(),
-                  id(current_library_names).size()
-                );
-                
+                ESP_LOGD(__FILE__, "Library path '%s' contains %zu items.", id(current_library_path).c_str(), id(current_library_names).size());
+
+                // Names must remain persistent because the roller stores char pointers.
+                static std::vector<std::string> persistent_names;
+                persistent_names.clear();
+                persistent_names.reserve(id(current_library_names).size());
+
+                esphome::FixedVector<const char*> options_vector;
+                options_vector.init(id(current_library_names).size());
+
+                idx = 0;
+
+                for (const std::string &name : id(current_library_names)) {
+                  persistent_names.push_back(name);
+                  options_vector.push_back(persistent_names.back().c_str());
+
+                  ESP_LOGD(__FILE__, "[#%02zu] Name: %-30s | URI: %s", idx, name.c_str(), id(current_library_uris)[idx].c_str());
+
+                  idx++;
+                }
+
+                id(lvgl_roller_audiobooks).set_options(std::move(options_vector));
+                id(lvgl_roller_audiobooks).set_selected_index(0, LV_ANIM_OFF);
+
+                ESP_LOGD(__FILE__, "Audiobook roller updated with %zu items.", id(current_library_names).size());
+
           on_error:
             - lambda: |-
                 ESP_LOGD(
@@ -1923,3 +1902,64 @@ script:
                 );
 
 
+  - id: library_item_click
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              size_t idx = id(my_audiobook).active_index().value_or(0);
+
+              if (idx >= id(current_library_uris).size()) {
+                ESP_LOGW(
+                  __FILE__,
+                  "Library selection index out of range: %zu",
+                  idx
+                );
+                return false;
+              }
+
+              return id(current_library_uris)[idx].rfind("special://", 0) == 0;
+
+          then:
+            - lambda: |-
+                size_t idx = id(my_audiobook).active_index().value_or(0);
+                const std::string &name = id(current_library_names)[idx];
+                const std::string &uri = id(current_library_uris)[idx];
+
+                std::string path = uri.substr(9);
+
+                ESP_LOGD(
+                  __FILE__,
+                  "Navigation requested: [%zu] Name: %s | URI: %s",
+                  idx,
+                  name.c_str(),
+                  uri.c_str()
+                );
+
+                id(current_library_path) = path;
+
+                if (path.empty()) {
+                  ESP_LOGD(
+                    __FILE__,
+                    "Navigating to library root."
+                  );
+
+                  // Root navigation
+                } else {
+                  id(request_mass_library).execute(path);
+                }
+
+          else:
+            - homeassistant.action:
+                action: music_assistant.play_media
+                data:
+                  entity_id: ${media_player_entity_id}
+                  media_id: !lambda |-
+                    size_t idx = id(my_audiobook).active_index().value_or(0);
+                    return id(current_library_uris)[idx];
+                on_success:
+                  - logger.log: "Success"
+                  - lvgl.widget.focus: lvgl_button_play_stop
+                on_error:
+                  - logger.log: "Error"

@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.4.2
+    version: 0.4.4
   on_boot:
     priority: -100
     then:
@@ -27,6 +27,18 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'true'
+
+  - id: current_library_path
+    type: std::string
+    initial_value: '""'
+
+  - id: current_library_names
+    type: std::vector<std::string>
+    initial_value: 'std::vector<std::string>()'
+
+  - id: current_library_uris
+    type: std::vector<std::string>
+    initial_value: 'std::vector<std::string>()'
 
 api:
   on_client_connected:
@@ -57,6 +69,7 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
+      # - script.execute: load_mass_library
       - if:
           condition:
             lambda: 'return id(is_blocked);'
@@ -190,8 +203,6 @@ sendspin:
           text_color: !lambda |-
             auto c = x.get_on_dark();
             return lv_color_make(c.r, c.g, c.b);
-
-
 
 media_player:
   - id: !extend sendspin_player
@@ -633,7 +644,6 @@ sensor:
       - logger.log: "Turned Anticlockwise"        
       - switch.turn_on: ha_switch_power
 
-
 binary_sensor:
   - id: !extend my_encoder_button
     on_press:
@@ -654,9 +664,6 @@ binary_sensor:
           # - switch.toggle: ha_switch_power
           - lvgl.widget.enable: lvgl_button_power              
           - lvgl.widget.focus: lvgl_button_power
-          
-
-
 
 # -------------------------------------------------------------------
 # Display und touch
@@ -1273,7 +1280,7 @@ lvgl:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
         - logger.log: "Nach rechts gewischt von lvgl_page_media!"
         - lvgl.page.show:
-            id: lvgl_page_settings
+            id: lvgl_page_library
             animation: move_right
             time: 300ms
       on_swipe_bottom:
@@ -1481,7 +1488,7 @@ lvgl:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
         - logger.log: "Nach links gewischt von lvgl_page_settings!"
         - lvgl.page.show:
-            id: lvgl_page_media
+            id: lvgl_page_library
             animation: move_left
             time: 300ms
       on_swipe_right:
@@ -1568,28 +1575,116 @@ lvgl:
                     brightness: !lambda |-
                       return x / 20.0f;
 
-    # - id: lvgl_page_backlight
-    #   on_swipe_left:
-    #     - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-    #     - logger.log: "Nach links gewischt von lvgl_page_backlight!"
-    #     - lvgl.page.show:
-    #         id: lvgl_page_media
-    #         animation: move_left
-    #         time: 300ms
-    #   on_swipe_right:
-    #     - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-    #     - logger.log: "Nach rechts gewischt von lvgl_page_backlight!"
-    #     - lvgl.page.show:
-    #         id: lvgl_page_settings
-    #         animation: move_right
-    #         time: 300ms
-    #   on_load:
-    #     then:
-    #       - lvgl.label.update:
-    #           id: lvgl_label_status_title
-    #           text: "BRIGHTNESS"
+    - id: lvgl_page_library
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt von lvgl_page_library!"
+        - lvgl.page.show:
+            id: lvgl_page_media
+            animation: move_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt von lvgl_page_library!"
+        - lvgl.page.show:
+            id: lvgl_page_settings
+            animation: move_right
+            time: 300ms
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "LIBRARY"
+          # - script.execute: load_library
+      widgets:
+        - roller:
+            id: lvgl_roller_audiobooks
+            align: CENTER
+            options:
+              - "Lade Daten..."
+            group: encoder_group
+            on_focus:
+              then:
+                - lambda: 'ESP_LOGD(__FILE__, "LIBRARY: on_focus");'
+                - script.execute:
+                    id: show_page
+                    page: lvgl_page_library
+            on_value:
+            - logger.log:
+                format: "Ausgewählter Index: %d, Text: %s"
+                args: [ 'x', 'text.c_str()' ]
+        # 🎛️ BUTTONBAR UNTEN (Spezialversion für Hörbücher)
+        - obj:
+            align: BOTTOM_MID
+            x: 0
+            y: 0
+            width: "100%"
+            height: 40
+            bg_color: 0x606060
+            pad_all: 4
+            layout:
+              type: FLEX
+              flex_flow: ROW             
+              flex_align_main: SPACE_EVENLY
+              flex_align_cross: CENTER   
+            widgets:
+              # 📌 NUR DER ZENTRALE PLAY-BUTTON
+              - button:
+                  id: lvgl_audiobook_play_btn
+                  width: "50%" 
+                  height: 32
+                  widgets:
+                    - label:
+                        id: lvgl_audiobook_play_label
+                        text: "Auswahl starten"
+                        align: CENTER
+                  group: encoder_group                  
+                  on_focus:
+                    then:
+                      - lambda: 'ESP_LOGD(__FILE__, "AUDIO_PLAY: on_focus");'
+                      - script.execute:
+                          id: show_page
+                          page: lvgl_page_library
+                  on_click:
+                    then:
+                      - logger.log: "Hörbuch-Start via GUI Knopfdruck"
+                      - homeassistant.action:
+                          action: music_assistant.play_media
+                          data:
+                            entity_id: ${media_player_entity_id}
+                            media_id: !lambda |-
+                              size_t idx = id(my_audiobook).active_index().value_or(0);
+                              ESP_LOGD(__FILE__, "AUDIO_PLAY: %s %s", "${media_player_entity_id}", id(current_library_uris)[idx].c_str());
+                              return id(current_library_uris)[idx];
+                          on_success:
+                            - logger.log: "Success"
+                            - lvgl.widget.focus: lvgl_button_play_stop
+                          on_error:
+                            - logger.log: "Error"
+select:
+  - platform: lvgl
+    name: "Audiobook Roller"
+    id: my_audiobook
+    widget: lvgl_roller_audiobooks
+    restore_value: False
+    internal: True
+    on_value:
+      - logger.log:
+          format: "SELECT: on_value #%zu: %s"
+          args:
+            - i
+            - x.c_str()
 
-                    
+
+
+interval:
+  - interval: 1min
+    startup_delay: 15sec
+    then: 
+      - script.execute:
+          id: request_mass_library
+          category: "audiobook"
+
 script:
   - id: update_states
     mode: single
@@ -1705,3 +1800,126 @@ script:
           } else {
               ESP_LOGE(__FILE__, "show_page aufgerufen, aber page ist ein nullptr!");
           }
+
+  - id: request_mass_library
+    mode: single
+    parameters:
+      category: std::string
+
+    then:
+      - lambda: |-
+          id(current_library_path) = category;
+          id(current_library_names).clear();
+          id(current_library_uris).clear();
+
+          ESP_LOGD(__FILE__, "Requesting library category: %s", category.c_str());
+
+      - homeassistant.action:
+          action: music_assistant.get_library
+          data_template:
+            config_entry_id: "{{ config_entry_id('${media_player_entity_id}') }}"
+            media_type: "{{ my_media_type }}"
+            favorite: "true"
+            order_by: "sort_name"
+            limit: "25"
+
+          variables:
+            my_media_type: |-
+              return category.c_str();
+
+          capture_response: true
+
+          response_template: >-
+            [
+              {% for item in response['items'] %}
+                {
+                  "name": "{{ item.name }}",
+                  "uri": "{{ item.uri }}"
+                }{% if not loop.last %},{% endif %}
+              {% endfor %}
+            ]
+
+          on_success:
+            - lambda: |-
+                JsonArrayConst incoming_data =
+                    response["response"].as<JsonArrayConst>();
+
+                ESP_LOGD(
+                  __FILE__,
+                  "Library response for '%s': %zu items.",
+                  id(current_library_path).c_str(),
+                  incoming_data.size()
+                );
+
+                // Clear current library data
+                id(current_library_names).clear();
+                id(current_library_uris).clear();
+
+                if (incoming_data.size() > 0) {
+
+                  // Names must remain persistent because the roller stores char pointers.
+                  static std::vector<std::string> persistent_names;
+                  persistent_names.clear();
+                  persistent_names.reserve(incoming_data.size());
+
+                  esphome::FixedVector<const char*> options_vector;
+                  options_vector.init(incoming_data.size());
+
+                  size_t idx = 0;
+
+                  for (JsonObjectConst item : incoming_data) {
+
+                    std::string name =
+                        item["name"].is<std::string>()
+                          ? item["name"].as<std::string>()
+                          : "Unknown";
+
+                    std::string uri =
+                        item["uri"].is<std::string>()
+                          ? item["uri"].as<std::string>()
+                          : "";
+
+                    id(current_library_names).push_back(name);
+                    id(current_library_uris).push_back(uri);
+
+                    persistent_names.push_back(name);
+                    options_vector.push_back(persistent_names.back().c_str());
+
+                    ESP_LOGD(
+                      __FILE__,
+                      "[#%02zu] Name: %-30s | URI: %s",
+                      idx,
+                      name.c_str(),
+                      uri.c_str()
+                    );
+
+                    idx++;
+                  }
+
+                  // Update LVGL roller
+                  id(lvgl_roller_audiobooks).set_options(std::move(options_vector));
+                  id(lvgl_roller_audiobooks).set_selected_index(0, LV_ANIM_OFF);
+
+                  ESP_LOGD(
+                    __FILE__,
+                    "Audiobook roller updated with %zu items.",
+                    id(current_library_names).size()
+                  );
+                }
+
+                ESP_LOGD(
+                  __FILE__,
+                  "Library path '%s' contains %zu items.",
+                  id(current_library_path).c_str(),
+                  id(current_library_names).size()
+                );
+                
+          on_error:
+            - lambda: |-
+                ESP_LOGD(
+                  __FILE__,
+                  "Library request failed for category '%s'.",
+                  id(current_library_path).c_str()
+                );
+
+

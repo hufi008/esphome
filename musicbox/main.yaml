@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.1
   project:
     name: "hufi.musicbox"
-    version: 0.4.4
+    version: 0.5.0
   on_boot:
     priority: -100
     then:
@@ -21,6 +21,9 @@ esphome:
       - lambda: 'ESP_LOGD(__FILE__, "lvgl: page_show %s", "BOOT");'
       - lvgl.page.show:
           id: lvgl_page_boot
+      - script.execute:
+          id: library_set_path
+          path: ""
 
 globals:
   - id: is_blocked
@@ -69,9 +72,6 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
-      - script.execute:
-          id: request_mass_library 
-          category: "audiobook"
 
       - if:
           condition:
@@ -171,39 +171,31 @@ sendspin:
           blue: !lambda return x.get_primary().b / 255.0f;
           brightness: 0.25
      
-      # # 🔊 Externe Smart Speaker Status-LED in Home Assistant auf die ACCENT-Farbe setzen
-      # - homeassistant.service:
-      #     service: light.turn_on
-      #     data:
-      #       entity_id: light.smart_speaker_2_led_status
-      #     # Der harte Fakt: Das Template MUSS einen formatierten String zurückgeben!
-      #     data_template:
-      #       brightness: "64"
-      #       rgb_color: !lambda |-
-      #         auto ac = x.get_accent();
-      #         return esphome::str_snprintf("%d,%d,%d", 15, ac.r, ac.g, ac.b);
-                            
       - lvgl.page.update:
           id: lvgl_page_media
           bg_color: !lambda |-
+            if (!x.has_primary()) return lv_color_make(0x30, 0x30, 0x30);  // fallback
             auto c = x.get_background_dark();
             return lv_color_make(c.r, c.g, c.b);
 
       - lvgl.label.update:
           id: lvgl_label_media_title
           text_color: !lambda |-
+            if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
             auto c = x.get_on_dark();
             return lv_color_make(c.r, c.g, c.b);
 
       - lvgl.label.update:
           id: lvgl_label_media_artist
           text_color: !lambda |-
+            if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
             auto c = x.get_on_dark();
             return lv_color_make(c.r, c.g, c.b);
 
       - lvgl.label.update:
           id: lvgl_label_media_album
           text_color: !lambda |-
+            if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
             auto c = x.get_on_dark();
             return lv_color_make(c.r, c.g, c.b);
 
@@ -590,6 +582,7 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_4
+                  recolor: "0xFFFFFF"
                   
         # Gutes Signal
         - if:
@@ -599,6 +592,7 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_3
+                  recolor: "0xFFc0c0"
 
         # Normales Signal
         - if:
@@ -608,6 +602,7 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_2
+                  recolor: "0xFF9090"
 
         # Schlechtes Signal
         - if:
@@ -617,6 +612,8 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_1
+                  recolor: "0xFF6060"
+
 
         # Kein/Sehr schlechtes Signal (oder Offline)
         - if:
@@ -626,6 +623,7 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_0
+                  recolor: "0xFF3030"
         # Access Point active
         - if:
             condition:
@@ -634,6 +632,8 @@ sensor:
               - lvgl.image.update:
                   id: lvgl_icon_wifi
                   src: img_wifi_ap
+                  recolor: "0x0000FF"
+
 
   - id: !extend my_encoder_pulse
     on_value:
@@ -985,49 +985,57 @@ lvgl:
       logger.log: "lvgl: on_resume"
 
   theme:
-    dark_mode: true  
+    dark_mode: true
 
-    # 🎛️ Globale Stile für Basis-Container (obj)
     obj:
       bg_color: 0x303000
       bg_opa: COVER
       border_width: 0
       radius: 8
-      scrollable: false        
+      scrollable: false
 
     label:
       text_color: 0xFFFFFF
-      text_font: roboto_medium    # Globaler Standard für Text-Widgets!
+      text_font: roboto_medium
 
-    # 🔘 Globale Button-Stile (Gilt für ALLE Buttons)
     button:
       bg_color: 0x1E1E1E
       bg_opa: COVER
       radius: 6
       border_width: 0
       text_color: 0xFFFFFF
-      text_font: roboto_medium    # Globaler Standard für die Buttonbeschriftung!
+      text_font: roboto_medium
 
       pressed:
-        bg_color: 0x2C3E50  
+        bg_color: 0x2C3E50
         bg_opa: COVER
-        text_color: 0x3498DB 
+        text_color: 0x3498DB
 
-      focused:
+      edited:
         border_color: 0xFFFF00
-        border_opa: COVER   
-        text_color: 0x0000FF
-        border_width: 2
+        border_opa: COVER
+        border_width: 3
+
     slider:
       pressed:
         border_color: 0xCCCC00
         border_opa: COVER
         border_width: 2
 
-      focused:
+      edited:
         border_color: 0xFFFF00
-        border_opa: COVER   
-        border_width: 2
+        border_opa: COVER
+        border_width: 3
+
+    roller:
+      text_color: 0xFFFFFF
+      text_font: roboto_small
+
+      edited:
+        border_color: 0xFFFF00
+        border_opa: COVER
+        border_width: 3
+
 
   # Statusbar
   top_layer:
@@ -1601,8 +1609,12 @@ lvgl:
           # - script.execute: load_library
       widgets:
         - roller:
-            id: lvgl_roller_audiobooks
-            align: CENTER
+            id: lvgl_roller_library
+            x: "3%"
+            y: "40"
+            width: "94%"
+            height: "82%"
+
             options:
               - "Lade Daten..."
             group: encoder_group
@@ -1612,69 +1624,81 @@ lvgl:
                 - script.execute:
                     id: show_page
                     page: lvgl_page_library
-            on_value:
-            - logger.log:
-                format: "Ausgewählter Index: %d, Text: %s"
-                args: [ 'x', 'text.c_str()' ]
-        # 🎛️ BUTTONBAR UNTEN (Spezialversion für Hörbücher)
-        - obj:
-            align: BOTTOM_MID
-            x: 0
-            y: 0
-            width: "100%"
-            height: 40
-            bg_color: 0x606060
-            pad_all: 4
-            layout:
-              type: FLEX
-              flex_flow: ROW             
-              flex_align_main: SPACE_EVENLY
-              flex_align_cross: CENTER   
-            widgets:
-              # 📌 NUR DER ZENTRALE PLAY-BUTTON
-              - button:
-                  id: lvgl_audiobook_play_btn
-                  width: "50%" 
-                  height: 32
-                  widgets:
-                    - label:
-                        id: lvgl_audiobook_play_label
-                        text: "Auswahl starten"
-                        align: CENTER
-                  group: encoder_group                  
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "AUDIO_PLAY: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_library
-                  on_click:
-                    then:
-                      - script.execute: library_item_click
+            # on_value:
+            # - logger.log:
+            #     format: "Roller Index: %d, Text: %s"
+            #     args: [ 'x', 'text.c_str()' ]
+
 
 select:
   - platform: lvgl
-    name: "Audiobook Roller"
-    id: my_audiobook
-    widget: lvgl_roller_audiobooks
+    id: lvgl_select_library
+    widget: lvgl_roller_library
     restore_value: False
     internal: True
+
     on_value:
-      - logger.log:
-          format: "SELECT: on_value #%zu: %s"
-          args:
-            - i
-            - x.c_str()
+      - lambda: |-
+          const size_t idx =
+              id(lvgl_select_library).active_index().value_or(0);
+
+          if (idx >= id(current_library_uris).size()) {
+            ESP_LOGW(
+              __FILE__,
+              "Library selection index out of range: %zu",
+              idx
+            );
+            return;
+          }
+
+          const std::string &name =
+              id(current_library_names)[idx];
+
+          const std::string &uri =
+              id(current_library_uris)[idx];
+
+          ESP_LOGD(
+            __FILE__,
+            "Library selection: [%zu] Name: %s | URI: %s",
+            idx,
+            name.c_str(),
+            uri.c_str()
+          );
+
+          // Exit / cancel
+          if (uri.empty()) {
+            ESP_LOGD(__FILE__, "Library selection cancelled.");
+            return;
+          }
+
+          // Navigation
+          if (uri.rfind("special://", 0) == 0) {
+            const std::string path = uri.substr(10);
+
+            ESP_LOGD(
+              __FILE__,
+              "Navigation requested: [%zu] Name: %s | URI: %s | Path: %s",
+              idx,
+              name.c_str(),
+              uri.c_str(),
+              path.c_str()
+            );
+
+            id(library_set_path).execute(path);
+            return;
+          }
+
+          // Media playback
+          id(library_play_media).execute(uri);
 
 
-
-interval:
-  - interval: 1h
-    # startup_delay: 15sec
-    then: 
-      - script.execute:
-          id: request_mass_library
-          category: "audiobook"
+# interval:
+#   - interval: 1h
+#     # startup_delay: 15sec
+#     then: 
+#       - script.execute:
+#           id: request_mass_library
+#           category: "audiobook"
 
 script:
   - id: update_states
@@ -1792,18 +1816,71 @@ script:
               ESP_LOGE(__FILE__, "show_page aufgerufen, aber page ist ein nullptr!");
           }
 
-  - id: request_mass_library
+  - id: library_set_path
+    mode: single
+    parameters:
+      path: std::string
+    then:
+      - lambda: |-
+          ESP_LOGD(__FILE__, "script: library_set_path '%s'", path.c_str());
+
+          id(current_library_path) = path;
+          id(current_library_names).clear();
+          id(current_library_uris).clear();
+
+          if (id(current_library_path).empty()) {
+            id(library_fill_root).execute(id(current_library_path));
+          } else {
+            id(library_request_mass).execute(id(current_library_path));
+          };
+
+  - id: library_fill_root
     mode: single
     parameters:
       category: std::string
 
     then:
-      - delay: 5sec
       - lambda: |-
-          id(current_library_path) = category;
-          id(current_library_names).clear();
-          id(current_library_uris).clear();
+          ESP_LOGD(__FILE__, "Filling library category: %s", category.c_str());
 
+          // Add "exit"
+          id(current_library_names).push_back("[Exit]");
+          id(current_library_uris).push_back("");
+
+          id(current_library_names).push_back("Hörbücher");
+          id(current_library_uris).push_back("special://audiobook");
+
+          id(current_library_names).push_back("Wiedergabelisten");
+          id(current_library_uris).push_back("special://playlist");
+
+          id(current_library_names).push_back("Radiostationen");
+          id(current_library_uris).push_back("special://radio");
+
+          id(current_library_names).push_back("Interpreten");
+          id(current_library_uris).push_back("special://artist");
+
+          id(current_library_names).push_back("Alben");
+          id(current_library_uris).push_back("special://album");
+
+          id(current_library_names).push_back("Titel");
+          id(current_library_uris).push_back("special://track");
+
+          ESP_LOGD(
+            __FILE__,
+            "Library path '%s' contains %zu items.",
+            id(current_library_path).c_str(),
+            id(current_library_names).size()
+          );
+
+          id(library_update_roller).execute();
+
+  - id: library_request_mass
+    mode: single
+    parameters:
+      category: std::string
+
+    then:
+      - lambda: |-
           ESP_LOGD(__FILE__, "Requesting library category: %s", category.c_str());
 
       - homeassistant.action:
@@ -1836,11 +1913,12 @@ script:
                 JsonArrayConst incoming_data =
                     response["response"].as<JsonArrayConst>();
 
-                ESP_LOGD(__FILE__, "Library response for '%s': %zu items.", id(current_library_path).c_str(), incoming_data.size());
-
-                // Clear current library data
-                id(current_library_names).clear();
-                id(current_library_uris).clear();
+                ESP_LOGD(
+                  __FILE__,
+                  "Library response for '%s': %zu items.",
+                  id(current_library_path).c_str(),
+                  incoming_data.size()
+                );
 
                 // Add "back"
                 id(current_library_names).push_back("..");
@@ -1862,36 +1940,17 @@ script:
                   id(current_library_names).push_back(name);
                   id(current_library_uris).push_back(uri);
 
-                  // ESP_LOGD(__FILE__, "[#%02zu] Name: %-30s | URI: %s", idx, name.c_str(), uri.c_str());
-
                   idx++;
                 }
 
-                ESP_LOGD(__FILE__, "Library path '%s' contains %zu items.", id(current_library_path).c_str(), id(current_library_names).size());
+                ESP_LOGD(
+                  __FILE__,
+                  "Library path '%s' contains %zu items.",
+                  id(current_library_path).c_str(),
+                  id(current_library_names).size()
+                );
 
-                // Names must remain persistent because the roller stores char pointers.
-                static std::vector<std::string> persistent_names;
-                persistent_names.clear();
-                persistent_names.reserve(id(current_library_names).size());
-
-                esphome::FixedVector<const char*> options_vector;
-                options_vector.init(id(current_library_names).size());
-
-                idx = 0;
-
-                for (const std::string &name : id(current_library_names)) {
-                  persistent_names.push_back(name);
-                  options_vector.push_back(persistent_names.back().c_str());
-
-                  ESP_LOGD(__FILE__, "[#%02zu] Name: %-30s | URI: %s", idx, name.c_str(), id(current_library_uris)[idx].c_str());
-
-                  idx++;
-                }
-
-                id(lvgl_roller_audiobooks).set_options(std::move(options_vector));
-                id(lvgl_roller_audiobooks).set_selected_index(0, LV_ANIM_OFF);
-
-                ESP_LOGD(__FILE__, "Audiobook roller updated with %zu items.", id(current_library_names).size());
+                id(library_update_roller).execute();
 
           on_error:
             - lambda: |-
@@ -1901,65 +1960,64 @@ script:
                   id(current_library_path).c_str()
                 );
 
-
-  - id: library_item_click
+  - id: library_update_roller
     mode: single
     then:
+      - lambda: |-
+          // Names must remain persistent because the roller stores char pointers.
+          static std::vector<std::string> persistent_names;
+          persistent_names.clear();
+          persistent_names.reserve(id(current_library_names).size());
+
+          esphome::FixedVector<const char*> options_vector;
+          options_vector.init(id(current_library_names).size());
+
+          size_t idx = 0;
+
+          for (const std::string &name : id(current_library_names)) {
+            persistent_names.push_back(name);
+            options_vector.push_back(persistent_names.back().c_str());
+
+            ESP_LOGD(
+              __FILE__,
+              "[#%02zu] Name: %-30s | URI: %s",
+              idx,
+              name.c_str(),
+              id(current_library_uris)[idx].c_str()
+            );
+
+            idx++;
+          }
+
+          id(lvgl_roller_library).set_options(std::move(options_vector));
+          id(lvgl_roller_library).set_selected_index(0, LV_ANIM_OFF);
+
+          ESP_LOGD(
+            __FILE__,
+            "Library roller updated with %zu items.",
+            id(current_library_names).size()
+          );
       - if:
           condition:
-            lambda: |-
-              size_t idx = id(my_audiobook).active_index().value_or(0);
-
-              if (idx >= id(current_library_uris).size()) {
-                ESP_LOGW(
-                  __FILE__,
-                  "Library selection index out of range: %zu",
-                  idx
-                );
-                return false;
-              }
-
-              return id(current_library_uris)[idx].rfind("special://", 0) == 0;
-
+            lambda: 'return !id(is_blocked);'
           then:
-            - lambda: |-
-                size_t idx = id(my_audiobook).active_index().value_or(0);
-                const std::string &name = id(current_library_names)[idx];
-                const std::string &uri = id(current_library_uris)[idx];
+            - lvgl.widget.focus:
+                id: lvgl_roller_library
+                editing: true
 
-                std::string path = uri.substr(9);
-
-                ESP_LOGD(
-                  __FILE__,
-                  "Navigation requested: [%zu] Name: %s | URI: %s",
-                  idx,
-                  name.c_str(),
-                  uri.c_str()
-                );
-
-                id(current_library_path) = path;
-
-                if (path.empty()) {
-                  ESP_LOGD(
-                    __FILE__,
-                    "Navigating to library root."
-                  );
-
-                  // Root navigation
-                } else {
-                  id(request_mass_library).execute(path);
-                }
-
-          else:
-            - homeassistant.action:
-                action: music_assistant.play_media
-                data:
-                  entity_id: ${media_player_entity_id}
-                  media_id: !lambda |-
-                    size_t idx = id(my_audiobook).active_index().value_or(0);
-                    return id(current_library_uris)[idx];
-                on_success:
-                  - logger.log: "Success"
-                  - lvgl.widget.focus: lvgl_button_play_stop
-                on_error:
-                  - logger.log: "Error"
+  - id: library_play_media
+    mode: single
+    parameters:
+      media_id: std::string
+    then:
+      - homeassistant.action:
+          action: music_assistant.play_media
+          data:
+            entity_id: ${media_player_entity_id}
+            media_id: !lambda |-
+              return media_id;
+          on_success:
+            - logger.log: "Success"
+            - lvgl.widget.focus: lvgl_button_play_stop
+          on_error:
+            - logger.log: "Error"

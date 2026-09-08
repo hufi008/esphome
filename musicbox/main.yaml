@@ -133,6 +133,8 @@ switch:
       then:
         - lambda: |-
             ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => Power ON");
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => Power ON");
         - light.turn_on:
             id: onboard_led
             effect: "Rainbow"
@@ -142,6 +144,8 @@ switch:
 
     on_turn_off:
       then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => Power OFF");
         - lambda: |-
             ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => Power OFF");
         - light.turn_off:
@@ -967,6 +971,8 @@ lvgl:
     - my_display
   touchscreens:
     - my_touch
+  touchscreens:
+    - my_touch
 
   encoders:
     - sensor: my_encoder_pulse
@@ -1542,11 +1548,13 @@ lvgl:
             align: TOP_MID
             x: 0
             y: 27%
+            y: 27%
             height: 20
             width: 85%
             min_value: 0
             max_value: 20
             value: 8
+            group: encoder_group
             group: encoder_group
             on_focus:
               then:
@@ -1569,6 +1577,7 @@ lvgl:
             x: 0
             y: 50%
             text: "--"
+            text: "--"
             text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
@@ -1577,6 +1586,7 @@ lvgl:
             id: lvgl_slider_backlight
             align: TOP_MID
             x: 0
+            y: 62%
             y: 62%
             width: 85%
             height: 20

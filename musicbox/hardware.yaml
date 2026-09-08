@@ -42,6 +42,12 @@ switch:
     icon: mdi:brightness-auto    
     widget: lvgl_checkbox_backlight_auto
     restore_mode: RESTORE_DEFAULT_OFF
+  - platform: lvgl
+    id: ha_backlight_auto
+    name: "Display Automatik"
+    icon: mdi:brightness-auto    
+    widget: lvgl_checkbox_brightness_auto
+    restore_mode: RESTORE_DEFAULT_OFF
 
 sun:
   latitude: !secret latitude

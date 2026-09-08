@@ -17,6 +17,26 @@ button:
       then:
         - safe_mode.mark_successful
 
+number:
+  - platform: template
+    id: ha_backlight_man
+    name: "Display Helligkeit"
+    min_value: 2
+    max_value: 20
+    step: 1
+    initial_value: 15
+    restore_value: true
+    optimistic: true
+  - platform: template
+    id: ha_volume_man
+    name: "Lautstärke"
+    min_value: 0
+    max_value: 20
+    step: 1
+    initial_value: 8
+    restore_value: true
+    optimistic: true
+
 switch:
   - platform: template
     id: ha_switch_power
@@ -24,11 +44,16 @@ switch:
     icon: mdi:power
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
+  - platform: lvgl
+    id: ha_backlight_auto
+    name: "Display Automatik"
+    icon: mdi:brightness-auto    
+    widget: lvgl_checkbox_brightness_auto
+    restore_mode: RESTORE_DEFAULT_OFF
 
 sun:
   latitude: !secret latitude
   longitude: !secret longitude
-
 
 external_components:
   - source:
@@ -130,21 +155,13 @@ binary_sensor:
       mode: INPUT_PULLUP
     filters:
       - delayed_on_off: 20ms
-    
-light:
-# Display Backlight (PWM)
-  - platform: monochromatic
-    id: display_backlight
-    output: backlight_pwm
-    name: "Display Hintergrundbeleuchtung"
-    restore_mode: RESTORE_DEFAULT_ON
-              
+
 output:
   - platform: ledc
     pin: ${pin_display_led}
     id: backlight_pwm
-    min_power: 0%
-    max_power: 80%
+    min_power: 5%
+    max_power: 95%
     frequency: 20000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
 
 

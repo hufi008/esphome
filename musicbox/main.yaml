@@ -108,46 +108,78 @@ time:
         then:
           - component.update: my_date
 
+number:
+  - id: !extend ha_backlight_man
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_backlight_man: on_value => %.0f (%0.0f%%)", x, x * 5.0f);
+        - lvgl.slider.update:
+            id: lvgl_slider_brightness
+            value: !lambda |-
+              return (int)x;
+        - lvgl.label.update:
+            id: lvgl_label_brightness
+            text: !lambda |-
+              return str_sprintf("Brightness: %0.0f %%", x * 5.0f);
+        - script.execute: update_brightness
+  - id: !extend ha_volume_man
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_volume_man: on_value => %.0f (%0.0f%%)", x, x * 5.0f);
+        - lvgl.slider.update:
+            id: lvgl_slider_volume
+            value: !lambda |-
+              return (int)x;
+        - lvgl.label.update:
+            id: lvgl_label_volume
+            text: !lambda |-
+              return str_sprintf("Volume: %0.0f %%", x * 5.0f);
+        - media_player.volume_set:
+            id: audio_player
+            volume: !lambda |-
+              return x / 20.0f;
+
 switch:
   - id: !extend ha_switch_power
-    
     on_turn_on:
       then:
-        - logger.log: "HA: Power ON empfangen"
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => Power ON");
         - light.turn_on:
             id: onboard_led
             effect: "Rainbow"
         - lvgl.widget.disable: lvgl_button_power
         - lambda: |-
-            float ha_brightness = id(display_backlight).remote_values.get_brightness();
-            id(backlight_pwm).set_level(ha_brightness);
+            ESP_LOGD(__FILE__, "ha_switch_power: on_turn_on => trigger backlight_auto");
+        - script.execute: update_brightness
         - script.execute: update_states
 
     on_turn_off:
       then:
-        - logger.log: "HA: Power OFF empfangen"
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => Power OFF");
         - light.turn_off:
             id: onboard_led
         - lvgl.widget.enable: lvgl_button_power
-        - lambda: 'id(backlight_pwm).set_level(0.15f);'
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_switch_power: on_turn_off => backlight minimum");
+        - script.execute: update_brightness
         - script.execute: update_states
 
-light:
-# Display Backlight (PWM)
-  - id: !extend display_backlight
-
-    on_state:
+  - id: !extend ha_backlight_auto
+    on_turn_on:
       then:
-        - lvgl.slider.update:
-            id: lvgl_slider_brightness
-            value: !lambda |-
-              // Holt den Helligkeits-Float über .remote_values und rechnet ihn auf die 20er-Skala um
-              return (int)(id(display_backlight).remote_values.get_brightness() * 20.0f);
-        - lvgl.label.update:
-            id: lvgl_label_brightness
-            text: !lambda |-
-              // Aktualisiert den Text direkt im 100%-Format
-              return str_sprintf("Brightness: %0.0f %%", id(display_backlight).remote_values.get_brightness() * 100.0f);
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_backlight_auto: on_turn_on => update brightness");
+        - script.execute: update_brightness
+
+    on_turn_off:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "ha_backlight_auto: on_turn_off => update brightness");
+        - script.execute: update_brightness
 
 sendspin:
   id: sendspin_hub
@@ -483,6 +515,14 @@ sensor:
   - id: !extend weather_wind_bearing
   - id: !extend weather_wind_gust_speed
   - id: !extend weather_uv_index
+
+  - id: !extend illuminance_id
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD(__FILE__, "illuminance_id: on_value %f", x);
+        - script.execute: update_brightness
+
 
   - platform: sendspin
     type: track_progress
@@ -954,9 +994,8 @@ lvgl:
   buffer_size: 100%
   displays:
     - my_display
-  # touchscreens:
-  #   - my_touch
-
+  touchscreens:
+    - my_touch
 
   encoders:
     - sensor: my_encoder_pulse
@@ -1531,13 +1570,13 @@ lvgl:
             id: lvgl_slider_volume
             align: TOP_MID
             x: 0
-            y: 25%
+            y: 27%
             height: 20
             width: 85%
             min_value: 0
             max_value: 20
             value: 8
-            group: encoder_group                  
+            group: encoder_group
             on_focus:
               then:
                 - lambda: 'ESP_LOGD(__FILE__, "VOL: on_focus");'
@@ -1546,9 +1585,12 @@ lvgl:
                     page: lvgl_page_settings
             on_change:
               then:
-                - media_player.volume_set:
-                    id: audio_player
-                    volume: !lambda 'return x / 20.0f;'
+                - lambda: |-
+                    ESP_LOGD(__FILE__, "VOL: LVGL slider => ha_volume_man = %.0f (%0.0f%%)", x, x * 5.0f);
+                - number.set:
+                    id: ha_volume_man
+                    value: !lambda |-
+                      return x;
 
         # ☀️ DIGITALE HELLIGKEITSANZEIGE (Groß und zentriert)
         - label:
@@ -1556,7 +1598,7 @@ lvgl:
             align: TOP_MID
             x: 0
             y: 50%
-            text: "50 %"
+            text: "--"
             text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
@@ -1565,10 +1607,10 @@ lvgl:
             id: lvgl_slider_brightness
             align: TOP_MID
             x: 0
-            y: 60%
+            y: 62%
             width: 85%
             height: 20
-            min_value: 5
+            min_value: 2
             max_value: 20           # 20 Einzelschritte (5% pro Raste)
             value: 15               # Startwert 75%
             group: encoder_group                  
@@ -1580,11 +1622,19 @@ lvgl:
                     page: lvgl_page_settings
             on_change:
               then:
-                - light.turn_on:
-                    id: display_backlight
-                    # x (0-20) geteilt durch 20.0f ergibt den benötigten Float-Bereich (0.0 bis 1.0)
-                    brightness: !lambda |-
-                      return x / 20.0f;
+                - lambda: |-
+                    ESP_LOGD(__FILE__, "BRIGHT: LVGL slider => ha_backlight_man = %.0f (%0.0f%%)", x, x * 5.0f);
+                - number.set:
+                    id: ha_backlight_man
+                    value: !lambda |-
+                      return x;
+        - checkbox:
+            id: lvgl_checkbox_brightness_auto
+            align: TOP_MID
+            x: 0
+            y: 74%
+            height: 20
+            text: "Auto"
 
     - id: lvgl_page_library
       on_swipe_left:
@@ -1691,16 +1741,39 @@ select:
           // Media playback
           id(library_play_media).execute(uri);
 
-
-# interval:
-#   - interval: 1h
-#     # startup_delay: 15sec
-#     then: 
-#       - script.execute:
-#           id: request_mass_library
-#           category: "audiobook"
-
 script:
+  - id: update_brightness
+    then:
+      - lambda: |-
+          if (!id(ha_switch_power).state) {
+            // POWER OFF → minimale PWM, damit die Info-Page sichtbar bleibt
+            ESP_LOGD(__FILE__, "update_brightness: power off => backlight minimum");
+            id(backlight_pwm).set_level(0.0f);
+            return;
+          }
+
+          if (id(ha_backlight_auto).state) {
+            // AUTO → Helligkeit aus BH1750
+            float brightness;
+
+            if (isnan(id(illuminance_id).state)) {
+              brightness = 0.75f;
+              ESP_LOGD(__FILE__, "update_brightness: auto => sensor NaN => 75%%");
+            } else {
+              float lux = clamp(id(illuminance_id).state, 2.0f, 1000.0f);
+              brightness = log10f(lux) / log10f(1000.0f);
+              ESP_LOGD(__FILE__, "update_brightness: auto => lux %.1f => %.3f", lux, brightness);
+            }
+
+            id(backlight_pwm).set_level(brightness);
+            return;
+          }
+
+          // MANUAL → ha_backlight_man
+          float brightness = id(ha_backlight_man).state / 20.0f;
+          ESP_LOGD(__FILE__, "update_brightness: manual => %.0f (%0.0f%%)", id(ha_backlight_man).state, id(ha_backlight_man).state * 5.0f);
+          id(backlight_pwm).set_level(brightness);
+
   - id: update_states
     mode: single
     then: 

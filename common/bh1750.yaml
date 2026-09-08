@@ -1,0 +1,17 @@
+# common/bh1750.yaml
+substitutions:
+  # Illuminance bh1750
+  bh_addr:      "0x23"
+  # sda, scl vom i2c_bus
+  # GND
+  # VCC: 3V3
+
+sensor:
+  - platform: bh1750
+    name: "Illuminance"
+    id: illuminance_id
+    update_interval: 5s
+    address: ${bh_addr}
+    filters:
+      - multiply: 1.0          
+

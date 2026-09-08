@@ -17,18 +17,35 @@ button:
       then:
         - safe_mode.mark_successful
 
+number:
+  - platform: lvgl
+    id: ha_volume_man
+    name: "Lautstärke"
+    widget: lvgl_slider_volume
+    restore_value: true
+  - platform: lvgl
+    id: ha_backlight_man
+    name: "Display Helligkeit"
+    widget: lvgl_slider_backlight
+    restore_value: true
+
 switch:
-  - platform: template
+  - platform: lvgl
     id: ha_switch_power
     name: "Eingeschaltet"
     icon: mdi:power
-    optimistic: true
+    widget: lvgl_button_power
+    restore_mode: RESTORE_DEFAULT_OFF
+  - platform: lvgl
+    id: ha_backlight_auto
+    name: "Display Automatik"
+    icon: mdi:brightness-auto    
+    widget: lvgl_checkbox_backlight_auto
     restore_mode: RESTORE_DEFAULT_OFF
 
 sun:
   latitude: !secret latitude
   longitude: !secret longitude
-
 
 external_components:
   - source:
@@ -130,21 +147,13 @@ binary_sensor:
       mode: INPUT_PULLUP
     filters:
       - delayed_on_off: 20ms
-    
-light:
-# Display Backlight (PWM)
-  - platform: monochromatic
-    id: display_backlight
-    output: backlight_pwm
-    name: "Display Hintergrundbeleuchtung"
-    restore_mode: RESTORE_DEFAULT_ON
-              
+
 output:
   - platform: ledc
     pin: ${pin_display_led}
     id: backlight_pwm
-    min_power: 0%
-    max_power: 80%
+    min_power: 5%
+    max_power: 95%
     frequency: 20000Hz # Angenehme Frequenz, um kein hörbares Spulenfiepen zu erzeugen
 
 

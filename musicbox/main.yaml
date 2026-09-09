@@ -166,52 +166,52 @@ switch:
 sendspin:
   id: sendspin_hub
   task_stack_in_psram: false
-  on_color:
-    then:
-      - logger.log:
-          format: "SendSpin Paletten-Wechsel  BG_Light: %s | On_Light: %s | BG_Dark: %s | On_Dark: %s | Primary: %s | Accent: %s"
-          args:
-            - x.get_background_light_hex().c_str()
-            - x.get_on_light_hex().c_str()
-            - x.get_background_dark_hex().c_str()
-            - x.get_on_dark_hex().c_str()
-            - x.get_primary_hex().c_str()
-            - x.get_accent_hex().c_str()
-      - light.turn_on:
-          id: onboard_led
-          effect: None 
-          red: !lambda return x.get_primary().r / 255.0f;
-          green: !lambda return x.get_primary().g / 255.0f;
-          blue: !lambda return x.get_primary().b / 255.0f;
-          brightness: 0.25
+  # on_color:
+  #   then:
+  #     - logger.log:
+  #         format: "SendSpin Paletten-Wechsel  BG_Light: %s | On_Light: %s | BG_Dark: %s | On_Dark: %s | Primary: %s | Accent: %s"
+  #         args:
+  #           - x.get_background_light_hex().c_str()
+  #           - x.get_on_light_hex().c_str()
+  #           - x.get_background_dark_hex().c_str()
+  #           - x.get_on_dark_hex().c_str()
+  #           - x.get_primary_hex().c_str()
+  #           - x.get_accent_hex().c_str()
+  #     - light.turn_on:
+  #         id: onboard_led
+  #         effect: None 
+  #         red: !lambda return x.get_primary().r / 255.0f;
+  #         green: !lambda return x.get_primary().g / 255.0f;
+  #         blue: !lambda return x.get_primary().b / 255.0f;
+  #         brightness: 0.25
      
-      - lvgl.page.update:
-          id: lvgl_page_media
-          bg_color: !lambda |-
-            if (!x.has_primary()) return lv_color_make(0x30, 0x30, 0x30);  // fallback
-            auto c = x.get_background_dark();
-            return lv_color_make(c.r, c.g, c.b);
+  #     - lvgl.page.update:
+  #         id: lvgl_page_media
+  #         bg_color: !lambda |-
+  #           if (!x.has_primary()) return lv_color_make(0x30, 0x30, 0x30);  // fallback
+  #           auto c = x.get_background_dark();
+  #           return lv_color_make(c.r, c.g, c.b);
 
-      - lvgl.label.update:
-          id: lvgl_label_media_title
-          text_color: !lambda |-
-            if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-            auto c = x.get_on_dark();
-            return lv_color_make(c.r, c.g, c.b);
+  #     - lvgl.label.update:
+  #         id: lvgl_label_media_title
+  #         text_color: !lambda |-
+  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
+  #           auto c = x.get_on_dark();
+  #           return lv_color_make(c.r, c.g, c.b);
 
-      - lvgl.label.update:
-          id: lvgl_label_media_artist
-          text_color: !lambda |-
-            if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-            auto c = x.get_on_dark();
-            return lv_color_make(c.r, c.g, c.b);
+  #     - lvgl.label.update:
+  #         id: lvgl_label_media_artist
+  #         text_color: !lambda |-
+  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
+  #           auto c = x.get_on_dark();
+  #           return lv_color_make(c.r, c.g, c.b);
 
-      - lvgl.label.update:
-          id: lvgl_label_media_album
-          text_color: !lambda |-
-            if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-            auto c = x.get_on_dark();
-            return lv_color_make(c.r, c.g, c.b);
+  #     - lvgl.label.update:
+  #         id: lvgl_label_media_album
+  #         text_color: !lambda |-
+  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
+  #           auto c = x.get_on_dark();
+  #           return lv_color_make(c.r, c.g, c.b);
 
 media_player:
   - id: !extend sendspin_player
@@ -445,6 +445,65 @@ text_sensor:
             id: lvgl_label_media_album
             text: !lambda 'return x;'
 
+
+  - platform: sendspin
+    id: sendspin_primary
+    type: primary
+    name: Color Primary
+    on_value:
+      then:
+        - logger.log:
+            format: "Primary: %s"
+            args: [ 'x.c_str()' ]
+        - light.turn_on:
+            id: onboard_led
+            effect: None 
+            red: !lambda return sendspin_::to_color(x).r / 255.0f;
+            green: !lambda return sendspin_::to_color(x).g / 255.0f;
+            blue: !lambda return sendspin_::to_color(x).b / 255.0f;
+            brightness: 0.25
+
+  - platform: sendspin
+    id: sendspin_bg_dark
+    type: background_dark
+    name: Color BG_Dark
+    on_value:
+      then:
+        - logger.log:
+            format: "BG_Dark: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.page.update:
+            id: lvgl_page_media
+            bg_color: !lambda |-
+              if (x.empty()) x = "#303030";
+              return sendspin_::to_color(x);
+
+  - platform: sendspin
+    id: sendspin_on_dark
+    type: on_dark
+    name: Color on_Dark
+    on_value:
+      then:
+        - logger.log:
+            format: "on_Dark: %s"
+            args: [ 'x.c_str()' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text_color: !lambda |-
+              if (x.empty()) x = "#d0d0d0";
+              return sendspin_::to_color(x);
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text_color: !lambda |-
+              if (x.empty()) x = "#d0d0d0";
+              return sendspin_::to_color(x);
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text_color: !lambda |-
+              if (x.empty()) x = "#d0d0d0";
+              return sendspin_::to_color(x);
+
+
 # -------------------------------------------------------------------
 # Wifi und Sensoren
 # -------------------------------------------------------------------
@@ -516,7 +575,8 @@ sensor:
 
             int progress = (int)(x / 1000.0f);
 
-            int log_interval = (progress / 300) + 1;
+            int log_interval = (progress / 30) + 1;
+            log_interval = 60;
 
             if (progress % log_interval == 0) {
               ESP_LOGD(__FILE__, "SendSpin Progress: %02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
@@ -965,9 +1025,6 @@ lvgl:
   buffer_size: 100%
   displays:
     - my_display
-  touchscreens:
-    - my_touch
-<<<<<<<<< Temporary merge branch 1
   touchscreens:
     - my_touch
 

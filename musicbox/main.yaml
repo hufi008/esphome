@@ -967,6 +967,9 @@ lvgl:
     - my_display
   touchscreens:
     - my_touch
+<<<<<<<<< Temporary merge branch 1
+  touchscreens:
+    - my_touch
 
   encoders:
     - sensor: my_encoder_pulse

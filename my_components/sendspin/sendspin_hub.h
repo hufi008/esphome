@@ -22,6 +22,11 @@
 #ifdef USE_SENDSPIN_METADATA
 #include <sendspin/metadata_role.h>
 #endif
+// Hufi
+#ifdef USE_SENDSPIN_COLOR
+#include <sendspin/color_role.h>
+#endif
+// ifuH
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
 #endif
@@ -81,6 +86,11 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_METADATA
                           public sendspin::MetadataRoleListener,
 #endif
+// Hufi
+#ifdef USE_SENDSPIN_COLOR
+                          public sendspin::ColorRoleListener,
+#endif
+// ifuH
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
                           public sendspin::SendspinPersistenceProvider {
@@ -175,6 +185,20 @@ class SendspinHub final : public Component,
   uint32_t get_track_progress_ms() const;
 #endif
 
+// Hufi
+#ifdef USE_SENDSPIN_COLOR
+  /// @brief Registers a callback that fires when the server sends colors.
+  template<typename F> void add_color_update_callback(F &&callback) {
+    this->color_update_callbacks_.add(std::forward<F>(callback));
+  }
+
+  /// @brief Registers a callback that fires when the connection is lost and the cached colors are dropped.
+  template<typename F> void add_color_clear_callback(F &&callback) {
+    this->color_clear_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+// ifuH
+
 #ifdef USE_SENDSPIN_PLAYER
   void set_listener(sendspin::PlayerRoleListener *listener) { this->player_listener_ = listener; }
   void set_player_config(const sendspin::PlayerRoleConfig &config) { this->player_config_ = config; }
@@ -247,6 +271,20 @@ class SendspinHub final : public Component,
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
 #endif
+
+// Hufi
+#ifdef USE_SENDSPIN_COLOR
+  sendspin::ColorRole *color_role_{nullptr};
+
+  void on_color(const sendspin::ServerColorStateObject &color) override;
+
+  void on_color_clear() override;
+
+  CallbackManager<void(const sendspin::ServerColorStateObject &)> color_update_callbacks_{};
+  CallbackManager<void()> color_clear_callbacks_{};
+#endif
+// ifuH
+
 
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};

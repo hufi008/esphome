@@ -92,6 +92,9 @@ class SendspinConfiguration:
     artwork_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
+    # Hufi
+    color_support: bool = False
+    # ifuH
     player_support: bool = False
     visualizer_support: bool = False
 
@@ -118,6 +121,13 @@ def request_controller_support() -> None:
 def request_metadata_support() -> None:
     """Request metadata role support for Sendspin."""
     _get_data().metadata_support = True
+
+
+# Hufi
+def request_color_support() -> None:
+    """Request color role support for Sendspin."""
+    _get_data().color_support = True
+# ifuH
 
 
 def request_player_support() -> None:
@@ -240,9 +250,6 @@ async def to_code(config: ConfigType) -> None:
 
     data = _get_data()
 
-    # The color role is not yet wired up in ESPHome; disable it in the library for now.
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
-
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
     if data.artwork_support:
@@ -283,6 +290,13 @@ async def to_code(config: ConfigType) -> None:
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_METADATA", False)
 
+    # Hufi
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
+    # ifuH
+    
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 

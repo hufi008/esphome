@@ -58,6 +58,13 @@ void SendspinHub::setup() {
   this->metadata_role_->set_listener(this);
 #endif
 
+// Hufi
+#ifdef USE_SENDSPIN_COLOR
+  this->color_role_ = &this->client_->add_color();
+  this->color_role_->set_listener(this);
+#endif
+// ifuH
+
 #ifdef USE_SENDSPIN_PLAYER
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
@@ -267,6 +274,18 @@ uint32_t SendspinHub::get_track_progress_ms() const {
   return 0;
 }
 #endif
+
+// Hufi
+#ifdef USE_SENDSPIN_COLOR
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
+  this->color_update_callbacks_.call(color);
+}
+
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+void SendspinHub::on_color_clear() { this->color_clear_callbacks_.call(); }
+#endif
+// ifuH
 
 #ifdef USE_SENDSPIN_PLAYER
 // THREAD CONTEXT: Main loop, called from child component setup() after player role is created and configured

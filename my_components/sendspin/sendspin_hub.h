@@ -8,7 +8,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
-#include "esphome/core/color.h"
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -16,9 +15,6 @@
 
 #ifdef USE_SENDSPIN_ARTWORK
 #include <sendspin/artwork_role.h>
-#endif
-#ifdef USE_SENDSPIN_COLOR 
-#include <sendspin/color_role.h>
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
@@ -35,60 +31,6 @@
 #include <optional>
 
 namespace esphome::sendspin_ {
-
-// Hufi: Stabile Abstraktionsklasse zur Entkopplung der YAML von der C++ Bibliothek
-class SendspinColorPalette {
- public:
-  SendspinColorPalette() = default;
-  SendspinColorPalette(const sendspin::ServerColorStateObject &raw) : timestamp_(raw.timestamp) {
-    auto to_esphome_color = [](const std::optional<std::array<uint8_t, 3>> &opt_rgb) -> Color {
-      if (!opt_rgb.has_value()) return Color(0, 0, 0, 0); // Schwarz/Aus, wenn nicht vorhanden
-      auto rgb = opt_rgb.value();
-      return Color(rgb[0], rgb[1], rgb[2]);
-    };
-
-    this->has_primary_ = raw.primary.has_value();
-    this->primary_ = to_esphome_color(raw.primary);
-    this->accent_ = to_esphome_color(raw.accent);
-    this->background_dark_ = to_esphome_color(raw.background_dark);
-    this->background_light_ = to_esphome_color(raw.background_light);
-    this->on_dark_ = to_esphome_color(raw.on_dark);
-    this->on_light_ = to_esphome_color(raw.on_light);
-  }
-
-  int64_t get_timestamp() const { return this->timestamp_; }
-  bool has_primary() const { return this->has_primary_; }
-  
-  // Liefert direkt einsatzbereite ESPHome-Farben (0.0 - 1.0 im Licht-System kompatibel)
-  Color get_primary() const { return this->primary_; }
-  Color get_accent() const { return this->accent_; }
-  Color get_background_dark() const { return this->background_dark_; }
-  Color get_background_light() const { return this->background_light_; }
-  Color get_on_dark() const { return this->on_dark_; }
-  Color get_on_light() const { return this->on_light_; }
-
-  std::string get_primary_hex() const { return this->to_hex_string_(this->primary_); }
-  std::string get_accent_hex() const { return this->to_hex_string_(this->accent_); }
-  std::string get_background_dark_hex() const { return this->to_hex_string_(this->background_dark_); }
-  std::string get_background_light_hex() const { return this->to_hex_string_(this->background_light_); }
-  std::string get_on_dark_hex() const { return this->to_hex_string_(this->on_dark_); }
-  std::string get_on_light_hex() const { return this->to_hex_string_(this->on_light_); }
-
- protected:
-  int64_t timestamp_{0};
-  bool has_primary_{false};
-  Color primary_{0, 0, 0, 0};
-  Color accent_{0, 0, 0, 0};
-  Color background_dark_{0, 0, 0, 0};
-  Color background_light_{0, 0, 0, 0};
-  Color on_dark_{0, 0, 0, 0};
-  Color on_light_{0, 0, 0, 0};
-
-  std::string to_hex_string_(Color c) const {
-    return esphome::str_snprintf("#%02X%02X%02X", 7, c.r, c.g, c.b);
-  }
-};
-// ifuH
 
 /// @brief Setup priorities for the sendspin hub and its child components.
 ///
@@ -132,9 +74,6 @@ struct StaticDelayPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_ARTWORK
                           public sendspin::ArtworkRoleListener,
-#endif
-#ifdef USE_SENDSPIN_COLOR
-                          public sendspin::ColorRoleListener,
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
@@ -244,14 +183,6 @@ class SendspinHub final : public Component,
   sendspin::PlayerRole *get_player_role();
 #endif
 
-#ifdef USE_SENDSPIN_COLOR
-  // Hufi: Test-Callback-Registrierung für Farbwerte-Palette
-  void add_color_callback(std::function<void(const SendspinColorPalette&)> &&callback) {
-    this->color_callbacks_.add(std::move(callback));
-  }
-#endif
-
-
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
@@ -291,14 +222,6 @@ class SendspinHub final : public Component,
       artwork_image_decode_callbacks_{};
   CallbackManager<void(uint8_t, uint32_t)> artwork_image_display_callbacks_{};
   CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
-#endif
-
-#ifdef USE_SENDSPIN_COLOR
-  void on_color(const sendspin::ServerColorStateObject &color) override;
-  void on_color_clear() override;
-
-  sendspin::ColorRole *color_role_{nullptr};
-  CallbackManager<void(const SendspinColorPalette&)> color_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
@@ -343,7 +266,6 @@ class SendspinHub final : public Component,
 
   // Callback fan-out to child components
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
-
 
   bool task_stack_in_psram_{false};
 };

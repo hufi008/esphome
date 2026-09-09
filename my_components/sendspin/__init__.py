@@ -34,9 +34,6 @@ CONF_DECODE_MEMORY = "decode_memory"
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
 
-# Hufi: on_color
-CONF_ON_COLOR = "on_color"
-
 # sendspin-cpp library lives in the global `sendspin` namespace.
 sendspin_library_ns = cg.global_ns.namespace("sendspin")
 
@@ -82,8 +79,6 @@ SendspinHub = sendspin_ns.class_(
     cg.Component,
 )
 
-# Hufi: Neue Abstraktionsklasse dem Python-Codegen bekannt machen
-SendspinColorPalette = sendspin_ns.class_("SendspinColorPalette")
 
 SendspinSwitchCommandAction = sendspin_ns.class_(
     "SendspinSwitchCommandAction",
@@ -113,10 +108,6 @@ def _get_data() -> SendspinConfiguration:
 def request_artwork_support() -> None:
     """Request artwork role support for Sendspin."""
     _get_data().artwork_support = True
-
-def request_color_support() -> None:
-    """Request color role support for Sendspin."""
-    _get_data().color_support = True
 
 
 def request_controller_support() -> None:
@@ -186,23 +177,16 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     wifi.enable_runtime_roaming_suppression()
     return config
 
-def _request_color_role(config: ConfigType) -> ConfigType:
-    if CONF_ON_COLOR in config:
-        request_color_support()
-    return config
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
-            # Hufi: Schema-Validierung für den Test-Trigger
-            cv.Optional(CONF_ON_COLOR): automation.validate_automation({}),
         }
     ),
     cv.only_on_esp32,
     _request_high_performance_networking,
-    _request_color_role,    
 )
 
 
@@ -255,6 +239,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
     data = _get_data()
+
+    # The color role is not yet wired up in ESPHome; disable it in the library for now.
+    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -350,21 +337,3 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_SENDSPIN_VISUALIZER", True)
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_VISUALIZER", False)
-
-    if data.color_support:
-        cg.add_define("USE_SENDSPIN_COLOR", True)
-        if CONF_ON_COLOR in config:
-            await automation.build_callback_automations(
-                var,
-                config,
-                (
-                    automation.CallbackAutomation(
-                        CONF_ON_COLOR,
-                        "add_color_callback",
-                        # Nutzt jetzt die stabile esphome::sendspin_::SendspinColorPalette Klasse:
-                        [(SendspinColorPalette.operator("const").operator("ref"), "x")],
-                    ),
-                ),
-            )
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)

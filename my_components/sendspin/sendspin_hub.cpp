@@ -48,11 +48,6 @@ void SendspinHub::setup() {
   this->artwork_role_->set_listener(this);
 #endif
 
-#ifdef USE_SENDSPIN_COLOR
-  this->color_role_ = &this->client_->add_color();
-  this->color_role_->set_listener(this);
-#endif
-
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
@@ -223,22 +218,6 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
   if (this->artwork_role_ != nullptr) {
     this->artwork_role_->frame_done(slot);
   }
-}
-#endif
-
-#ifdef USE_SENDSPIN_COLOR
-// THREAD CONTEXT: Main loop (wird von der Sendspin-Bibliothek aufgerufen)
-void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
-  ESP_LOGD(TAG, "Received color palette update from server (Timestamp: %lld)", color.timestamp);
-  // Konvertiere das rohe Bibliotheksobjekt in unsere stabile Abstraktion
-  SendspinColorPalette palette(color);
-  this->color_callbacks_.call(palette);
-}
-
-void SendspinHub::on_color_clear() {
-  ESP_LOGD(TAG, "Color palette cleared");
-  // Sende eine komplett leere Farbpalette (alles Schwarz)
-  this->color_callbacks_.call(SendspinColorPalette{});
 }
 #endif
 

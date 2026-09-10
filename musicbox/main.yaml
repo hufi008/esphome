@@ -64,6 +64,7 @@ api:
 time:
   - platform: homeassistant
     on_time_sync:
+      - delay: 5sec
       - lambda: |-
           ESP_LOGI(__FILE__, "ha_time: on_time_sync");
           id(my_clock).update();
@@ -72,9 +73,12 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
-          id(ha_volume_man).publish_state(id(ha_volume_man).state);
-          id(ha_backlight_man).publish_state(id(ha_backlight_man).state);
-
+      - lvgl.slider.update:
+          id: lvgl_slider_volume
+          value: !lambda return id(ha_volume_man).state;
+      - lvgl.slider.update:
+          id: lvgl_slider_backlight
+          value: !lambda return id(ha_backlight_man).state;
       - if:
           condition:
             lambda: 'return id(is_blocked);'
@@ -116,6 +120,9 @@ number:
       then:
         - lambda: |-
             ESP_LOGD(__FILE__, "ha_volume_man: on_value => %.0f (%0.0f%%)", x, x * 5.0f);
+        - lvgl.label.update:
+            id: lvgl_label_volume
+            text: !lambda 'return str_sprintf("Volume: %.0f%%", x * 5.0f);'
         - media_player.volume_set:
             id: audio_player
             volume: !lambda |-
@@ -125,6 +132,9 @@ number:
       then:
         - lambda: |-
             ESP_LOGD(__FILE__, "ha_backlight_man: on_value => %.0f (%0.0f%%)", x, x * 5.0f);
+        - lvgl.label.update:
+            id: lvgl_label_backlight
+            text: !lambda 'return str_sprintf("Helligkeit: %.0f%%", x * 5.0f);'
         - script.execute: update_backlight
 
 switch:
@@ -166,52 +176,6 @@ switch:
 sendspin:
   id: sendspin_hub
   task_stack_in_psram: false
-  # on_color:
-  #   then:
-  #     - logger.log:
-  #         format: "SendSpin Paletten-Wechsel  BG_Light: %s | On_Light: %s | BG_Dark: %s | On_Dark: %s | Primary: %s | Accent: %s"
-  #         args:
-  #           - x.get_background_light_hex().c_str()
-  #           - x.get_on_light_hex().c_str()
-  #           - x.get_background_dark_hex().c_str()
-  #           - x.get_on_dark_hex().c_str()
-  #           - x.get_primary_hex().c_str()
-  #           - x.get_accent_hex().c_str()
-  #     - light.turn_on:
-  #         id: onboard_led
-  #         effect: None 
-  #         red: !lambda return x.get_primary().r / 255.0f;
-  #         green: !lambda return x.get_primary().g / 255.0f;
-  #         blue: !lambda return x.get_primary().b / 255.0f;
-  #         brightness: 0.25
-     
-  #     - lvgl.page.update:
-  #         id: lvgl_page_media
-  #         bg_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0x30, 0x30, 0x30);  // fallback
-  #           auto c = x.get_background_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
-
-  #     - lvgl.label.update:
-  #         id: lvgl_label_media_title
-  #         text_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-  #           auto c = x.get_on_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
-
-  #     - lvgl.label.update:
-  #         id: lvgl_label_media_artist
-  #         text_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-  #           auto c = x.get_on_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
-
-  #     - lvgl.label.update:
-  #         id: lvgl_label_media_album
-  #         text_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-  #           auto c = x.get_on_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
 
 media_player:
   - id: !extend sendspin_player
@@ -1599,13 +1563,6 @@ lvgl:
                 - script.execute:
                     id: show_page
                     page: lvgl_page_settings
-            on_change:
-              then:
-                - lambda: |-
-                    ESP_LOGD(__FILE__, "lvgl_slider_volume: on_change => ha_volume_man = %.0f (%0.0f%%)", x, x * 5.0f);
-                - lvgl.label.update:
-                    id: lvgl_label_volume
-                    text: !lambda 'return str_sprintf("Volume: %.0f%%", x * 5.0f);'
 
         # ☀️ DIGITALE HELLIGKEITSANZEIGE (Groß und zentriert)
         - label:
@@ -1635,13 +1592,6 @@ lvgl:
                 - script.execute:
                     id: show_page
                     page: lvgl_page_settings
-            on_change:
-              then:
-                - lambda: |-
-                    ESP_LOGD(__FILE__, "lvgl_slider_backlight: on_change => ha_backlight_man = %.0f (%0.0f%%)", x, x * 5.0f);
-                - lvgl.label.update:
-                    id: lvgl_label_backlight
-                    text: !lambda 'return str_sprintf("Helligkeit: %.0f%%", x * 5.0f);'
 
         - checkbox:
             id: lvgl_checkbox_backlight_auto

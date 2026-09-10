@@ -12,6 +12,9 @@ sensor:
     id: illuminance_id
     update_interval: 5s
     address: ${bh_addr}
+    unit_of_measurement: "lx"
+    device_class: illuminance
+    state_class: measurement
     filters:
       - multiply: 1.0          
 

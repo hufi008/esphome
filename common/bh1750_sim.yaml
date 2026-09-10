@@ -1,0 +1,30 @@
+# common/bh1750.yaml
+substitutions:
+  # Illuminance bh1750 Simulator
+
+sensor:
+  - platform: template
+    name: "Illuminance"
+    id: illuminance_id
+    update_interval: 5s
+    unit_of_measurement: "lx"
+    device_class: illuminance
+    state_class: measurement
+    filters:
+      - multiply: 1.0          
+    lambda: |-
+      auto now = id(my_time).now();
+
+      if (!now.is_valid()) {
+        return 2.0;
+      }
+
+      // Stunde als Dezimalwert
+      float hour = now.hour + now.minute / 60.0f;
+
+      // Sinus: Maximum um 12:00, Minimum nachts
+      float angle = (hour - 6.0f) * M_PI / 12.0f;
+      float normalized = (sinf(angle) + 1.0f) / 2.0f;
+
+      // 2 ... 500 lx
+      return 2.0f + normalized * (500.0f - 2.0f);

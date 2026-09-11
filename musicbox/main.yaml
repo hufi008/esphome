@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.5.5
+    version: 0.6.0
   on_boot:
     priority: -100
     then:
@@ -30,6 +30,16 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'true'
+
+  - id: sleep_timer_duration
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  - id: time_power_off
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
 
   - id: current_library_path
     type: std::string
@@ -185,7 +195,8 @@ media_player:
         - logger.log:
             format: "SendSpin Player-State geändert: %s"
             args: ['media_player::media_player_state_to_string(id(sendspin_player).state)']
-        - script.execute: update_states
+        - script.execute: update_states 
+
     on_announcement:
       then:
         - logger.log: "SendSpin: on_announcement"
@@ -213,6 +224,7 @@ media_player:
         - logger.log:
             format: "Physischer Audio Player-State geändert: %s"
             args: ['media_player::media_player_state_to_string(id(audio_player).state)']
+        - script.execute: sleep_timer
         - script.execute: update_states
     on_announcement:
       then:
@@ -790,6 +802,11 @@ image:
     type: BINARY
     resize: 32x32
   - platform: file
+    file: mdi:sleep
+    id: icon_sleep
+    type: binary
+    resize: 32x32
+  - platform: file
     file: mdi:weather-sunny
     id: icon_sun
     type: binary
@@ -799,6 +816,7 @@ image:
     id: icon_moon_unknown
     type: binary
     resize: 32x32
+  # Moon Phases
   - platform: file
     file: mdi:moon-new
     id: icon_moon_new_moon
@@ -989,11 +1007,15 @@ lvgl:
       - logger.log: "lvgl: on_boot"
       # - lvgl.widget.focus: lvgl_button_play_stop
 
-  on_idle:
-    timeout: 60s
+  on_all_events: 
     then:
-      logger.log: "lvgl: on_idle"
-      # switch.turn_off: ha_switch_power
+      - logger.log: "lvgl: on_all_events"
+      - script.execute: sleep_timer
+      
+  on_idle:
+    timeout: 0.5s
+    then:
+      - logger.log: "lvgl: on_idle"
 
   on_pause:
     then:
@@ -1069,6 +1091,26 @@ lvgl:
           text_color: 0xFFFF00
           # text_font: roboto_medium
           scrollable: false        
+          on_swipe_left:
+            - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+            - logger.log: "Nach links gewischt"
+            - lvgl.page.next:
+                animation: move_left
+                time: 300ms
+          on_swipe_right:
+            - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+            - logger.log: "Nach rechts gewischt"
+            - lvgl.page.previous:
+                animation: move_right
+                time: 300ms
+          on_swipe_bottom:
+            - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+            - logger.log: "Nach unten gewischt"
+            - lvgl.page.show:
+                id: lvgl_page_info
+                animation: move_bottom
+                time: 300ms
+            - switch.turn_off: ha_switch_power
           
           # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
           widgets:
@@ -1299,28 +1341,6 @@ lvgl:
             text_color: 0xa0a0a0
 
     - id: lvgl_page_media
-      on_swipe_left:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_media!"
-        - lvgl.page.show:
-            id: lvgl_page_settings
-            animation: move_left
-            time: 300ms
-      on_swipe_right:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_media!"
-        - lvgl.page.show:
-            id: lvgl_page_library
-            animation: move_right
-            time: 300ms
-      on_swipe_bottom:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_media!" # Logger-Text beibehalten
-        - lvgl.page.show:
-            id: lvgl_page_info
-            animation: move_bottom
-            time: 300ms
-        - switch.turn_off: ha_switch_power
       on_load:
         then:
           - lvgl.label.update:
@@ -1346,7 +1366,7 @@ lvgl:
                   src: img_art_clear
                   align: CENTER
 
-        # 🎵 TRACK INFOS (Nutzen jetzt die volle Breite oberhalb des Covers)
+        # 🎵 TRACK-TITEL
         - label:
             id: lvgl_label_media_title
             align: TOP_LEFT
@@ -1358,19 +1378,19 @@ lvgl:
             text_align: CENTER
             long_mode: SCROLL
 
+        # 🎤 INTERPRET
         - label:
             id: lvgl_label_media_artist
             align: TOP_LEFT
             x: "40%"
             y: "32%"
-            width: "96%"
+            width: "58%"
             text: "---"
-            # text_font: roboto_medium
             text_color: 0xBBBBBB
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
 
-        # Albumname (Rechts neben dem vergrößerten Cover platziert)
+        # 💿 ALBUM
         - label:
             id: lvgl_label_media_album
             align: TOP_LEFT
@@ -1378,78 +1398,105 @@ lvgl:
             y: "42%"
             width: "58%"
             text: "---"
-            # text_font: roboto_medium
             text_color: 0xBB4477
             text_align: LEFT
             long_mode: SCROLL_CIRCULAR
 
-        # ⏳ COMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
+        # 😴 SLEEP TIMER
         - obj:
-            align: BOTTOM_RIGHT
-            x: "0"
-            y: "-50"
-            width: "60%"
-            height: 45        
+            align: TOP_LEFT
+            x: "40%"
+            y: "51%"
+            width: "58%"
+            height: 32
             bg_opa: TRANSP
-            border_width: 2
-            border_color: 0xff007f
-            pad_all: 4        
+            border_width: 0
+            pad_all: 0
             layout:
               type: FLEX
-              flex_flow: COLUMN              # Elemente untereinander
-              flex_align_main: SPACE_BETWEEN # Zeitleiste oben, Balken unten
-              flex_align_cross: CENTER       # Korrigierter Fallback für die Kreuzachse
+              flex_flow: ROW
+              flex_align_main: START
+              flex_align_cross: CENTER
             widgets:
-            
-              # ⏱️ Obere Zeile für die Zeitangaben
+              - image:
+                  id: lvgl_img_sleep
+                  src: icon_sleep
+                  width: 32
+                  height: 32
+                  recolor: 0x7744BB
+                  recolor_opa: 100% 
+
+
+              - label:
+                  id: lvgl_label_sleep_timer
+                  text: "15:23:45"
+                  text_color: 0x7744BB
+                  text_align: LEFT
+
+        # ⏱️ ZEITLEISTE + FORTSCHRITT
+        - obj:
+            align: BOTTOM_RIGHT
+            x: 0
+            y: "-44"
+            width: "60%"
+            height: 45
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 4
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_main: SPACE_BETWEEN
+              flex_align_cross: CENTER
+            widgets:
+
+              # Zeitangaben
               - obj:
-                  width: 100%                # Explizit auf volle Breite der Hauptbox gezwungen
+                  width: 100%
                   height: 20
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
                   layout:
                     type: FLEX
-                    flex_flow: ROW           
-                    flex_align_main: SPACE_BETWEEN 
+                    flex_flow: ROW
+                    flex_align_main: SPACE_BETWEEN
                     flex_align_cross: CENTER
                   widgets:
-                    # Aktueller Fortschritt (Links)
                     - label:
                         id: lvgl_label_progress
                         text: ""
                         text_color: 0x00FFD2
 
-                    # Gesamtlänge (Rechts)
                     - label:
                         id: lvgl_label_duration
                         text: ""
-                        text_color: 0xaaaaaa
+                        text_color: 0xAAAAAA
 
-              # 📊 Integrierte FORTSCHRITTSLEISTE
+              # Fortschrittsbalken
               - bar:
                   id: track_progress_bar
-                  width: 100%                # Verhindert das Schrumpfen, füllt die Box voll aus
+                  width: 100%
                   height: 4
                   bg_color: 0x804020
 
-
-        # 🎛️ BUTTONBAR UNTEN (Dank Flexbox extrem dankbar beim Skalieren!)
+        # 🎛️ BUTTONBAR
         - obj:
             align: BOTTOM_MID
             x: 0
             y: 0
             width: "100%"
             height: 40
-            bg_color: 0x606060
+            bg_color: 0x303030
             pad_all: 4
             layout:
               type: FLEX
-              flex_flow: ROW             
+              flex_flow: ROW
               flex_align_main: SPACE_EVENLY
-              flex_align_cross: CENTER   
+              flex_align_cross: CENTER
             widgets:
-              # 📌 BUTTON: PREVIOUS
+
+              # PREVIOUS
               - button:
                   id: lvgl_button_prev
                   width: "24%"
@@ -1458,7 +1505,7 @@ lvgl:
                     - label:
                         text: "<<"
                         align: CENTER
-                  group: encoder_group                  
+                  group: encoder_group
                   on_focus:
                     then:
                       - lambda: 'ESP_LOGD(__FILE__, "PREV: on_focus");'
@@ -1469,8 +1516,8 @@ lvgl:
                     then:
                       - logger.log: "prev via GUI"
                       - media_player.previous: sendspin_player
-                      
-              # 📌 BUTTON: PLAY
+
+              # PLAY
               - button:
                   id: lvgl_button_play_stop
                   width: "34%"
@@ -1480,7 +1527,7 @@ lvgl:
                         id: lvgl_button_play_stop_label
                         text: "Wait..."
                         align: CENTER
-                  group: encoder_group                  
+                  group: encoder_group
                   on_focus:
                     then:
                       - lambda: 'ESP_LOGD(__FILE__, "PLAY: on_focus");'
@@ -1492,7 +1539,7 @@ lvgl:
                       - logger.log: "play via GUI"
                       - media_player.toggle: sendspin_player
 
-              # 📌 BUTTON: NEXT
+              # NEXT
               - button:
                   id: lvgl_button_next
                   width: "24%"
@@ -1501,7 +1548,7 @@ lvgl:
                     - label:
                         text: ">>"
                         align: CENTER
-                  group: encoder_group                  
+                  group: encoder_group
                   on_focus:
                     then:
                       - lambda: 'ESP_LOGD(__FILE__, "NEXT: on_focus");'
@@ -1514,20 +1561,6 @@ lvgl:
                       - media_player.next: sendspin_player
 
     - id: lvgl_page_settings
-      on_swipe_left:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_settings!"
-        - lvgl.page.show:
-            id: lvgl_page_library
-            animation: move_left
-            time: 300ms
-      on_swipe_right:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_settings!"
-        - lvgl.page.show:
-            id: lvgl_page_media
-            animation: move_right
-            time: 300ms
       on_load:
         then:
           - lvgl.label.update:
@@ -1545,6 +1578,7 @@ lvgl:
             text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
+
         # 🎚️ VOLUME-SLIDER
         - slider:
             id: lvgl_slider_volume
@@ -1564,22 +1598,23 @@ lvgl:
                     id: show_page
                     page: lvgl_page_settings
 
-        # ☀️ DIGITALE HELLIGKEITSANZEIGE (Groß und zentriert)
+        # ☀️ DIGITALE HELLIGKEITSANZEIGE
         - label:
             id: lvgl_label_backlight
             align: TOP_MID
             x: 0
-            y: 50%
+            y: 40%
             text: "--"
             text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
-        # 🎚️ HELLIGKEITS-SLIDER 
+
+        # 🎚️ HELLIGKEITS-SLIDER
         - slider:
             id: lvgl_slider_backlight
             align: TOP_MID
             x: 0
-            y: 62%
+            y: 52%
             width: 85%
             height: 20
             min_value: 2
@@ -1593,11 +1628,33 @@ lvgl:
                     id: show_page
                     page: lvgl_page_settings
 
+        # ⏱️ SLEEP TIMER
+        - dropdown:
+            id: lvgl_dropdown_timer_duration
+            align: TOP_MID
+            x: "-25%"
+            y: 75%
+            height: 28
+            width: 40%
+            dropdown_list:
+              max_height: 120
+            group: encoder_group
+            click_focusable: true
+            options:
+              - "Off"
+              - "5 Min"
+              - "10 Min"
+              - "15 Min"
+              - "30 Min"
+              - "45 Min"
+              - "60 Min"
+
+        # ☀️ AUTOMATISCHE HELLIGKEIT
         - checkbox:
             id: lvgl_checkbox_backlight_auto
             align: TOP_MID
-            x: 0
-            y: 74%
+            x: "25%"
+            y: 75%
             height: 20
             text: "Auto"
             group: encoder_group
@@ -1609,22 +1666,7 @@ lvgl:
                     id: show_page
                     page: lvgl_page_settings
 
-
     - id: lvgl_page_library
-      on_swipe_left:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_library!"
-        - lvgl.page.show:
-            id: lvgl_page_media
-            animation: move_left
-            time: 300ms
-      on_swipe_right:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_library!"
-        - lvgl.page.show:
-            id: lvgl_page_settings
-            animation: move_right
-            time: 300ms
       on_load:
         then:
           - lvgl.label.update:
@@ -1653,14 +1695,25 @@ lvgl:
             #     format: "Roller Index: %d, Text: %s"
             #     args: [ 'x', 'text.c_str()' ]
 
-
 select:
+  - platform: lvgl
+    id: lvgl_select_timer_duration
+    name: "Timer Duration"
+    widget: lvgl_dropdown_timer_duration
+    restore_value: true
+    on_value:
+      then:
+        - lambda: |-
+            const int minutes = atoi(x.c_str());
+            id(sleep_timer_duration) = minutes * 60;
+            ESP_LOGW(__FILE__, "Sleep timer: %d min = %lu s", minutes, id(sleep_timer_duration));
+        - script.execute: sleep_timer
+
   - platform: lvgl
     id: lvgl_select_library
     widget: lvgl_roller_library
     restore_value: False
     internal: True
-
     on_value:
       - lambda: |-
           const size_t idx =
@@ -1716,6 +1769,96 @@ select:
           id(library_play_media).execute(uri);
 
 script:
+  - id: sleep_timer
+    mode: restart
+    then:
+      - logger.log:
+          format: "SLEEP: after delay | duration=%lu s | player_state=%d | time_power_off=%lu | millis=%lu"
+          args:
+            - "id(sleep_timer_duration)"
+            - "id(audio_player).state"
+            - "id(time_power_off)"
+            - "millis()"
+
+      - if:
+          condition:
+            lambda: |-
+              return id(sleep_timer_duration) > 0 &&
+                     id(audio_player).state ==
+                     media_player::MEDIA_PLAYER_STATE_PLAYING;
+          then:
+            - logger.log:
+                format: "SLEEP: starting/restarting timer for %lu s"
+                args:
+                  - "id(sleep_timer_duration)"
+
+            - lambda: |-
+                id(time_power_off) =
+                    millis() + id(sleep_timer_duration) * 1000;
+
+            - logger.log:
+                format: "SLEEP: timer started | time_power_off=%lu | millis=%lu"
+                args:
+                  - "id(time_power_off)"
+                  - "millis()"
+
+            - while:
+                condition:
+                  lambda: |-
+                    return millis() < id(time_power_off) &&
+                           id(audio_player).state ==
+                           media_player::MEDIA_PLAYER_STATE_PLAYING;
+                then:
+                  - lvgl.label.update:
+                      id: lvgl_label_sleep_timer
+                      text:
+                        format: "%02lu:%02lu"
+                        args:
+                          - "(id(time_power_off) - millis()) / 1000 / 60"
+                          - "((id(time_power_off) - millis()) / 1000) % 60"
+
+                  - delay: 1s
+
+            - logger.log:
+                format: "SLEEP: while ended | player_state=%d | remaining=%ld ms"
+                args:
+                  - "id(audio_player).state"
+                  - "id(time_power_off) - millis()"
+
+            - if:
+                condition:
+                  lambda: |-
+                    return id(audio_player).state ==
+                           media_player::MEDIA_PLAYER_STATE_PLAYING;
+                then:
+                  - logger.log:
+                      format: "SLEEP: TIMER EXPIRED -> power off"
+
+                  - lvgl.label.update:
+                      id: lvgl_label_sleep_timer
+                      text: "00:00"
+
+                  - switch.turn_off: ha_switch_power
+
+                else:
+                  - logger.log:
+                      format: "SLEEP: playback stopped -> abort timer"
+
+                  - lvgl.label.update:
+                      id: lvgl_label_sleep_timer
+                      text: "Off"
+
+          else:
+            - logger.log:
+                format: "SLEEP: NOT starting | duration=%lu s | player_state=%d"
+                args:
+                  - "id(sleep_timer_duration)"
+                  - "id(audio_player).state"
+
+            - lvgl.label.update:
+                id: lvgl_label_sleep_timer
+                text: "Off"
+
   - id: update_backlight
     then:
       - lambda: |-

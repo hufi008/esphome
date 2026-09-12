@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.6.0
+    version: 0.6.1
   on_boot:
     priority: -100
     then:
@@ -561,12 +561,12 @@ sensor:
         - lvgl.label.update:
             id: lvgl_label_progress
             text: !lambda |-
-              if (std::isnan(x)) return "---:--:--";
+              if (std::isnan(x)) return "---:--";
               int progress = (int)(x / 1000.0f);
-              return str_sprintf("%02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
+              return str_sprintf("%3d:%02d", progress / 60, progress % 60);
         - lvgl.bar.update:
             id: track_progress_bar
-            value: !lambda 'return x / 2000.0f;'                    
+            value: !lambda 'return x / 2000.0f;'
   - platform: sendspin
     type: track_duration
     name: "SendSpin Track Duration"
@@ -582,10 +582,10 @@ sensor:
         - lvgl.label.update:
             id: lvgl_label_duration
             text: !lambda |-
-              if (std::isnan(x)) return "---:--:--";
-              if (x == 0) return "---:--:--";
+              if (std::isnan(x)) return "---:--";
+              if (x == 0) return "---:--";
               int duration = (int)(x / 1000.0f);
-              return str_sprintf("%02d:%02d:%02d", duration / 3600, (duration % 3600) / 60, duration % 60);
+              return str_sprintf("%3d:%02d", duration / 60, duration % 60);
         - lvgl.bar.update:
             id: track_progress_bar
             min_value: 0
@@ -816,6 +816,28 @@ image:
     id: icon_moon_unknown
     type: binary
     resize: 32x32
+  # Buttons
+  - platform: file
+    file: mdi:play
+    id: icon_play
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:pause
+    id: icon_pause
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:skip-previous
+    id: icon_previous
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:skip-next
+    id: icon_next
+    type: binary
+    resize: 32x32
+
   # Moon Phases
   - platform: file
     file: mdi:moon-new
@@ -1007,15 +1029,11 @@ lvgl:
       - logger.log: "lvgl: on_boot"
       # - lvgl.widget.focus: lvgl_button_play_stop
 
-  on_all_events: 
-    then:
-      - logger.log: "lvgl: on_all_events"
-      - script.execute: sleep_timer
-      
   on_idle:
     timeout: 0.5s
     then:
       - logger.log: "lvgl: on_idle"
+      - script.execute: sleep_timer
 
   on_pause:
     then:
@@ -1024,6 +1042,13 @@ lvgl:
   on_resume:
     then:
       logger.log: "lvgl: on_resume"
+
+  on_all_events:
+    - lambda: |-
+        auto code = lv_event_get_code(event);
+        if (code >= LV_EVENT_SCROLL && code <= LV_EVENT_SCROLL_END) {
+          ESP_LOGD(__FILE__, "LVGL: event=%d", code);
+        }
 
   theme:
     dark_mode: true
@@ -1077,7 +1102,6 @@ lvgl:
         border_opa: COVER
         border_width: 3
 
-
   # Statusbar
   top_layer:
     widgets:
@@ -1089,30 +1113,9 @@ lvgl:
           bg_color: 0x606060
           border_width: 0
           text_color: 0xFFFF00
-          # text_font: roboto_medium
-          scrollable: false        
-          on_swipe_left:
-            - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-            - logger.log: "Nach links gewischt"
-            - lvgl.page.next:
-                animation: move_left
-                time: 300ms
-          on_swipe_right:
-            - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-            - logger.log: "Nach rechts gewischt"
-            - lvgl.page.previous:
-                animation: move_right
-                time: 300ms
-          on_swipe_bottom:
-            - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-            - logger.log: "Nach unten gewischt"
-            - lvgl.page.show:
-                id: lvgl_page_info
-                animation: move_bottom
-                time: 300ms
-            - switch.turn_off: ha_switch_power
-          
-          # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
+          clickable: false
+          scrollable: false
+
           widgets:
             - label:
                 id: lvgl_label_status_title
@@ -1131,6 +1134,7 @@ lvgl:
                 recolor: "0xFFFF00"
                 recolor_opa: 100%
                 hidden: true
+                gesture_bubble: true
 
             - image:
                 id: lvgl_icon_wifi
@@ -1140,7 +1144,8 @@ lvgl:
                 y: 0 
                 recolor: "0xFFFF00"
                 recolor_opa: 100% 
-
+                gesture_bubble: true
+ 
   # Die GUI-Elemente
   pages:
     - id: lvgl_page_boot
@@ -1149,6 +1154,8 @@ lvgl:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "BOOTING..."
+
+      skip: true
 
       widgets:
         - label:
@@ -1208,6 +1215,8 @@ lvgl:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "INFO"
+
+      skip: true
 
       widgets:
         - button:
@@ -1346,219 +1355,312 @@ lvgl:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "MEDIA"
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt"
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt"
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach unten gewischt"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
 
       widgets:
-        # 🖼️ ALBUM COVER MIT RAHMEN
         - obj:
-            align: TOP_LEFT
-            x: "0%"
-            y: "33%"
-            width: SIZE_CONTENT
-            height: SIZE_CONTENT
-            bg_opa: TRANSP
-            border_width: 2
-            border_color: 0xD4AF37
-            pad_all: 0
-            scrollable: false
-            widgets:
-              - image:
-                  id: lvgl_img_album_art
-                  src: img_art_clear
-                  align: CENTER
-
-        # 🎵 TRACK-TITEL
-        - label:
-            id: lvgl_label_media_title
-            align: TOP_LEFT
-            x: "2%"
-            y: "13%"
-            width: "96%"
-            text: "Warte auf Server"
-            text_font: roboto_huge
-            text_align: CENTER
-            long_mode: SCROLL
-
-        # 🎤 INTERPRET
-        - label:
-            id: lvgl_label_media_artist
-            align: TOP_LEFT
-            x: "40%"
-            y: "32%"
-            width: "58%"
-            text: "---"
-            text_color: 0xBBBBBB
-            text_align: LEFT
-            long_mode: SCROLL_CIRCULAR
-
-        # 💿 ALBUM
-        - label:
-            id: lvgl_label_media_album
-            align: TOP_LEFT
-            x: "40%"
-            y: "42%"
-            width: "58%"
-            text: "---"
-            text_color: 0xBB4477
-            text_align: LEFT
-            long_mode: SCROLL_CIRCULAR
-
-        # 😴 SLEEP TIMER
-        - obj:
-            align: TOP_LEFT
-            x: "40%"
-            y: "51%"
-            width: "58%"
-            height: 32
+            width: 100%
+            height: 100%
+            pad_top: 30
+            pad_left: 4
+            pad_right: 4
+            pad_bottom: 4
             bg_opa: TRANSP
             border_width: 0
-            pad_all: 0
-            layout:
-              type: FLEX
-              flex_flow: ROW
-              flex_align_main: START
-              flex_align_cross: CENTER
-            widgets:
-              - image:
-                  id: lvgl_img_sleep
-                  src: icon_sleep
-                  width: 32
-                  height: 32
-                  recolor: 0x7744BB
-                  recolor_opa: 100% 
+            scrollable: false
 
+            layout:
+              type: GRID
+              grid_rows:
+                - 34px
+                - FR(1)
+                - FR(1)
+                - FR(1)
+                - FR(1)
+                - 40px
+              grid_columns:
+                - 60%
+                - 40%
+              pad_row: 4
+              pad_column: 6
+
+            widgets:
+
+              # ==========================================================
+              # TITEL
+              # ==========================================================
 
               - label:
-                  id: lvgl_label_sleep_timer
-                  text: "15:23:45"
-                  text_color: 0x7744BB
-                  text_align: LEFT
+                  id: lvgl_label_media_title
+                  text: "Warte auf Server"
+                  text_font: roboto_huge
+                  text_align: CENTER
+                  long_mode: SCROLL
+                  grid_cell_row_pos: 0
+                  grid_cell_column_pos: 0
+                  grid_cell_column_span: 2
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
 
-        # ⏱️ ZEITLEISTE + FORTSCHRITT
-        - obj:
-            align: BOTTOM_RIGHT
-            x: 0
-            y: "-44"
-            width: "60%"
-            height: 45
-            bg_opa: TRANSP
-            border_width: 0
-            pad_all: 4
-            layout:
-              type: FLEX
-              flex_flow: COLUMN
-              flex_align_main: SPACE_BETWEEN
-              flex_align_cross: CENTER
-            widgets:
 
-              # Zeitangaben
+              # ==========================================================
+              # COVER
+              # ==========================================================
+
+              - obj:
+                  bg_opa: TRANSP
+                  border_width: 2
+                  border_color: 0xD4AF37
+                  pad_all: 0
+                  scrollable: false
+
+                  grid_cell_row_pos: 1
+                  grid_cell_column_pos: 0
+                  grid_cell_row_span: 5
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: STRETCH
+
+                  widgets:
+                    - image:
+                        id: lvgl_img_album_art
+                        src: img_art_clear
+                        align: CENTER
+
+
+              # ==========================================================
+              # ARTIST
+              # ==========================================================
+
+              - label:
+                  id: lvgl_label_media_artist
+                  width: 100%
+                  text: "---"
+                  text_color: 0xBBBBBB
+                  text_align: CENTER
+                  long_mode: SCROLL_CIRCULAR
+                  grid_cell_row_pos: 1
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+
+              # ==========================================================
+              # ALBUM
+              # ==========================================================
+
+              - label:
+                  id: lvgl_label_media_album
+                  width: 100%
+                  text: "---"
+                  text_color: 0xBB4477
+                  text_align: CENTER
+                  long_mode: SCROLL_CIRCULAR
+                  grid_cell_row_pos: 2
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+
+              # ==========================================================
+              # SLEEP TIMER
+              # ==========================================================
+
               - obj:
                   width: 100%
-                  height: 20
+                  height: 32
                   bg_opa: TRANSP
                   border_width: 0
                   pad_all: 0
+
                   layout:
                     type: FLEX
                     flex_flow: ROW
-                    flex_align_main: SPACE_BETWEEN
+                    flex_align_main: CENTER
                     flex_align_cross: CENTER
+
+                  grid_cell_row_pos: 3
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
                   widgets:
-                    - label:
-                        id: lvgl_label_progress
-                        text: ""
-                        text_color: 0x00FFD2
+                    - image:
+                        src: icon_sleep
+                        width: 32
+                        height: 32
+                        recolor: "0x7744BB"
+                        recolor_opa: 100%
 
                     - label:
-                        id: lvgl_label_duration
-                        text: ""
-                        text_color: 0xAAAAAA
+                        id: lvgl_label_sleep_timer
+                        text: "Off"
+                        text_color: 0x7744BB
 
-              # Fortschrittsbalken
-              - bar:
-                  id: track_progress_bar
+
+              # ==========================================================
+              # PROGRESS
+              # ==========================================================
+
+              - obj:
                   width: 100%
-                  height: 4
-                  bg_color: 0x804020
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
 
-        # 🎛️ BUTTONBAR
-        - obj:
-            align: BOTTOM_MID
-            x: 0
-            y: 0
-            width: "100%"
-            height: 40
-            bg_color: 0x303030
-            pad_all: 4
-            layout:
-              type: FLEX
-              flex_flow: ROW
-              flex_align_main: SPACE_EVENLY
-              flex_align_cross: CENTER
-            widgets:
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
 
-              # PREVIOUS
-              - button:
-                  id: lvgl_button_prev
-                  width: "24%"
-                  height: 32
+                  grid_cell_row_pos: 4
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
                   widgets:
-                    - label:
-                        text: "<<"
-                        align: CENTER
-                  group: encoder_group
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "PREV: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_media
-                  on_click:
-                    then:
-                      - logger.log: "prev via GUI"
-                      - media_player.previous: sendspin_player
 
-              # PLAY
-              - button:
-                  id: lvgl_button_play_stop
-                  width: "34%"
-                  height: 32
-                  widgets:
-                    - label:
-                        id: lvgl_button_play_stop_label
-                        text: "Wait..."
-                        align: CENTER
-                  group: encoder_group
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "PLAY: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_media
-                  on_click:
-                    then:
-                      - logger.log: "play via GUI"
-                      - media_player.toggle: sendspin_player
+                    - obj:
+                        width: 100%
+                        height: 20
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
 
-              # NEXT
-              - button:
-                  id: lvgl_button_next
-                  width: "24%"
-                  height: 32
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_main: SPACE_BETWEEN
+                          flex_align_cross: CENTER
+
+                        widgets:
+                          - label:
+                              id: lvgl_label_progress
+                              text: ""
+                              text_color: 0x00FFD2
+
+                          - label:
+                              id: lvgl_label_duration
+                              text: ""
+                              text_color: 0xAAAAAA
+
+                    - bar:
+                        id: track_progress_bar
+                        width: 100%
+                        height: 4
+                        bg_color: 0x804020
+
+
+              # ==========================================================
+              # BUTTONS
+              # ==========================================================
+
+              - obj:
+                  width: 100%
+                  height: 40
+                  bg_color: 0x303030
+                  pad_all: 4
+
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_main: SPACE_EVENLY
+                    flex_align_cross: CENTER
+
+                  grid_cell_row_pos: 5
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
                   widgets:
-                    - label:
-                        text: ">>"
-                        align: CENTER
-                  group: encoder_group
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "NEXT: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_media
-                  on_click:
-                    then:
-                      - logger.log: "next via GUI"
-                      - media_player.next: sendspin_player
+
+                    - button:
+                        id: lvgl_button_prev
+                        width: 24%
+                        height: 32
+                        widgets:
+                          - image:
+                              src: icon_previous
+                              align: CENTER
+                              recolor: "0xFFFFFF"
+                              recolor_opa: 100%
+                        group: encoder_group
+                        on_focus:
+                          then:
+                            - lambda: 'ESP_LOGD(__FILE__, "PREV: on_focus");'
+                            - script.execute:
+                                id: show_page
+                                page: lvgl_page_media
+                        on_click:
+                          then:
+                            - logger.log: "prev via GUI"
+                            - media_player.previous: sendspin_player
+
+                    - button:
+                        id: lvgl_button_play_stop
+                        width: 34%
+                        height: 32
+                        widgets:
+                          - image:
+                              id: lvgl_button_play_stop_image
+                              src: icon_play
+                              align: CENTER
+                              recolor: "0xFFFFFF"
+                              recolor_opa: 100%
+                        group: encoder_group
+                        on_focus:
+                          then:
+                            - lambda: 'ESP_LOGD(__FILE__, "PLAY: on_focus");'
+                            - script.execute:
+                                id: show_page
+                                page: lvgl_page_media
+                        on_click:
+                          then:
+                            - logger.log: "play via GUI"
+                            - media_player.toggle: sendspin_player
+
+                    - button:
+                        id: lvgl_button_next
+                        width: 24%
+                        height: 32
+                        widgets:
+                          - image:
+                              src: icon_next
+                              align: CENTER
+                              recolor: "0xFFFFFF"
+                              recolor_opa: 100%
+
+                        group: encoder_group
+                        on_focus:
+                          then:
+                            - lambda: 'ESP_LOGD(__FILE__, "NEXT: on_focus");'
+                            - script.execute:
+                                id: show_page
+                                page: lvgl_page_media
+                        on_click:
+                          then:
+                            - logger.log: "next via GUI"
+                            - media_player.next: sendspin_player
 
     - id: lvgl_page_settings
       on_load:
@@ -1566,8 +1668,62 @@ lvgl:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "SETTINGS"
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt"
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt"
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach unten gewischt"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
 
       widgets:
+        - obj:  # invisible swipe area on Statusbar
+            x: 0
+            y: 0
+            width: 100%
+            height: 30
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            on_swipe_left:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "Nach links gewischt"
+              - lvgl.page.next:
+                  animation: out_left
+                  time: 300ms
+            on_swipe_right:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "Nach rechts gewischt"
+              - lvgl.page.previous:
+                  animation: out_right
+                  time: 300ms
+            on_swipe_bottom:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "Nach unten gewischt"
+              - lvgl.page.show:
+                  id: lvgl_page_info
+                  animation: out_bottom
+                  time: 300ms
+              - switch.turn_off: ha_switch_power
+            on_all_events:
+              - lambda: |-
+                  auto code = lv_event_get_code(event);
+                  if (code >= 34 && code <= 99) {
+                    ESP_LOGD(__FILE__, "Statusbar: event=%d", code);
+                  }      
         # 🔊 DIGITALE LAUTSTÄRKEANZEIGE
         - label:
             id: lvgl_label_volume
@@ -1673,7 +1829,62 @@ lvgl:
               id: lvgl_label_status_title
               text: "LIBRARY"
           # - script.execute: load_library
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach links gewischt"
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach rechts gewischt"
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Nach unten gewischt"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
+
       widgets:
+        - obj:  # invisible swipe area on Statusbar
+            x: 0
+            y: 0
+            width: 100%
+            height: 30
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            on_swipe_left:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "Nach links gewischt"
+              - lvgl.page.next:
+                  animation: out_left
+                  time: 300ms
+            on_swipe_right:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "Nach rechts gewischt"
+              - lvgl.page.previous:
+                  animation: out_right
+                  time: 300ms
+            on_swipe_bottom:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "Nach unten gewischt"
+              - lvgl.page.show:
+                  id: lvgl_page_info
+                  animation: out_bottom
+                  time: 300ms
+              - switch.turn_off: ha_switch_power
+            on_all_events:
+              - lambda: |-
+                  auto code = lv_event_get_code(event);
+                  if (code >= 34 && code <= 99) {
+                    ESP_LOGD(__FILE__, "Statusbar: event=%d", code);
+                  }      
         - roller:
             id: lvgl_roller_library
             x: "3%"
@@ -1969,9 +2180,9 @@ script:
                       condition: 
                         lambda: "return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PLAYING;"
                       then: 
-                        - lvgl.label.update:
-                            id: lvgl_button_play_stop_label
-                            text: "Pause"
+                        - lvgl.image.update:
+                            id: lvgl_button_play_stop_image
+                            src: icon_pause
 
                   # SCHRITT 4: Wenn Musik pausiert/leerläuft (IDLE/PAUSED) -> Play anzeigen, Stop verstecken
                   - if: 
@@ -1980,9 +2191,9 @@ script:
                           return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_IDLE || 
                                 id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PAUSED;
                       then: 
-                        - lvgl.label.update:
-                            id: lvgl_button_play_stop_label
-                            text: "Play"
+                        - lvgl.image.update:
+                            id: lvgl_button_play_stop_image
+                            src: icon_play
       - logger.log: "LVGL Display-Updates beendet."
 
   - id: show_page

@@ -1,5 +1,5 @@
 substitutions:
-  cover_image_dimension: 112x112
+  cover_image_dimension: 150x150
   font_size_small: 16
   font_size_medium: 20
   font_size_large: 24

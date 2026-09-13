@@ -30,6 +30,9 @@
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
 #endif
+#ifdef USE_SENDSPIN_VISUALIZER
+#include <sendspin/visualizer_role.h>
+#endif
 
 #include <functional>
 #include <memory>
@@ -89,6 +92,9 @@ class SendspinHub final : public Component,
 // Hufi
 #ifdef USE_SENDSPIN_COLOR
                           public sendspin::ColorRoleListener,
+#endif
+#ifdef USE_SENDSPIN_VISUALIZER
+                          public sendspin::VisualizerRoleListener,
 #endif
 // ifuH
                           public sendspin::SendspinClientListener,
@@ -197,6 +203,14 @@ class SendspinHub final : public Component,
     this->color_clear_callbacks_.add(std::forward<F>(callback));
   }
 #endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  void set_visualizer_config(const sendspin::VisualizerRoleConfig &config) { this->visualizer_config_ = config; }
+
+  template<typename F> void add_spectrum_callback(F &&callback) {
+    this->spectrum_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
 // ifuH
 
 #ifdef USE_SENDSPIN_PLAYER
@@ -282,6 +296,34 @@ class SendspinHub final : public Component,
 
   CallbackManager<void(const sendspin::ServerColorStateObject &)> color_update_callbacks_{};
   CallbackManager<void()> color_clear_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+
+  // Hufi
+  sendspin::VisualizerRoleConfig visualizer_config_{
+      .support{
+          .types = {sendspin::VisualizerDataType::SPECTRUM},
+          .buffer_capacity = 4096,
+          .rate_max = 10,
+          .spectrum = sendspin::VisualizerSpectrumConfig{
+              .n_disp_bins = 32,
+              .scale = sendspin::VisualizerSpectrumScale::MEL,
+              .f_min = 40,
+              .f_max = 16000,
+          },
+      },
+  };
+  // ifuH
+
+  sendspin::VisualizerRole *visualizer_role_{nullptr};
+
+  void on_spectrum(
+      int64_t client_timestamp,
+      const std::vector<uint16_t> &bins) override;
+
+  CallbackManager<void(int64_t, const std::vector<uint16_t> &)> spectrum_callbacks_{};
+
 #endif
 // ifuH
 

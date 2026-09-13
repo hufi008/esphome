@@ -63,6 +63,11 @@ void SendspinHub::setup() {
   this->color_role_ = &this->client_->add_color();
   this->color_role_->set_listener(this);
 #endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  this->visualizer_role_ = &this->client_->add_visualizer(this->visualizer_config_);
+  this->visualizer_role_->set_listener(this);
+#endif
 // ifuH
 
 #ifdef USE_SENDSPIN_PLAYER
@@ -284,6 +289,12 @@ void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
 
 // THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
 void SendspinHub::on_color_clear() { this->color_clear_callbacks_.call(); }
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+void SendspinHub::on_spectrum(int64_t client_timestamp, const std::vector<uint16_t> &bins) {
+  this->spectrum_callbacks_.call(client_timestamp, bins);
+}
 #endif
 // ifuH
 

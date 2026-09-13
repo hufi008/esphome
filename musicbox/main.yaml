@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.6.1
+    version: 0.7.0
   on_boot:
     priority: -100
     then:
@@ -614,6 +614,39 @@ sensor:
         #     id: lvgl_label_track
         #     text: !lambda |-
         #       return str_sprintf("Track: %2.0f", x);
+
+  - platform: sendspin
+    id: sendspin_visualizer
+    type: spectrum
+    rate_max: 32Hz
+    n_disp_bins: 8
+
+    on_spectrum:
+      then:
+        - lvgl.bar.update:
+            id: lvgl_spectrum_0
+            value: !lambda "return x[0];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_1
+            value: !lambda "return x[1];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_2
+            value: !lambda "return x[2];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_3
+            value: !lambda "return x[3];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_4
+            value: !lambda "return x[4];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_5
+            value: !lambda "return x[5];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_6
+            value: !lambda "return x[6];"
+        - lvgl.bar.update:
+            id: lvgl_spectrum_7
+            value: !lambda "return x[7];"
 
   - platform: wifi_signal
     id: wifi_rssi
@@ -1357,19 +1390,19 @@ lvgl:
               text: "MEDIA"
       on_swipe_left:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt"
+        - logger.log: "Page: Nach links gewischt"
         - lvgl.page.next:
             animation: out_left
             time: 300ms
       on_swipe_right:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt"
+        - logger.log: "Page: Nach rechts gewischt"
         - lvgl.page.previous:
             animation: out_right
             time: 300ms
       on_swipe_bottom:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach unten gewischt"
+        - logger.log: "Page: Nach unten gewischt"
         - lvgl.page.show:
             id: lvgl_page_info
             animation: out_bottom
@@ -1670,19 +1703,19 @@ lvgl:
               text: "SETTINGS"
       on_swipe_left:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt"
+        - logger.log: "Page: Nach links gewischt"
         - lvgl.page.next:
             animation: out_left
             time: 300ms
       on_swipe_right:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt"
+        - logger.log: "Page: Nach rechts gewischt"
         - lvgl.page.previous:
             animation: out_right
             time: 300ms
       on_swipe_bottom:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach unten gewischt"
+        - logger.log: "Page: Nach unten gewischt"
         - lvgl.page.show:
             id: lvgl_page_info
             animation: out_bottom
@@ -1700,19 +1733,19 @@ lvgl:
             scrollable: false
             on_swipe_left:
               - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-              - logger.log: "Nach links gewischt"
+              - logger.log: "SB: Nach links gewischt"
               - lvgl.page.next:
                   animation: out_left
                   time: 300ms
             on_swipe_right:
               - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-              - logger.log: "Nach rechts gewischt"
+              - logger.log: "SB: Nach rechts gewischt"
               - lvgl.page.previous:
                   animation: out_right
                   time: 300ms
             on_swipe_bottom:
               - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-              - logger.log: "Nach unten gewischt"
+              - logger.log: "SB: Nach unten gewischt"
               - lvgl.page.show:
                   id: lvgl_page_info
                   animation: out_bottom
@@ -1831,19 +1864,19 @@ lvgl:
           # - script.execute: load_library
       on_swipe_left:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt"
+        - logger.log: "Page: Nach links gewischt"
         - lvgl.page.next:
             animation: out_left
             time: 300ms
       on_swipe_right:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt"
+        - logger.log: "Page: Nach rechts gewischt"
         - lvgl.page.previous:
             animation: out_right
             time: 300ms
       on_swipe_bottom:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach unten gewischt"
+        - logger.log: "Page: Nach unten gewischt"
         - lvgl.page.show:
             id: lvgl_page_info
             animation: out_bottom
@@ -1861,19 +1894,19 @@ lvgl:
             scrollable: false
             on_swipe_left:
               - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-              - logger.log: "Nach links gewischt"
+              - logger.log: "SB: Nach links gewischt"
               - lvgl.page.next:
                   animation: out_left
                   time: 300ms
             on_swipe_right:
               - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-              - logger.log: "Nach rechts gewischt"
+              - logger.log: "SB: Nach rechts gewischt"
               - lvgl.page.previous:
                   animation: out_right
                   time: 300ms
             on_swipe_bottom:
               - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-              - logger.log: "Nach unten gewischt"
+              - logger.log: "SB: Nach unten gewischt"
               - lvgl.page.show:
                   id: lvgl_page_info
                   animation: out_bottom
@@ -1905,6 +1938,157 @@ lvgl:
             # - logger.log:
             #     format: "Roller Index: %d, Text: %s"
             #     args: [ 'x', 'text.c_str()' ]
+
+    - id: lvgl_page_spectrum
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "SPECTRUM"
+
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
+
+      widgets:
+
+        # unsichtbare Statusbar-Swipefläche
+        - obj:
+            x: 0
+            y: 0
+            width: 100%
+            height: 30
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+
+            on_swipe_left:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - lvgl.page.next:
+                  animation: out_left
+                  time: 300ms
+
+            on_swipe_right:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - lvgl.page.previous:
+                  animation: out_right
+                  time: 300ms
+
+            on_swipe_bottom:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - lvgl.page.show:
+                  id: lvgl_page_info
+                  animation: out_bottom
+                  time: 300ms
+              - switch.turn_off: ha_switch_power
+
+        - obj:
+            id: lvgl_spectrum_focus
+            x: 0
+            y: 30
+            width: 1
+            height: 1
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            group: encoder_group
+            click_focusable: true
+            on_focus:
+              then:
+                - lambda: |-
+                    ESP_LOGD(__FILE__, "SPECTRUM: on_focus");
+                - script.execute:
+                    id: show_page
+                    page: lvgl_page_spectrum
+        # Spectrum-Balken
+        - bar:
+            id: lvgl_spectrum_0
+            x: 2%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_1
+            x: 14%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_2
+            x: 26%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_3
+            x: 38%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_4
+            x: 50%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_5
+            x: 62%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_6
+            x: 74%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
+        - bar:
+            id: lvgl_spectrum_7
+            x: 86%
+            y: 40
+            width: 10%
+            height: 75%
+            min_value: 0
+            max_value: 65535
+
 
 select:
   - platform: lvgl

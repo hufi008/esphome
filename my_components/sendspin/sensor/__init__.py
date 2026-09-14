@@ -20,8 +20,14 @@ from .. import (
     sendspin_ns,
     VisualizerDataType,
     VISUALIZER_DATA_SPECTRUM,
-    CONF_N_DISP_BINS,
     CONF_RATE_MAX,
+    CONF_N_DISP_BINS,
+    CONF_SCALE,
+    VISUALIZER_SCALE_MEL,
+    VISUALIZER_SCALE_LOG,
+    VISUALIZER_SCALE_LIN,
+    CONF_F_MIN,
+    CONF_F_MAX,
 )
 
 CODEOWNERS = ["@kahrendt"]
@@ -30,9 +36,10 @@ DEPENDENCIES = ["sendspin"]
 CONF_TRACK = "track"
 CONF_TRACK_PROGRESS = "track_progress"
 CONF_TRACK_DURATION = "track_duration"
+# Hufi
 CONF_SPECTRUM = "spectrum"
 CONF_ON_SPECTRUM = "on_spectrum"
-
+# ifuH
 
 SendspinTrackProgressSensor = sendspin_ns.class_(
     "SendspinTrackProgressSensor",
@@ -116,14 +123,17 @@ CONFIG_SCHEMA = cv.All(
             # Hufi
             CONF_SPECTRUM: cv.Schema({
                 cv.GenerateID(): cv.declare_id(SendspinSpectrum),
-
-                cv.Optional(CONF_RATE_MAX, default="10Hz"): cv.All(
-                    cv.frequency,
-                    cv.float_range(min=1.0, max=60.0),
-                ),
-
+                cv.Optional(CONF_RATE_MAX, default="10Hz"): cv.All(cv.frequency, cv.float_range(min=1.0, max=60.0)),
                 cv.Optional(CONF_N_DISP_BINS, default=32): cv.int_range(min=1, max=255),
-
+                cv.Optional(CONF_SCALE, default="mel"): cv.enum(
+                    {
+                        "mel": VISUALIZER_SCALE_MEL,
+                        "log": VISUALIZER_SCALE_LOG,
+                        "lin": VISUALIZER_SCALE_LIN,
+                    },
+                    lower=True),
+                cv.Optional(CONF_F_MIN, default=40): cv.int_range(min=1, max=65535),
+                cv.Optional(CONF_F_MAX, default=16000): cv.int_range(min=1, max=65535),
                 cv.Optional(CONF_ON_SPECTRUM): automation.validate_automation({}),
             }).extend(_HUB_ID_SCHEMA).extend(cv.COMPONENT_SCHEMA),
             # ifuH

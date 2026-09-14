@@ -216,6 +216,9 @@ media_player:
     on_idle:
       then:
         - logger.log: "SendSpin: on_idle"
+        - lvgl.canvas.fill:
+            id: lvgl_spectrum_canvas
+            color: 0x000000
 
   - id: !extend audio_player
 
@@ -618,8 +621,11 @@ sensor:
   - platform: sendspin
     id: sendspin_visualizer
     type: spectrum
-    rate_max: 32Hz
-    n_disp_bins: 10
+    rate_max: 20Hz
+    n_disp_bins: 8
+    scale: mel
+    f_min: 40
+    f_max: 16000
 
     on_spectrum:
       then:

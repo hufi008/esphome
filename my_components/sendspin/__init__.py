@@ -33,6 +33,9 @@ CONF_DECODE_MEMORY = "decode_memory"
 
 CONF_RATE_MAX = "rate_max"
 CONF_N_DISP_BINS = "n_disp_bins"
+CONF_SCALE = "scale"
+CONF_F_MIN = "f_min"
+CONF_F_MAX = "f_max"
 
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
@@ -57,10 +60,12 @@ IMAGE_SOURCE_ALBUM = SendspinImageSource.enum("ALBUM")
 IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
 
 VisualizerDataType = sendspin_library_ns.enum("VisualizerDataType", is_class=True)
-VISUALIZER_DATA_SPECTRUM = VisualizerDataType.SPECTRUM
+VISUALIZER_DATA_SPECTRUM = VisualizerDataType.enum("SPECTRUM");
 
 VisualizerSpectrumScale = sendspin_library_ns.enum("VisualizerSpectrumScale", is_class=True)
-VISUALIZER_SCALE_MEL = VisualizerSpectrumScale.MEL
+VISUALIZER_SCALE_MEL = VisualizerSpectrumScale.enum("MEL")
+VISUALIZER_SCALE_LOG = VisualizerSpectrumScale.enum("LOG")
+VISUALIZER_SCALE_LIN = VisualizerSpectrumScale.enum("LIN")
 
 # Library Structs
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
@@ -387,9 +392,9 @@ async def to_code(config: ConfigType) -> None:
         spectrum_config = cg.StructInitializer(
             VisualizerSpectrumConfig,
             ("n_disp_bins", visualizer_cfg[CONF_N_DISP_BINS]),
-            ("scale", VISUALIZER_SCALE_MEL),
-            ("f_min", 20),
-            ("f_max", 20000),
+            ("scale", visualizer_cfg[CONF_SCALE]),
+            ("f_min", visualizer_cfg[CONF_F_MIN]),
+            ("f_max", visualizer_cfg[CONF_F_MAX]),
         )
 
         visualizer_support = cg.StructInitializer(

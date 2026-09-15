@@ -54,6 +54,19 @@ external_components:
     components: 
       - my_moon
       - sendspin
+      - color_sensor
+
+color_sensor:
+- platform: sendspin
+  id: sendspin_color_primary
+  type: primary
+- platform: sendspin
+  id: sendspin_color_bg_dark
+  type: background_dark
+- platform: sendspin
+  id: sendspin_color_on_dark
+  type: on_dark
+
 
 # -------------------------------------------------------------------
 # Sensoren

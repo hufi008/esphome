@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.7.0
+    version: 0.7.1
   on_boot:
     priority: -100
     then:
@@ -257,6 +257,77 @@ media_player:
       then:
         - logger.log: "AudioPlayer: on_turn_off"
       
+color_sensor:
+  - id: !extend sendspin_color_primary
+    on_color:
+      then:
+        - logger.log:
+            format: "Primary: r=%u g=%u b=%u w=%u"
+            args: [ 'x.r', 'x.g', 'x.b', 'x.w' ]
+        - light.turn_on:
+            id: onboard_led
+            effect: None
+            red: !lambda return x.r / 255.0f;
+            green: !lambda return x.g / 255.0f;
+            blue: !lambda return x.b / 255.0f;
+            brightness: 0.25
+    on_clear:
+      then:
+        - logger.log:
+            format: "Primary: off"
+        - light.turn_off:
+            id: onboard_led
+
+  - id: !extend sendspin_color_bg_dark
+    on_color:
+      then:
+        - logger.log:
+            format: "BG_Dark: r=%d g=%d b=%d"
+            args: [ 'x.r', 'x.g', 'x.b' ]
+        - lvgl.page.update:
+            id: lvgl_page_media
+            bg_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+    on_clear:
+      then:
+        - lvgl.page.update:
+            id: lvgl_page_media
+            bg_color: !lambda |-
+              return lv_color_make(0x30, 0x30, 0x30);
+
+  - id: !extend sendspin_color_on_dark
+    on_color:
+      then:
+        - logger.log:
+            format: "on_Dark: r=%d g=%d b=%d"
+            args: [ 'x.r', 'x.g', 'x.b' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+    on_clear:
+      then:
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text_color: !lambda |-
+              return lv_color_make(0xd0, 0xd0, 0xd0);
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text_color: !lambda |-
+              return lv_color_make(0xd0, 0xd0, 0xd0);
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text_color: !lambda |-
+              return lv_color_make(0xd0, 0xd0, 0xd0);
+
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------
@@ -425,62 +496,62 @@ text_sensor:
             text: !lambda 'return x;'
 
 
-  - platform: sendspin
-    id: sendspin_primary
-    type: primary
-    name: Color Primary
-    on_value:
-      then:
-        - logger.log:
-            format: "Primary: %s"
-            args: [ 'x.c_str()' ]
-        - light.turn_on:
-            id: onboard_led
-            effect: None 
-            red: !lambda return sendspin_::to_color(x).r / 255.0f;
-            green: !lambda return sendspin_::to_color(x).g / 255.0f;
-            blue: !lambda return sendspin_::to_color(x).b / 255.0f;
-            brightness: 0.25
+  # - platform: sendspin
+  #   id: sendspin_primary
+  #   type: primary
+  #   name: Color Primary
+  #   on_value:
+  #     then:
+  #       - logger.log:
+  #           format: "Primary: %s"
+  #           args: [ 'x.c_str()' ]
+  #       - light.turn_on:
+  #           id: onboard_led
+  #           effect: None 
+  #           red: !lambda return sendspin_::to_color(x).r / 255.0f;
+  #           green: !lambda return sendspin_::to_color(x).g / 255.0f;
+  #           blue: !lambda return sendspin_::to_color(x).b / 255.0f;
+  #           brightness: 0.25
 
-  - platform: sendspin
-    id: sendspin_bg_dark
-    type: background_dark
-    name: Color BG_Dark
-    on_value:
-      then:
-        - logger.log:
-            format: "BG_Dark: %s"
-            args: [ 'x.c_str()' ]
-        - lvgl.page.update:
-            id: lvgl_page_media
-            bg_color: !lambda |-
-              if (x.empty()) x = "#303030";
-              return sendspin_::to_color(x);
+  # - platform: sendspin
+  #   id: sendspin_bg_dark
+  #   type: background_dark
+  #   name: Color BG_Dark
+  #   on_value:
+  #     then:
+  #       - logger.log:
+  #           format: "BG_Dark: %s"
+  #           args: [ 'x.c_str()' ]
+  #       - lvgl.page.update:
+  #           id: lvgl_page_media
+  #           bg_color: !lambda |-
+  #             if (x.empty()) x = "#303030";
+  #             return sendspin_::to_color(x);
 
-  - platform: sendspin
-    id: sendspin_on_dark
-    type: on_dark
-    name: Color on_Dark
-    on_value:
-      then:
-        - logger.log:
-            format: "on_Dark: %s"
-            args: [ 'x.c_str()' ]
-        - lvgl.label.update:
-            id: lvgl_label_media_title
-            text_color: !lambda |-
-              if (x.empty()) x = "#d0d0d0";
-              return sendspin_::to_color(x);
-        - lvgl.label.update:
-            id: lvgl_label_media_artist
-            text_color: !lambda |-
-              if (x.empty()) x = "#d0d0d0";
-              return sendspin_::to_color(x);
-        - lvgl.label.update:
-            id: lvgl_label_media_album
-            text_color: !lambda |-
-              if (x.empty()) x = "#d0d0d0";
-              return sendspin_::to_color(x);
+  # - platform: sendspin
+  #   id: sendspin_on_dark
+  #   type: on_dark
+  #   name: Color on_Dark
+  #   on_value:
+  #     then:
+  #       - logger.log:
+  #           format: "on_Dark: %s"
+  #           args: [ 'x.c_str()' ]
+  #       - lvgl.label.update:
+  #           id: lvgl_label_media_title
+  #           text_color: !lambda |-
+  #             if (x.empty()) x = "#d0d0d0";
+  #             return sendspin_::to_color(x);
+  #       - lvgl.label.update:
+  #           id: lvgl_label_media_artist
+  #           text_color: !lambda |-
+  #             if (x.empty()) x = "#d0d0d0";
+  #             return sendspin_::to_color(x);
+  #       - lvgl.label.update:
+  #           id: lvgl_label_media_album
+  #           text_color: !lambda |-
+  #             if (x.empty()) x = "#d0d0d0";
+  #             return sendspin_::to_color(x);
 
 
 # -------------------------------------------------------------------

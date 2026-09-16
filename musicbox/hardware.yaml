@@ -55,6 +55,7 @@ external_components:
       - my_moon
       - sendspin
       - color_sensor
+      - visualizer
 
 color_sensor:
 - platform: sendspin
@@ -67,6 +68,63 @@ color_sensor:
   id: sendspin_color_on_dark
   type: on_dark
 
+visualizer:
+  - platform: sendspin
+    id: test_visualizer
+    type: spectrum
+    rate_max: 20Hz
+    n_disp_bins: 8
+    scale: mel
+    f_min: 40
+    f_max: 16000
+
+
+    on_spectrum:
+      then:
+        - lambda: |-
+            auto *c = id(lvgl_spectrum_canvas);
+            if (!c || x.empty())
+              return;
+
+            lv_canvas_fill_bg(c, lv_color_hex(0x000000), LV_OPA_COVER);
+
+            lv_layer_t layer;
+            lv_canvas_init_layer(c, &layer);
+
+            lv_draw_rect_dsc_t d;
+            lv_draw_rect_dsc_init(&d);
+            d.bg_opa = LV_OPA_COVER;
+
+            const int w = lv_obj_get_width(c);
+            const int h = lv_obj_get_height(c);
+            const int gap = 2;
+            const int segments = 20;
+
+            const int sw = (w - (x.size() - 1) * gap) / x.size();
+            const int sh = (h - (segments - 1) * gap) / segments;
+
+            for (int i = 0; i < x.size(); i++) {
+              const int n = std::min(segments, x[i] * segments / 48000);
+
+              for (int s = 0; s < n; s++) {
+                d.bg_color = lv_color_hex(
+                    s < 14 ? 0x00D000 :
+                    s < 18 ? 0xFFD000 :
+                            0xFF2020);
+
+                lv_area_t a{
+                  i * (sw + gap),
+                  h - (s + 1) * (sh + gap),
+                  i * (sw + gap) + sw - 1,
+                  h - (s + 1) * (sh + gap) + sh - 1
+                };
+
+                lv_draw_rect(&layer, &d, &a);
+              }
+            }
+
+            lv_canvas_finish_layer(c, &layer);
+            lv_obj_invalidate(c);
 
 # -------------------------------------------------------------------
 # Sensoren

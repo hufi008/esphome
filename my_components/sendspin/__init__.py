@@ -97,14 +97,6 @@ SendspinHub = sendspin_ns.class_(
     cg.Component,
 )
 
-# Hufi
-SendspinSpectrum = sendspin_ns.class_(
-    "SendspinSpectrum",
-    cg.Component,
-    cg.Parented.template(SendspinHub),
-)
-# ifuH
-
 SendspinSwitchCommandAction = sendspin_ns.class_(
     "SendspinSwitchCommandAction",
     automation.Action,
@@ -194,7 +186,7 @@ def register_player_config(config: ConfigType) -> None:
 
 # Hufi
 def register_visualizer_config(config: ConfigType) -> None:
-    """Register the visualizer role config from the sensor subcomponent."""
+    """Register the visualizer role config from the visualizer subcomponent."""
     data = _get_data()
     request_visualizer_support()
     if data.visualizer_config is not None:

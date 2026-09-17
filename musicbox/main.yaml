@@ -410,6 +410,10 @@ visualizer:
         - lambda: |-
             ESP_LOGD("sendspin_visualizer", "Peak: %u", x);
             id(spectrum_peak_flash) = std::max(id(spectrum_peak_flash), x);
+    on_beat:
+      then:
+        - lambda: |-
+            ESP_LOGD("sendspin_visualizer", "Beat:");
 
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin

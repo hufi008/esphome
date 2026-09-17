@@ -71,7 +71,6 @@ color_sensor:
 visualizer:
   - platform: sendspin
     id: sendspin_visualizer
-    type: spectrum
     rate_max: 20Hz
     n_disp_bins: 8
     scale: mel

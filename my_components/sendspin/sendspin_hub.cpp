@@ -321,6 +321,10 @@ void SendspinHub::on_beat(int64_t client_timestamp, bool downbeat) {
 void SendspinHub::on_f_peak(int64_t client_timestamp, uint16_t frequency_hz, uint16_t amplitude) {
   this->f_peak_callbacks_.call(client_timestamp, frequency_hz, amplitude);
 }
+void SendspinHub::on_loudness(int64_t client_timestamp, uint16_t loudness) {
+  ESP_LOGD("sendspin_hub", "Loudness: %u", loudness);
+  this->loudness_callbacks_.call(client_timestamp, loudness);
+}
 
 #endif
 

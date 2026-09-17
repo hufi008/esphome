@@ -64,6 +64,7 @@ VISUALIZER_DATA_SPECTRUM = VisualizerDataType.enum("SPECTRUM")
 VISUALIZER_DATA_PEAK = VisualizerDataType.enum("PEAK")
 VISUALIZER_DATA_BEAT = VisualizerDataType.enum("BEAT")
 VISUALIZER_DATA_F_PEAK = VisualizerDataType.enum("F_PEAK")
+VISUALIZER_DATA_LOUDNESS = VisualizerDataType.enum("LOUDNESS")
 
 VisualizerSpectrumScale = sendspin_library_ns.enum("VisualizerSpectrumScale", is_class=True)
 VISUALIZER_SCALE_MEL = VisualizerSpectrumScale.enum("MEL")
@@ -399,6 +400,7 @@ async def to_code(config: ConfigType) -> None:
                 VISUALIZER_DATA_PEAK,
                 VISUALIZER_DATA_BEAT,
                 VISUALIZER_DATA_F_PEAK,
+                VISUALIZER_DATA_LOUDNESS,
             ]),
             ("buffer_capacity", 4096),
             ("rate_max", int(visualizer_cfg[CONF_RATE_MAX])),

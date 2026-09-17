@@ -481,6 +481,12 @@ visualizer:
 
             lv_canvas_finish_layer(c, &layer);
 
+    on_loudness:
+      then:
+        - lambda: |-
+            ESP_LOGD("sendspin_visualizer", "Loudness: %u", x);
+
+            
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------

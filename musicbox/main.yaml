@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.7.1
+    version: 0.7.5
   on_boot:
     priority: -100
     then:
@@ -381,10 +381,11 @@ visualizer:
                 d.bg_color = lv_color_hex(
                     s < n
                         ? (s < 13 ? 0x00D000 :
-                           s < 17 ? 0xFFD000 :
+                          s < 17 ? 0xFFD000 :
                                     0xFF2020)
-                        : 0x000000);
-
+                        : (s < 13 ? 0x003000 :
+                          s < 17 ? 0x403500 :
+                                    0x400808));
                 lv_area_t a{
                   i * (sw + gap),
                   effect_height +
@@ -481,6 +482,12 @@ visualizer:
 
             lv_canvas_finish_layer(c, &layer);
 
+    on_loudness:
+      then:
+        - lambda: |-
+            // ESP_LOGD("sendspin.visualizer", "Loudness: %u", x);
+
+            
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------

@@ -206,9 +206,9 @@ class SendspinHub final : public Component,
 
 #ifdef USE_SENDSPIN_VISUALIZER
 
-  void on_visualizer_stream_start(
-      const sendspin::ServerVisualizerStreamObject &stream) override;
+  void on_visualizer_stream_start(const sendspin::ServerVisualizerStreamObject &stream) override;
 
+  const sendspin::VisualizerRoleConfig &get_visualizer_config() const { return this->visualizer_config_; }
   void set_visualizer_config(const sendspin::VisualizerRoleConfig &config) { this->visualizer_config_ = config; }
 
   template<typename F> void add_spectrum_callback(F &&callback) {
@@ -223,9 +223,12 @@ class SendspinHub final : public Component,
     this->beat_callbacks_.add(std::forward<F>(callback));
   }
 
-  template<typename F>
-  void add_f_peak_callback(F &&callback) {
+  template<typename F> void add_f_peak_callback(F &&callback) {
     this->f_peak_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_loudness_callback(F &&callback) {
+    this->loudness_callbacks_.add(std::forward<F>(callback));
   }
 #endif
 // ifuH
@@ -329,11 +332,14 @@ class SendspinHub final : public Component,
 
   void on_f_peak(int64_t client_timestamp, uint16_t frequency_hz, uint16_t amplitude) override;
 
-  
+  void on_loudness(int64_t client_timestamp, uint16_t loudness) override;
+
+
   CallbackManager<void(int64_t, const std::vector<uint16_t> &)> spectrum_callbacks_{};
   CallbackManager<void(int64_t, uint8_t)> peak_callbacks_{};
   CallbackManager<void(int64_t, bool)> beat_callbacks_{};
   CallbackManager<void(int64_t, uint16_t, uint16_t)> f_peak_callbacks_{};
+  CallbackManager<void(int64_t, uint16_t)> loudness_callbacks_{};
 #endif
 // ifuH
 

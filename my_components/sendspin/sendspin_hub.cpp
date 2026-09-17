@@ -318,6 +318,9 @@ void SendspinHub::on_peak(int64_t client_timestamp, uint8_t strength) {
 void SendspinHub::on_beat(int64_t client_timestamp, bool downbeat) {
   this->beat_callbacks_.call(client_timestamp, downbeat);
 }
+void SendspinHub::on_f_peak(int64_t client_timestamp, uint16_t frequency_hz, uint16_t amplitude) {
+  this->f_peak_callbacks_.call(client_timestamp, frequency_hz, amplitude);
+}
 
 #endif
 

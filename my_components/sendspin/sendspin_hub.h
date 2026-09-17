@@ -222,6 +222,11 @@ class SendspinHub final : public Component,
   template<typename F> void add_beat_callback(F &&callback) {
     this->beat_callbacks_.add(std::forward<F>(callback));
   }
+
+  template<typename F>
+  void add_f_peak_callback(F &&callback) {
+    this->f_peak_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 // ifuH
 
@@ -322,9 +327,13 @@ class SendspinHub final : public Component,
 
   void on_beat(int64_t client_timestamp, bool downbeat) override;
 
+  void on_f_peak(int64_t client_timestamp, uint16_t frequency_hz, uint16_t amplitude) override;
+
+  
   CallbackManager<void(int64_t, const std::vector<uint16_t> &)> spectrum_callbacks_{};
   CallbackManager<void(int64_t, uint8_t)> peak_callbacks_{};
   CallbackManager<void(int64_t, bool)> beat_callbacks_{};
+  CallbackManager<void(int64_t, uint16_t, uint16_t)> f_peak_callbacks_{};
 #endif
 // ifuH
 

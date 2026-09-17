@@ -60,9 +60,10 @@ IMAGE_SOURCE_ALBUM = SendspinImageSource.enum("ALBUM")
 IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
 
 VisualizerDataType = sendspin_library_ns.enum("VisualizerDataType", is_class=True)
-VISUALIZER_DATA_SPECTRUM = VisualizerDataType.enum("SPECTRUM");
-VISUALIZER_DATA_PEAK = VisualizerDataType.enum("PEAK");
+VISUALIZER_DATA_SPECTRUM = VisualizerDataType.enum("SPECTRUM")
+VISUALIZER_DATA_PEAK = VisualizerDataType.enum("PEAK")
 VISUALIZER_DATA_BEAT = VisualizerDataType.enum("BEAT")
+VISUALIZER_DATA_F_PEAK = VisualizerDataType.enum("F_PEAK")
 
 VisualizerSpectrumScale = sendspin_library_ns.enum("VisualizerSpectrumScale", is_class=True)
 VISUALIZER_SCALE_MEL = VisualizerSpectrumScale.enum("MEL")
@@ -397,6 +398,7 @@ async def to_code(config: ConfigType) -> None:
                 VISUALIZER_DATA_SPECTRUM,
                 VISUALIZER_DATA_PEAK,
                 VISUALIZER_DATA_BEAT,
+                VISUALIZER_DATA_F_PEAK,
             ]),
             ("buffer_capacity", 4096),
             ("rate_max", int(visualizer_cfg[CONF_RATE_MAX])),

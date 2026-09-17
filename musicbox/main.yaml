@@ -439,6 +439,48 @@ visualizer:
         - lambda: |-
             ESP_LOGD("sendspin_visualizer", "Beat:");
 
+    on_f_peak:
+      then:
+        - lambda: |-
+            // ESP_LOGD("sendspin_visualizer", "F-peak: %u Hz, amplitude=%u", frequency_hz, amplitude);
+            auto *c = id(lvgl_spectrum_canvas);
+            if (!c || !lv_obj_is_visible(c) || frequency_hz == 0 || amplitude == 0)
+              return;
+
+            const int w = lv_obj_get_width(c);
+            const int effect_height = 20;
+
+            const float f_min = 40.0f;
+            const float f_max = 16000.0f;
+
+            const float fx =
+                (std::log2(static_cast<float>(frequency_hz)) - std::log2(f_min)) /
+                (std::log2(f_max) - std::log2(f_min));
+
+            const int center_x = fx * (w - 1);
+
+            const int radius =
+                1 + amplitude * (effect_height / 2 - 1) / 65535;
+
+            lv_layer_t layer;
+            lv_canvas_init_layer(c, &layer);
+
+            lv_draw_arc_dsc_t d;
+            lv_draw_arc_dsc_init(&d);
+
+            d.color = lv_color_hex(0xFFFFFF);
+            d.opa = LV_OPA_COVER;
+            d.center.x = center_x;
+            d.center.y = effect_height / 2;
+            d.radius = radius;
+            d.width = radius;
+            d.start_angle = 0;
+            d.end_angle = 360;
+
+            lv_draw_arc(&layer, &d);
+
+            lv_canvas_finish_layer(c, &layer);
+
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------

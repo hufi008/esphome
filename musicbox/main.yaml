@@ -367,51 +367,101 @@ visualizer:
 
             lv_draw_rect_dsc_t d;
             lv_draw_rect_dsc_init(&d);
+            d.bg_opa = LV_OPA_COVER;
 
             const int w = lv_obj_get_width(c);
             const int h = lv_obj_get_height(c);
             const int gap = 2;
-
             const int loudness_width = 10;
             const int f_peak_height = 10;
+            const int segments = 19;
+            const int bins = x.size();
 
             const int spectrum_width = w - loudness_width;
             const int spectrum_height = h - f_peak_height;
-            const int segments = 19;
 
-            const int sh =
-                (spectrum_height - (segments - 1) * gap) / segments;
-            const int sw =
-                (spectrum_width - (x.size() - 1) * gap) / x.size();
+            const int sw = (spectrum_width - (bins - 1) * gap) / bins;
+            const int sh = (spectrum_height - (segments - 1) * gap) / segments;
 
-            // LOUDNESS
-            const int loudness_n =
-                id(visualizer_loudness) * segments / 48000;
-            const int loudness_remainder =
-                id(visualizer_loudness) * segments % 48000;
-            const uint8_t loudness_partial =
-                loudness_remainder * 255 / 48000;
+            const int dx = sw + gap;
+            const int dy = sh + gap;
 
-            for (int s = 0; s < segments; s++) {
-              lv_area_t a{
-                0,
-                spectrum_height - (s + 1) * (sh + gap),
-                loudness_width - 1,
-                spectrum_height - (s + 1) * (sh + gap) + sh - 1
-              };
+            const float step = 48000.0f / segments;
 
-              d.bg_opa = LV_OPA_COVER;
-              d.bg_color = lv_color_hex(0x202020);
-              lv_draw_rect(&layer, &d, &a);
+            const lv_color_t green = lv_color_hex(0x00D000);
+            const lv_color_t dark_green = lv_color_hex(0x003000);
+            const lv_color_t yellow = lv_color_hex(0xFFD000);
+            const lv_color_t dark_yellow = lv_color_hex(0x403500);
+            const lv_color_t red = lv_color_hex(0xFF2020);
+            const lv_color_t dark_red = lv_color_hex(0x400808);
+            const lv_color_t dark_loudness = lv_color_hex(0x202020);
 
-              if (s < loudness_n) {
-                d.bg_color = lv_color_hex(0xFFFFFF);
-                lv_draw_rect(&layer, &d, &a);
-              } else if (s == loudness_n && loudness_n < segments && loudness_partial > 0) {
-                d.bg_color = lv_color_hex(0xFFFFFF);
-                d.bg_opa = loudness_partial;
-                lv_draw_rect(&layer, &d, &a);
+            float loudness_level = id(visualizer_loudness);
+            int y = spectrum_height - sh;
+
+            for (int ix = 0; ix < bins; ix++) {
+              float level = x[ix];
+
+              const int px = loudness_width + ix * dx;
+
+              for (int iy = 0; iy < segments; iy++) {
+                if (ix == 0) {
+                  const uint8_t loudness_brightness =
+                      loudness_level <= 0
+                          ? 0
+                          : std::min(255.0f, loudness_level * 255.0f / step);
+
+                  d.bg_color = lv_color_mix(
+                      lv_color_hex(0xFFFFFF),
+                      dark_loudness,
+                      loudness_brightness);
+
+                  lv_area_t loudness_area{
+                    0,
+                    y,
+                    loudness_width - 1,
+                    y + sh - 1
+                  };
+
+                  lv_draw_rect(&layer, &d, &loudness_area);
+
+                  loudness_level -= step;
+                }
+
+                const uint8_t brightness =
+                    level <= 0
+                        ? 0
+                        : std::min(255.0f, level * 255.0f / step);
+
+                const lv_color_t full_color =
+                    iy < 13 ? green :
+                    iy < 17 ? yellow :
+                              red;
+
+                const lv_color_t dark_color =
+                    iy < 13 ? dark_green :
+                    iy < 17 ? dark_yellow :
+                              dark_red;
+
+                d.bg_color = lv_color_mix(
+                    full_color,
+                    dark_color,
+                    brightness);
+
+                lv_area_t spectrum_area{
+                  px,
+                  y,
+                  px + sw - 1,
+                  y + sh - 1
+                };
+
+                lv_draw_rect(&layer, &d, &spectrum_area);
+
+                level -= step;
+                y -= dy;
               }
+
+              y = spectrum_height - sh;
             }
 
             // F-PEAK
@@ -425,51 +475,52 @@ visualizer:
                   (std::log2(frequency) - std::log2(40.0f)) /
                   (std::log2(16000.0f) - std::log2(40.0f));
 
-              f_peak_column = fx * (x.size() - 1) + 0.5f;
+              f_peak_column = fx * (bins - 1) + 0.5f;
             }
 
-            const uint8_t blue =
-                32 + amplitude * (255 - 32) / 65535;
+            const uint8_t blue = 32 + amplitude * 223 / 65535;
 
-            d.bg_opa = LV_OPA_COVER;
+            int px = loudness_width;
 
-            for (int i = 0; i < x.size(); i++) {
+            for (int ix = 0; ix < bins; ix++) {
               d.bg_color = lv_color_make(
                   0,
                   0,
-                  i <= f_peak_column ? blue : 32);
+                  ix <= f_peak_column ? blue : 32);
 
-              lv_area_t a{
-                loudness_width + i * (sw + gap),
+              lv_area_t f_peak_area{
+                px,
                 h - f_peak_height,
-                loudness_width + i * (sw + gap) + sw - 1,
+                px + sw - 1,
                 h - 1
               };
 
-              lv_draw_rect(&layer, &d, &a);
+              lv_draw_rect(&layer, &d, &f_peak_area);
+
+              px += dx;
             }
 
             // PEAK
             d.bg_color = lv_color_hex(0x202010);
 
-            lv_area_t peak_bg{
+            lv_area_t peak_area{
               0,
               h - f_peak_height,
               loudness_width - 1,
               h - 1
             };
 
-            lv_draw_rect(&layer, &d, &peak_bg);
+            lv_draw_rect(&layer, &d, &peak_area);
 
             const uint8_t peak = id(visualizer_peak);
 
             if (peak > 0) {
-              int peak_radius = std::log2(peak);
+              int radius = std::log2(peak);
 
-              if (peak_radius < 1)
-                peak_radius = 1;
-              if (peak_radius > 4)
-                peak_radius = 4;
+              if (radius < 1)
+                radius = 1;
+              if (radius > 4)
+                radius = 4;
 
               lv_draw_arc_dsc_t arc;
               lv_draw_arc_dsc_init(&arc);
@@ -478,54 +529,15 @@ visualizer:
               arc.opa = LV_OPA_COVER;
               arc.center.x = loudness_width / 2;
               arc.center.y = h - f_peak_height / 2;
-              arc.radius = peak_radius;
-              arc.width = peak_radius;
+              arc.radius = radius;
+              arc.width = radius;
               arc.start_angle = 0;
               arc.end_angle = 360;
 
               lv_draw_arc(&layer, &arc);
             }
 
-            // SPECTRUM
-            for (int i = 0; i < x.size(); i++) {
-              const int n = x[i] * segments / 48000;
-              const int remainder = x[i] * segments % 48000;
-              const uint8_t partial = remainder * 255 / 48000;
-
-              for (int s = 0; s < segments; s++) {
-                lv_color_t full_color;
-                lv_color_t dark_color;
-
-                if (s < 13) {
-                  full_color = lv_color_hex(0x00D000);
-                  dark_color = lv_color_hex(0x003000);
-                } else if (s < 17) {
-                  full_color = lv_color_hex(0xFFD000);
-                  dark_color = lv_color_hex(0x403500);
-                } else {
-                  full_color = lv_color_hex(0xFF2020);
-                  dark_color = lv_color_hex(0x400808);
-                }
-
-                d.bg_opa = LV_OPA_COVER;
-
-                if (s < n)
-                  d.bg_color = full_color;
-                else if (s == n && partial > 0)
-                  d.bg_color = lv_color_mix(full_color, dark_color, partial);
-                else
-                  d.bg_color = dark_color;
-
-                lv_area_t a{
-                  loudness_width + i * (sw + gap),
-                  spectrum_height - (s + 1) * (sh + gap),
-                  loudness_width + i * (sw + gap) + sw - 1,
-                  spectrum_height - (s + 1) * (sh + gap) + sh - 1
-                };
-
-                lv_draw_rect(&layer, &d, &a);
-              }
-            }
+            id(visualizer_peak) = 0;
 
             lv_canvas_finish_layer(c, &layer);
 

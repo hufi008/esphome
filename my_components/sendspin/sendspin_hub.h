@@ -207,9 +207,16 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_VISUALIZER
   void set_visualizer_config(const sendspin::VisualizerRoleConfig &config) { this->visualizer_config_ = config; }
 
-  template<typename F> void add_spectrum_callback(F &&callback) {
+  template<typename F>
+  void add_spectrum_callback(F &&callback) {
     this->spectrum_callbacks_.add(std::forward<F>(callback));
   }
+
+  template<typename F>
+  void add_peak_callback(F &&callback) {
+    this->peak_callbacks_.add(std::forward<F>(callback));
+  }
+
 #endif
 // ifuH
 
@@ -298,35 +305,24 @@ class SendspinHub final : public Component,
   CallbackManager<void()> color_clear_callbacks_{};
 #endif
 
+// Hufi
+
 #ifdef USE_SENDSPIN_VISUALIZER
-
-  // Hufi
-  sendspin::VisualizerRoleConfig visualizer_config_{
-      .support{
-          .types = {sendspin::VisualizerDataType::SPECTRUM},
-          .buffer_capacity = 4096,
-          .rate_max = 10,
-          .spectrum = sendspin::VisualizerSpectrumConfig{
-              .n_disp_bins = 32,
-              .scale = sendspin::VisualizerSpectrumScale::MEL,
-              .f_min = 40,
-              .f_max = 16000,
-          },
-      },
-  };
-  // ifuH
-
   sendspin::VisualizerRole *visualizer_role_{nullptr};
+  sendspin::VisualizerRoleConfig visualizer_config_{};
 
   void on_spectrum(
       int64_t client_timestamp,
       const std::vector<uint16_t> &bins) override;
 
-  CallbackManager<void(int64_t, const std::vector<uint16_t> &)> spectrum_callbacks_{};
+  void on_peak(
+      int64_t client_timestamp,
+      uint8_t strength) override;
 
+  CallbackManager<void(int64_t, const std::vector<uint16_t> &)> spectrum_callbacks_{};
+  CallbackManager<void(int64_t, uint8_t)> peak_callbacks_{};
 #endif
 // ifuH
-
 
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};

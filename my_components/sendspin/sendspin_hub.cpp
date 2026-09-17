@@ -295,7 +295,13 @@ void SendspinHub::on_color_clear() { this->color_clear_callbacks_.call(); }
 void SendspinHub::on_spectrum(int64_t client_timestamp, const std::vector<uint16_t> &bins) {
   this->spectrum_callbacks_.call(client_timestamp, bins);
 }
+void SendspinHub::on_peak(int64_t client_timestamp, uint8_t strength) {
+  this->peak_callbacks_.call(client_timestamp, strength);
+}
+
+
 #endif
+
 // ifuH
 
 #ifdef USE_SENDSPIN_PLAYER

@@ -53,6 +53,11 @@ globals:
     type: std::vector<std::string>
     initial_value: 'std::vector<std::string>()'
 
+  - id: spectrum_peak_flash
+    type: uint8_t
+    restore_value: no
+    initial_value: '0'
+
 api:
   on_client_connected:
     then:
@@ -328,6 +333,84 @@ color_sensor:
             text_color: !lambda |-
               return lv_color_make(0xd0, 0xd0, 0xd0);
 
+visualizer:
+  - id: !extend sendspin_visualizer
+    on_spectrum:
+      then:
+        - lambda: |-
+            auto *c = id(lvgl_spectrum_canvas);
+            if (!c || x.empty())
+              return;
+
+            lv_layer_t layer;
+            lv_canvas_init_layer(c, &layer);
+
+            lv_draw_rect_dsc_t d;
+            lv_draw_rect_dsc_init(&d);
+            d.bg_opa = LV_OPA_COVER;
+
+            const int w = lv_obj_get_width(c);
+            const int h = lv_obj_get_height(c);
+            const int gap = 2;
+
+            const int total_segments = 20;
+            const int spectrum_segments = 19;
+
+            const int sh =
+                (h - (total_segments - 1) * gap) / total_segments;
+            const int sw =
+                (w - (x.size() - 1) * gap) / x.size();
+
+            const uint8_t peak = id(spectrum_peak_flash);
+
+            for (int i = 0; i < x.size(); i++) {
+              const int n = std::min(
+                  spectrum_segments,
+                  x[i] * spectrum_segments / 48000);
+
+              for (int s = 0; s < spectrum_segments; s++) {
+                lv_color_t color = lv_color_hex(
+                    s < n
+                        ? (s < 13 ? 0x00D000 :
+                          s < 17 ? 0xFFD000 :
+                                    0xFF2020)
+                        : 0x000000);
+
+                if (peak > 0 && s < n) {
+                  const int r = color.red;
+                  const int g = color.green;
+                  const int b = color.blue;
+                  const int flash = peak;
+
+                  color = lv_color_make(
+                      r + (255 - r) * flash / 255,
+                      g + (255 - g) * flash / 255,
+                      b + (255 - b) * flash / 255);
+                }
+
+                d.bg_color = color;
+
+                lv_area_t a{
+                    i * (sw + gap),
+                    h - (s + 1) * (sh + gap),
+                    i * (sw + gap) + sw - 1,
+                    h - (s + 1) * (sh + gap) + sh - 1};
+
+                lv_draw_rect(&layer, &d, &a);
+              }
+            }
+
+            id(spectrum_peak_flash) /= 1.7;
+
+            lv_canvas_finish_layer(c, &layer);
+            lv_obj_invalidate(c);
+
+    on_peak:
+      then:
+        - lambda: |-
+            ESP_LOGD("sendspin_visualizer", "Peak: %u", x);
+            id(spectrum_peak_flash) = std::max(id(spectrum_peak_flash), x);
+
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------
@@ -495,65 +578,6 @@ text_sensor:
             id: lvgl_label_media_album
             text: !lambda 'return x;'
 
-
-  # - platform: sendspin
-  #   id: sendspin_primary
-  #   type: primary
-  #   name: Color Primary
-  #   on_value:
-  #     then:
-  #       - logger.log:
-  #           format: "Primary: %s"
-  #           args: [ 'x.c_str()' ]
-  #       - light.turn_on:
-  #           id: onboard_led
-  #           effect: None 
-  #           red: !lambda return sendspin_::to_color(x).r / 255.0f;
-  #           green: !lambda return sendspin_::to_color(x).g / 255.0f;
-  #           blue: !lambda return sendspin_::to_color(x).b / 255.0f;
-  #           brightness: 0.25
-
-  # - platform: sendspin
-  #   id: sendspin_bg_dark
-  #   type: background_dark
-  #   name: Color BG_Dark
-  #   on_value:
-  #     then:
-  #       - logger.log:
-  #           format: "BG_Dark: %s"
-  #           args: [ 'x.c_str()' ]
-  #       - lvgl.page.update:
-  #           id: lvgl_page_media
-  #           bg_color: !lambda |-
-  #             if (x.empty()) x = "#303030";
-  #             return sendspin_::to_color(x);
-
-  # - platform: sendspin
-  #   id: sendspin_on_dark
-  #   type: on_dark
-  #   name: Color on_Dark
-  #   on_value:
-  #     then:
-  #       - logger.log:
-  #           format: "on_Dark: %s"
-  #           args: [ 'x.c_str()' ]
-  #       - lvgl.label.update:
-  #           id: lvgl_label_media_title
-  #           text_color: !lambda |-
-  #             if (x.empty()) x = "#d0d0d0";
-  #             return sendspin_::to_color(x);
-  #       - lvgl.label.update:
-  #           id: lvgl_label_media_artist
-  #           text_color: !lambda |-
-  #             if (x.empty()) x = "#d0d0d0";
-  #             return sendspin_::to_color(x);
-  #       - lvgl.label.update:
-  #           id: lvgl_label_media_album
-  #           text_color: !lambda |-
-  #             if (x.empty()) x = "#d0d0d0";
-  #             return sendspin_::to_color(x);
-
-
 # -------------------------------------------------------------------
 # Wifi und Sensoren
 # -------------------------------------------------------------------
@@ -688,63 +712,6 @@ sensor:
         #     id: lvgl_label_track
         #     text: !lambda |-
         #       return str_sprintf("Track: %2.0f", x);
-
-  # - platform: sendspin
-  #   id: sendspin_visualizer
-  #   type: spectrum
-  #   rate_max: 20Hz
-  #   n_disp_bins: 8
-  #   scale: mel
-  #   f_min: 40
-  #   f_max: 16000
-
-  #   on_spectrum:
-  #     then:
-  #       - lambda: |-
-  #           auto *c = id(lvgl_spectrum_canvas);
-  #           if (!c || x.empty())
-  #             return;
-
-  #           lv_canvas_fill_bg(c, lv_color_hex(0x000000), LV_OPA_COVER);
-
-  #           lv_layer_t layer;
-  #           lv_canvas_init_layer(c, &layer);
-
-  #           lv_draw_rect_dsc_t d;
-  #           lv_draw_rect_dsc_init(&d);
-  #           d.bg_opa = LV_OPA_COVER;
-
-  #           const int w = lv_obj_get_width(c);
-  #           const int h = lv_obj_get_height(c);
-  #           const int gap = 2;
-  #           const int segments = 20;
-
-  #           const int sw = (w - (x.size() - 1) * gap) / x.size();
-  #           const int sh = (h - (segments - 1) * gap) / segments;
-
-  #           for (int i = 0; i < x.size(); i++) {
-  #             const int n = std::min(segments, x[i] * segments / 48000);
-
-  #             for (int s = 0; s < n; s++) {
-  #               d.bg_color = lv_color_hex(
-  #                   s < 14 ? 0x00D000 :
-  #                   s < 18 ? 0xFFD000 :
-  #                           0xFF2020);
-
-  #               lv_area_t a{
-  #                 i * (sw + gap),
-  #                 h - (s + 1) * (sh + gap),
-  #                 i * (sw + gap) + sw - 1,
-  #                 h - (s + 1) * (sh + gap) + sh - 1
-  #               };
-
-  #               lv_draw_rect(&layer, &d, &a);
-  #             }
-  #           }
-
-  #           lv_canvas_finish_layer(c, &layer);
-  #           lv_obj_invalidate(c);
-
 
   - platform: wifi_signal
     id: wifi_rssi

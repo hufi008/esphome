@@ -53,10 +53,30 @@ globals:
     type: std::vector<std::string>
     initial_value: 'std::vector<std::string>()'
 
-  - id: spectrum_peak_flash
+  - id: visualizer_peak
     type: uint8_t
-    restore_value: no
+    restore_value: false
     initial_value: '0'
+
+  - id: visualizer_f_peak_frequency
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_f_peak_amplitude
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_loudness
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_beat
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 api:
   on_client_connected:
@@ -347,54 +367,160 @@ visualizer:
 
             lv_draw_rect_dsc_t d;
             lv_draw_rect_dsc_init(&d);
-            d.bg_opa = LV_OPA_COVER;
 
             const int w = lv_obj_get_width(c);
             const int h = lv_obj_get_height(c);
             const int gap = 2;
-            const int effect_height = 20;
-            const int spectrum_height = h - effect_height;
+
+            const int loudness_width = 10;
+            const int f_peak_height = 10;
+
+            const int spectrum_width = w - loudness_width;
+            const int spectrum_height = h - f_peak_height;
             const int segments = 19;
 
             const int sh =
                 (spectrum_height - (segments - 1) * gap) / segments;
             const int sw =
-                (w - (x.size() - 1) * gap) / x.size();
+                (spectrum_width - (x.size() - 1) * gap) / x.size();
 
-            d.bg_color = lv_color_hex(0x000000);
+            // LOUDNESS
+            const int loudness_n =
+                id(visualizer_loudness) * segments / 48000;
+            const int loudness_remainder =
+                id(visualizer_loudness) * segments % 48000;
+            const uint8_t loudness_partial =
+                loudness_remainder * 255 / 48000;
 
-            lv_area_t effect_area{
-              0,
-              0,
-              w - 1,
-              effect_height - 1
-            };
+            for (int s = 0; s < segments; s++) {
+              lv_area_t a{
+                0,
+                spectrum_height - (s + 1) * (sh + gap),
+                loudness_width - 1,
+                spectrum_height - (s + 1) * (sh + gap) + sh - 1
+              };
 
-            lv_draw_rect(&layer, &d, &effect_area);
+              d.bg_opa = LV_OPA_COVER;
+              d.bg_color = lv_color_hex(0x202020);
+              lv_draw_rect(&layer, &d, &a);
+
+              if (s < loudness_n) {
+                d.bg_color = lv_color_hex(0xFFFFFF);
+                lv_draw_rect(&layer, &d, &a);
+              } else if (s == loudness_n && loudness_n < segments && loudness_partial > 0) {
+                d.bg_color = lv_color_hex(0xFFFFFF);
+                d.bg_opa = loudness_partial;
+                lv_draw_rect(&layer, &d, &a);
+              }
+            }
+
+            // F-PEAK
+            const uint16_t frequency = id(visualizer_f_peak_frequency);
+            const uint16_t amplitude = id(visualizer_f_peak_amplitude);
+
+            int f_peak_column = -1;
+
+            if (frequency >= 40 && frequency <= 16000) {
+              const float fx =
+                  (std::log2(frequency) - std::log2(40.0f)) /
+                  (std::log2(16000.0f) - std::log2(40.0f));
+
+              f_peak_column = fx * (x.size() - 1) + 0.5f;
+            }
+
+            const uint8_t blue =
+                32 + amplitude * (255 - 32) / 65535;
+
+            d.bg_opa = LV_OPA_COVER;
 
             for (int i = 0; i < x.size(); i++) {
-              const int n = std::min(
-                  segments,
-                  x[i] * segments / 48000);
+              d.bg_color = lv_color_make(
+                  0,
+                  0,
+                  i <= f_peak_column ? blue : 32);
+
+              lv_area_t a{
+                loudness_width + i * (sw + gap),
+                h - f_peak_height,
+                loudness_width + i * (sw + gap) + sw - 1,
+                h - 1
+              };
+
+              lv_draw_rect(&layer, &d, &a);
+            }
+
+            // PEAK
+            d.bg_color = lv_color_hex(0x202010);
+
+            lv_area_t peak_bg{
+              0,
+              h - f_peak_height,
+              loudness_width - 1,
+              h - 1
+            };
+
+            lv_draw_rect(&layer, &d, &peak_bg);
+
+            const uint8_t peak = id(visualizer_peak);
+
+            if (peak > 0) {
+              int peak_radius = std::log2(peak);
+
+              if (peak_radius < 1)
+                peak_radius = 1;
+              if (peak_radius > 4)
+                peak_radius = 4;
+
+              lv_draw_arc_dsc_t arc;
+              lv_draw_arc_dsc_init(&arc);
+
+              arc.color = lv_color_hex(0xFFFF00);
+              arc.opa = LV_OPA_COVER;
+              arc.center.x = loudness_width / 2;
+              arc.center.y = h - f_peak_height / 2;
+              arc.radius = peak_radius;
+              arc.width = peak_radius;
+              arc.start_angle = 0;
+              arc.end_angle = 360;
+
+              lv_draw_arc(&layer, &arc);
+            }
+
+            // SPECTRUM
+            for (int i = 0; i < x.size(); i++) {
+              const int n = x[i] * segments / 48000;
+              const int remainder = x[i] * segments % 48000;
+              const uint8_t partial = remainder * 255 / 48000;
 
               for (int s = 0; s < segments; s++) {
-                d.bg_color = lv_color_hex(
-                    s < n
-                        ? (s < 13 ? 0x00D000 :
-                          s < 17 ? 0xFFD000 :
-                                    0xFF2020)
-                        : (s < 13 ? 0x003000 :
-                          s < 17 ? 0x403500 :
-                                    0x400808));
+                lv_color_t full_color;
+                lv_color_t dark_color;
+
+                if (s < 13) {
+                  full_color = lv_color_hex(0x00D000);
+                  dark_color = lv_color_hex(0x003000);
+                } else if (s < 17) {
+                  full_color = lv_color_hex(0xFFD000);
+                  dark_color = lv_color_hex(0x403500);
+                } else {
+                  full_color = lv_color_hex(0xFF2020);
+                  dark_color = lv_color_hex(0x400808);
+                }
+
+                d.bg_opa = LV_OPA_COVER;
+
+                if (s < n)
+                  d.bg_color = full_color;
+                else if (s == n && partial > 0)
+                  d.bg_color = lv_color_mix(full_color, dark_color, partial);
+                else
+                  d.bg_color = dark_color;
+
                 lv_area_t a{
-                  i * (sw + gap),
-                  effect_height +
-                      spectrum_height -
-                      (s + 1) * (sh + gap),
-                  i * (sw + gap) + sw - 1,
-                  effect_height +
-                      spectrum_height -
-                      (s + 1) * (sh + gap) + sh - 1
+                  loudness_width + i * (sw + gap),
+                  spectrum_height - (s + 1) * (sh + gap),
+                  loudness_width + i * (sw + gap) + sw - 1,
+                  spectrum_height - (s + 1) * (sh + gap) + sh - 1
                 };
 
                 lv_draw_rect(&layer, &d, &a);
@@ -406,87 +532,23 @@ visualizer:
     on_peak:
       then:
         - lambda: |-
-            auto *c = id(lvgl_spectrum_canvas);
-            if (!c || !lv_obj_is_visible(c) || x == 0)
-              return;
-
-            const int effect_height = 20;
-
-            int radius = std::log2(x);
-            if (radius > effect_height / 2)
-              radius = effect_height / 2;
-
-            lv_layer_t layer;
-            lv_canvas_init_layer(c, &layer);
-
-            lv_draw_arc_dsc_t d;
-            lv_draw_arc_dsc_init(&d);
-
-            d.color = lv_color_hex(0xFFFFFF);
-            d.opa = LV_OPA_COVER;
-            d.center.x = 16;
-            d.center.y = 10;
-            d.radius = radius;
-            d.width = radius;
-            d.start_angle = 0;
-            d.end_angle = 360;
-
-            lv_draw_arc(&layer, &d);
-
-            lv_canvas_finish_layer(c, &layer);
-
-    on_beat:
-      then:
-        - lambda: |-
-            ESP_LOGD("sendspin_visualizer", "Beat:");
+            id(visualizer_peak) = x;
 
     on_f_peak:
       then:
         - lambda: |-
-            // ESP_LOGD("sendspin_visualizer", "F-peak: %u Hz, amplitude=%u", frequency_hz, amplitude);
-            auto *c = id(lvgl_spectrum_canvas);
-            if (!c || !lv_obj_is_visible(c) || frequency_hz == 0 || amplitude == 0)
-              return;
-
-            const int w = lv_obj_get_width(c);
-            const int effect_height = 20;
-
-            const float f_min = 40.0f;
-            const float f_max = 16000.0f;
-
-            const float fx =
-                (std::log2(static_cast<float>(frequency_hz)) - std::log2(f_min)) /
-                (std::log2(f_max) - std::log2(f_min));
-
-            const int center_x = fx * (w - 1);
-
-            const int radius =
-                1 + amplitude * (effect_height / 2 - 1) / 65535;
-
-            lv_layer_t layer;
-            lv_canvas_init_layer(c, &layer);
-
-            lv_draw_arc_dsc_t d;
-            lv_draw_arc_dsc_init(&d);
-
-            d.color = lv_color_hex(0xFFFFFF);
-            d.opa = LV_OPA_COVER;
-            d.center.x = center_x;
-            d.center.y = effect_height / 2;
-            d.radius = radius;
-            d.width = radius;
-            d.start_angle = 0;
-            d.end_angle = 360;
-
-            lv_draw_arc(&layer, &d);
-
-            lv_canvas_finish_layer(c, &layer);
+            id(visualizer_f_peak_frequency) = frequency_hz;
+            id(visualizer_f_peak_amplitude) = amplitude;
 
     on_loudness:
       then:
         - lambda: |-
-            // ESP_LOGD("sendspin.visualizer", "Loudness: %u", x);
+            id(visualizer_loudness) = x;
 
+    on_beat:
+      then:
+        - lambda: |-
+            id(visualizer_beat) = x;
             
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
@@ -2082,12 +2144,12 @@ lvgl:
             #     format: "Roller Index: %d, Text: %s"
             #     args: [ 'x', 'text.c_str()' ]
 
-    - id: lvgl_page_spectrum
+    - id: lvgl_page_visualizer
       on_load:
         then:
           - lvgl.label.update:
               id: lvgl_label_status_title
-              text: "SPECTRUM"
+              text: "VISUALIZER"
 
       on_swipe_left:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
@@ -2158,7 +2220,7 @@ lvgl:
                     ESP_LOGD(__FILE__, "SPECTRUM: on_focus");
                 - script.execute:
                     id: show_page
-                    page: lvgl_page_spectrum
+                    page: lvgl_page_visualizer
         - canvas:
             id: lvgl_spectrum_canvas
             x: 0

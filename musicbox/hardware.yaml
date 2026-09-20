@@ -16,6 +16,8 @@ button:
     on_press:
       then:
         - safe_mode.mark_successful
+  - platform: factory_reset
+    name: "Factory Reset NVS"
 
 number:
   - platform: lvgl

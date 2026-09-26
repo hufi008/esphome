@@ -1,0 +1,121 @@
+substitutions:
+  device_name: "esp32s3-stresstest-ib2"
+  friendly_name: "ESP32S3 Stresstest IB2"
+
+packages:
+  base: !include common/base-s3_devkitc_1.yaml
+
+esphome:
+  build_path: "C:/Users/Ingo/AppData/Local/esphome/build/stresstest_IB2"
+
+logger:
+  level: DEBUG
+
+# ------------------------------------------------------------
+# Statusinformationen
+# ------------------------------------------------------------
+
+sensor:
+  - platform: uptime
+    name: "Stresstest Uptime"
+    id: stress_uptime
+    update_interval: 10s
+
+  - platform: wifi_signal
+    name: "Stresstest WiFi RSSI"
+    id: stress_wifi_rssi
+    update_interval: 10s
+
+  - platform: template
+    name: "Free Heap"
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+
+  - platform: template
+    name: "Largest Internal Heap Block"
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+
+  - platform: template
+    name: "Free PSRAM"
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      return heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+
+  - platform: template
+    name: "Largest PSRAM Block"
+    unit_of_measurement: "B"
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+
+# ------------------------------------------------------------
+# PSRAM-Stresstest
+# ------------------------------------------------------------
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          static uint32_t test_counter = 0;
+          test_counter++;
+
+          const size_t block_size = 1024 * 1024;
+
+          ESP_LOGI(
+            "stress",
+            "Test %lu: reserviere %u Bytes PSRAM",
+            (unsigned long) test_counter,
+            (unsigned int) block_size
+          );
+
+          uint8_t *buffer = (uint8_t *) heap_caps_malloc(
+            block_size,
+            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT
+          );
+
+          if (buffer == nullptr) {
+            ESP_LOGE("stress", "PSRAM ALLOKATION FEHLGESCHLAGEN!");
+            return;
+          }
+
+          // Testmuster schreiben
+          for (size_t i = 0; i < block_size; i++) {
+            buffer[i] = (uint8_t) ((i + test_counter) & 0xFF);
+          }
+
+          // Testmuster wieder lesen und prüfen
+          for (size_t i = 0; i < block_size; i++) {
+            uint8_t expected =
+              (uint8_t) ((i + test_counter) & 0xFF);
+
+            if (buffer[i] != expected) {
+              ESP_LOGE(
+                "stress",
+                "PSRAM FEHLER bei Adresse Offset %u: gelesen=%u erwartet=%u",
+                (unsigned int) i,
+                buffer[i],
+                expected
+              );
+
+              heap_caps_free(buffer);
+              return;
+            }
+          }
+
+          heap_caps_free(buffer);
+
+          ESP_LOGI(
+            "stress",
+            "Test %lu: PSRAM OK",
+            (unsigned long) test_counter
+          );

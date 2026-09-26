@@ -64,6 +64,7 @@ logger:
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-s3_devkitc_1.yaml
+  illuminance: !include common/bh1750_sim.yaml
   display: !include common/ILI9341TSXPT2046.yaml
   sound: !include common/MediaPlayerSendspin.yaml
   light: !include common/LedStripOnboard.yaml

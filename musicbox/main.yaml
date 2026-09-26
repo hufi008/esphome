@@ -108,6 +108,9 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
+      - media_player.volume_set:
+          id: audio_player
+          volume: !lambda return id(ha_volume_man).state;
       - lvgl.slider.update:
           id: lvgl_slider_volume
           value: !lambda return id(ha_volume_man).state;
@@ -274,7 +277,28 @@ media_player:
         - logger.log: "AudioPlayer: on_unmute"
     on_volume:
       then:
-        - logger.log: "AudioPlayer: on_volume"
+        - logger.log:
+            format: "AudioPlayer: on_volume -> %.2f"
+            args: [ 'x' ]
+        - lambda: |-
+            // 1. Berechne den Ziel-Ganzzahlwert für den Slider (0 bis 20)
+            float raw_target = x * 20.0f;
+            float rounded_target = std::round(raw_target);
+            
+            // 2. Hole den aktuellen Zustand des Sliders
+            float current_slider = id(ha_volume_man).state;
+            
+            // 3. SCHLEIFENSCHUTZ: Nur publizieren, wenn sich die Ganzzahl unterscheidet!
+            // Da beide Werte jetzt gerundete Ganzzahlen (oder NaN) sind, 
+            // reicht ein minimaler Epsilon-Vergleich aus.
+            if (std::isnan(current_slider) || std::abs(current_slider - rounded_target) > 0.1f) {
+              ESP_LOGD("custom_volume", "Propagiere neuen Wert an Slider: %.0f", rounded_target);
+              id(ha_volume_man).publish_state(rounded_target);
+              id(audio_player).volume = rounded_target / 20.0f;
+            } else {
+              // Optionale Log-Ausgabe zur Bestätigung, dass die Schleife hier stirbt
+              ESP_LOGD("custom_volume", "Schleife blockiert. Slider steht bereits auf %.0f", rounded_target);
+            }
     on_turn_on:
       then:
         - logger.log: "AudioPlayer: on_turn_on"
@@ -1547,7 +1571,7 @@ lvgl:
 
         - label:
             id: info_temperature
-            x: 52%
+            x: 68%
             y: 49%
             text: "--.- °C"
             # text_font: roboto_medium

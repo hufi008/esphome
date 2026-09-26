@@ -1,5 +1,7 @@
 substitutions:
   cover_image_dimension: 150x150
+  display_width: 320
+  display_height: 240
   font_size_small: 16
   font_size_medium: 20
   font_size_large: 24

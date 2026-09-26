@@ -63,6 +63,11 @@ void SendspinHub::setup() {
   this->color_role_ = &this->client_->add_color();
   this->color_role_->set_listener(this);
 #endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  this->visualizer_role_ = &this->client_->add_visualizer(this->visualizer_config_);
+  this->visualizer_role_->set_listener(this);
+#endif
 // ifuH
 
 #ifdef USE_SENDSPIN_PLAYER
@@ -285,6 +290,44 @@ void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) {
 // THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
 void SendspinHub::on_color_clear() { this->color_clear_callbacks_.call(); }
 #endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+void SendspinHub::on_visualizer_stream_start(const sendspin::ServerVisualizerStreamObject &stream) {
+  ESP_LOGD("sendspin_hub", "Visualizer stream start: %zu types, rate_max=%u",
+           stream.types.size(), stream.rate_max);
+
+  for (const auto type : stream.types) {
+    ESP_LOGD("sendspin_hub", "  visualizer type=%d", static_cast<int>(type));
+  }
+
+  ESP_LOGD("sendspin_hub", "  tracks_downbeats=%s",
+           stream.tracks_downbeats ? "true" : "false");
+
+  if (stream.spectrum.has_value()) {
+    ESP_LOGD("sendspin_hub", "  spectrum bins=%u",
+             stream.spectrum->n_disp_bins);
+  }
+}
+
+void SendspinHub::on_spectrum(int64_t client_timestamp, const std::vector<uint16_t> &bins) {
+  this->spectrum_callbacks_.call(client_timestamp, bins);
+}
+void SendspinHub::on_peak(int64_t client_timestamp, uint8_t strength) {
+  this->peak_callbacks_.call(client_timestamp, strength);
+}
+void SendspinHub::on_beat(int64_t client_timestamp, bool downbeat) {
+  this->beat_callbacks_.call(client_timestamp, downbeat);
+}
+void SendspinHub::on_f_peak(int64_t client_timestamp, uint16_t frequency_hz, uint16_t amplitude) {
+  this->f_peak_callbacks_.call(client_timestamp, frequency_hz, amplitude);
+}
+void SendspinHub::on_loudness(int64_t client_timestamp, uint16_t loudness) {
+  // ESP_LOGD("sendspin_hub", "Loudness: %u", loudness);
+  this->loudness_callbacks_.call(client_timestamp, loudness);
+}
+
+#endif
+
 // ifuH
 
 #ifdef USE_SENDSPIN_PLAYER

@@ -31,6 +31,12 @@ CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 CONF_DECODE_MEMORY = "decode_memory"
 
+CONF_RATE_MAX = "rate_max"
+CONF_N_DISP_BINS = "n_disp_bins"
+CONF_SCALE = "scale"
+CONF_F_MIN = "f_min"
+CONF_F_MAX = "f_max"
+
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
 
@@ -53,11 +59,27 @@ SendspinImageSource = sendspin_library_ns.enum("SendspinImageSource", is_class=T
 IMAGE_SOURCE_ALBUM = SendspinImageSource.enum("ALBUM")
 IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
 
+VisualizerDataType = sendspin_library_ns.enum("VisualizerDataType", is_class=True)
+VISUALIZER_DATA_SPECTRUM = VisualizerDataType.enum("SPECTRUM")
+VISUALIZER_DATA_PEAK = VisualizerDataType.enum("PEAK")
+VISUALIZER_DATA_BEAT = VisualizerDataType.enum("BEAT")
+VISUALIZER_DATA_F_PEAK = VisualizerDataType.enum("F_PEAK")
+VISUALIZER_DATA_LOUDNESS = VisualizerDataType.enum("LOUDNESS")
+
+VisualizerSpectrumScale = sendspin_library_ns.enum("VisualizerSpectrumScale", is_class=True)
+VISUALIZER_SCALE_MEL = VisualizerSpectrumScale.enum("MEL")
+VISUALIZER_SCALE_LOG = VisualizerSpectrumScale.enum("LOG")
+VISUALIZER_SCALE_LIN = VisualizerSpectrumScale.enum("LIN")
+
 # Library Structs
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
 ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
 ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
+
+VisualizerSpectrumConfig = sendspin_library_ns.struct("VisualizerSpectrumConfig")
+VisualizerSupportObject = sendspin_library_ns.struct("VisualizerSupportObject")
+VisualizerRoleConfig = sendspin_library_ns.struct("VisualizerRoleConfig")
 
 # MemoryLocation enum (from sendspin/types.h) controls SPIRAM-vs-internal-RAM placement
 # preference for the player role's transfer buffers.
@@ -79,7 +101,6 @@ SendspinHub = sendspin_ns.class_(
     cg.Component,
 )
 
-
 SendspinSwitchCommandAction = sendspin_ns.class_(
     "SendspinSwitchCommandAction",
     automation.Action,
@@ -100,6 +121,7 @@ class SendspinConfiguration:
 
     artwork_preferences: list[ConfigType] = field(default_factory=list)
     player_config: ConfigType | None = None
+    visualizer_config: ConfigType | None = None
 
 
 def _get_data() -> SendspinConfiguration:
@@ -166,6 +188,17 @@ def register_player_config(config: ConfigType) -> None:
         )
     data.player_config = config
 
+# Hufi
+def register_visualizer_config(config: ConfigType) -> None:
+    """Register the visualizer role config from the visualizer subcomponent."""
+    data = _get_data()
+    request_visualizer_support()
+    if data.visualizer_config is not None:
+        raise cv.Invalid(
+            "Only one sendspin spectrum configuration is supported"
+        )
+    data.visualizer_config = config
+# ifuH
 
 def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     """Request high performance networking for Sendspin streaming.
@@ -349,5 +382,36 @@ async def to_code(config: ConfigType) -> None:
 
     if data.visualizer_support:
         cg.add_define("USE_SENDSPIN_VISUALIZER", True)
+
+        visualizer_cfg = data.visualizer_config
+
+        spectrum_config = cg.StructInitializer(
+            VisualizerSpectrumConfig,
+            ("n_disp_bins", visualizer_cfg[CONF_N_DISP_BINS]),
+            ("scale", visualizer_cfg[CONF_SCALE]),
+            ("f_min", visualizer_cfg[CONF_F_MIN]),
+            ("f_max", visualizer_cfg[CONF_F_MAX]),
+        )
+
+        visualizer_support = cg.StructInitializer(
+            VisualizerSupportObject,
+            ("types", [
+                VISUALIZER_DATA_SPECTRUM,
+                VISUALIZER_DATA_PEAK,
+                VISUALIZER_DATA_BEAT,
+                VISUALIZER_DATA_F_PEAK,
+                VISUALIZER_DATA_LOUDNESS,
+            ]),
+            ("buffer_capacity", 4096),
+            ("rate_max", int(visualizer_cfg[CONF_RATE_MAX])),
+            ("spectrum", spectrum_config),
+        )
+
+        visualizer_config = cg.StructInitializer(
+            VisualizerRoleConfig,
+            ("support", visualizer_support),
+        )
+
+        cg.add(var.set_visualizer_config(visualizer_config))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_VISUALIZER", False)

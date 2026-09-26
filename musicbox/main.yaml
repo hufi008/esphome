@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.5.5
+    version: 0.7.5
   on_boot:
     priority: -100
     then:
@@ -31,6 +31,16 @@ globals:
     restore_value: no
     initial_value: 'true'
 
+  - id: sleep_timer_duration
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  - id: time_power_off
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
   - id: current_library_path
     type: std::string
     initial_value: '""'
@@ -42,6 +52,31 @@ globals:
   - id: current_library_uris
     type: std::vector<std::string>
     initial_value: 'std::vector<std::string>()'
+
+  - id: visualizer_peak
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_f_peak_frequency
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_f_peak_amplitude
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_loudness
+    type: uint16_t
+    restore_value: false
+    initial_value: '0'
+
+  - id: visualizer_beat
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 api:
   on_client_connected:
@@ -64,6 +99,7 @@ api:
 time:
   - platform: homeassistant
     on_time_sync:
+      - delay: 5sec
       - lambda: |-
           ESP_LOGI(__FILE__, "ha_time: on_time_sync");
           id(my_clock).update();
@@ -72,9 +108,12 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
-          id(ha_volume_man).publish_state(id(ha_volume_man).state);
-          id(ha_backlight_man).publish_state(id(ha_backlight_man).state);
-
+      - lvgl.slider.update:
+          id: lvgl_slider_volume
+          value: !lambda return id(ha_volume_man).state;
+      - lvgl.slider.update:
+          id: lvgl_slider_backlight
+          value: !lambda return id(ha_backlight_man).state;
       - if:
           condition:
             lambda: 'return id(is_blocked);'
@@ -116,6 +155,9 @@ number:
       then:
         - lambda: |-
             ESP_LOGD(__FILE__, "ha_volume_man: on_value => %.0f (%0.0f%%)", x, x * 5.0f);
+        - lvgl.label.update:
+            id: lvgl_label_volume
+            text: !lambda 'return str_sprintf("Volume: %.0f%%", x * 5.0f);'
         - media_player.volume_set:
             id: audio_player
             volume: !lambda |-
@@ -125,6 +167,9 @@ number:
       then:
         - lambda: |-
             ESP_LOGD(__FILE__, "ha_backlight_man: on_value => %.0f (%0.0f%%)", x, x * 5.0f);
+        - lvgl.label.update:
+            id: lvgl_label_backlight
+            text: !lambda 'return str_sprintf("Helligkeit: %.0f%%", x * 5.0f);'
         - script.execute: update_backlight
 
 switch:
@@ -166,52 +211,6 @@ switch:
 sendspin:
   id: sendspin_hub
   task_stack_in_psram: false
-  # on_color:
-  #   then:
-  #     - logger.log:
-  #         format: "SendSpin Paletten-Wechsel  BG_Light: %s | On_Light: %s | BG_Dark: %s | On_Dark: %s | Primary: %s | Accent: %s"
-  #         args:
-  #           - x.get_background_light_hex().c_str()
-  #           - x.get_on_light_hex().c_str()
-  #           - x.get_background_dark_hex().c_str()
-  #           - x.get_on_dark_hex().c_str()
-  #           - x.get_primary_hex().c_str()
-  #           - x.get_accent_hex().c_str()
-  #     - light.turn_on:
-  #         id: onboard_led
-  #         effect: None 
-  #         red: !lambda return x.get_primary().r / 255.0f;
-  #         green: !lambda return x.get_primary().g / 255.0f;
-  #         blue: !lambda return x.get_primary().b / 255.0f;
-  #         brightness: 0.25
-     
-  #     - lvgl.page.update:
-  #         id: lvgl_page_media
-  #         bg_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0x30, 0x30, 0x30);  // fallback
-  #           auto c = x.get_background_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
-
-  #     - lvgl.label.update:
-  #         id: lvgl_label_media_title
-  #         text_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-  #           auto c = x.get_on_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
-
-  #     - lvgl.label.update:
-  #         id: lvgl_label_media_artist
-  #         text_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-  #           auto c = x.get_on_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
-
-  #     - lvgl.label.update:
-  #         id: lvgl_label_media_album
-  #         text_color: !lambda |-
-  #           if (!x.has_primary()) return lv_color_make(0xd0, 0xd0, 0xd0);  // fallback
-  #           auto c = x.get_on_dark();
-  #           return lv_color_make(c.r, c.g, c.b);
 
 media_player:
   - id: !extend sendspin_player
@@ -221,7 +220,8 @@ media_player:
         - logger.log:
             format: "SendSpin Player-State geändert: %s"
             args: ['media_player::media_player_state_to_string(id(sendspin_player).state)']
-        - script.execute: update_states
+        - script.execute: update_states 
+
     on_announcement:
       then:
         - logger.log: "SendSpin: on_announcement"
@@ -241,6 +241,9 @@ media_player:
     on_idle:
       then:
         - logger.log: "SendSpin: on_idle"
+        - lvgl.canvas.fill:
+            id: lvgl_spectrum_canvas
+            color: 0x000000
 
   - id: !extend audio_player
 
@@ -249,6 +252,7 @@ media_player:
         - logger.log:
             format: "Physischer Audio Player-State geändert: %s"
             args: ['media_player::media_player_state_to_string(id(audio_player).state)']
+        - script.execute: sleep_timer
         - script.execute: update_states
     on_announcement:
       then:
@@ -278,6 +282,274 @@ media_player:
       then:
         - logger.log: "AudioPlayer: on_turn_off"
       
+color_sensor:
+  - id: !extend sendspin_color_primary
+    on_color:
+      then:
+        - logger.log:
+            format: "Primary: r=%u g=%u b=%u w=%u"
+            args: [ 'x.r', 'x.g', 'x.b', 'x.w' ]
+        - light.turn_on:
+            id: onboard_led
+            effect: None
+            red: !lambda return x.r / 255.0f;
+            green: !lambda return x.g / 255.0f;
+            blue: !lambda return x.b / 255.0f;
+            brightness: 0.25
+    on_clear:
+      then:
+        - logger.log:
+            format: "Primary: off"
+        - light.turn_off:
+            id: onboard_led
+
+  - id: !extend sendspin_color_bg_dark
+    on_color:
+      then:
+        - logger.log:
+            format: "BG_Dark: r=%d g=%d b=%d"
+            args: [ 'x.r', 'x.g', 'x.b' ]
+        - lvgl.page.update:
+            id: lvgl_page_media
+            bg_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+    on_clear:
+      then:
+        - lvgl.page.update:
+            id: lvgl_page_media
+            bg_color: !lambda |-
+              return lv_color_make(0x30, 0x30, 0x30);
+
+  - id: !extend sendspin_color_on_dark
+    on_color:
+      then:
+        - logger.log:
+            format: "on_Dark: r=%d g=%d b=%d"
+            args: [ 'x.r', 'x.g', 'x.b' ]
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text_color: !lambda |-
+              return lv_color_make(x.r, x.g, x.b);
+    on_clear:
+      then:
+        - lvgl.label.update:
+            id: lvgl_label_media_title
+            text_color: !lambda |-
+              return lv_color_make(0xd0, 0xd0, 0xd0);
+        - lvgl.label.update:
+            id: lvgl_label_media_artist
+            text_color: !lambda |-
+              return lv_color_make(0xd0, 0xd0, 0xd0);
+        - lvgl.label.update:
+            id: lvgl_label_media_album
+            text_color: !lambda |-
+              return lv_color_make(0xd0, 0xd0, 0xd0);
+
+visualizer:
+  - id: !extend sendspin_visualizer
+    on_spectrum:
+      then:
+        - lambda: |-
+            auto *c = id(lvgl_spectrum_canvas);
+            if (!c || !lv_obj_is_visible(c) || x.empty())
+              return;
+
+            lv_layer_t layer;
+            lv_canvas_init_layer(c, &layer);
+
+            lv_draw_rect_dsc_t d;
+            lv_draw_rect_dsc_init(&d);
+
+            const int w = lv_obj_get_width(c);
+            const int h = lv_obj_get_height(c);
+            const int gap = 2;
+
+            const int loudness_width = 10;
+            const int f_peak_height = 10;
+
+            const int spectrum_width = w - loudness_width;
+            const int spectrum_height = h - f_peak_height;
+            const int segments = 19;
+
+            const int sh =
+                (spectrum_height - (segments - 1) * gap) / segments;
+            const int sw =
+                (spectrum_width - (x.size() - 1) * gap) / x.size();
+
+            // LOUDNESS
+            const int loudness_n =
+                id(visualizer_loudness) * segments / 48000;
+            const int loudness_remainder =
+                id(visualizer_loudness) * segments % 48000;
+            const uint8_t loudness_partial =
+                loudness_remainder * 255 / 48000;
+
+            for (int s = 0; s < segments; s++) {
+              lv_area_t a{
+                0,
+                spectrum_height - (s + 1) * (sh + gap),
+                loudness_width - 1,
+                spectrum_height - (s + 1) * (sh + gap) + sh - 1
+              };
+
+              d.bg_opa = LV_OPA_COVER;
+              d.bg_color = lv_color_hex(0x202020);
+              lv_draw_rect(&layer, &d, &a);
+
+              if (s < loudness_n) {
+                d.bg_color = lv_color_hex(0xFFFFFF);
+                lv_draw_rect(&layer, &d, &a);
+              } else if (s == loudness_n && loudness_n < segments && loudness_partial > 0) {
+                d.bg_color = lv_color_hex(0xFFFFFF);
+                d.bg_opa = loudness_partial;
+                lv_draw_rect(&layer, &d, &a);
+              }
+            }
+
+            // F-PEAK
+            const uint16_t frequency = id(visualizer_f_peak_frequency);
+            const uint16_t amplitude = id(visualizer_f_peak_amplitude);
+
+            int f_peak_column = -1;
+
+            if (frequency >= 40 && frequency <= 16000) {
+              const float fx =
+                  (std::log2(frequency) - std::log2(40.0f)) /
+                  (std::log2(16000.0f) - std::log2(40.0f));
+
+              f_peak_column = fx * (x.size() - 1) + 0.5f;
+            }
+
+            const uint8_t blue =
+                32 + amplitude * (255 - 32) / 65535;
+
+            d.bg_opa = LV_OPA_COVER;
+
+            for (int i = 0; i < x.size(); i++) {
+              d.bg_color = lv_color_make(
+                  0,
+                  0,
+                  i <= f_peak_column ? blue : 32);
+
+              lv_area_t a{
+                loudness_width + i * (sw + gap),
+                h - f_peak_height,
+                loudness_width + i * (sw + gap) + sw - 1,
+                h - 1
+              };
+
+              lv_draw_rect(&layer, &d, &a);
+            }
+
+            // PEAK
+            d.bg_color = lv_color_hex(0x202010);
+
+            lv_area_t peak_bg{
+              0,
+              h - f_peak_height,
+              loudness_width - 1,
+              h - 1
+            };
+
+            lv_draw_rect(&layer, &d, &peak_bg);
+
+            const uint8_t peak = id(visualizer_peak);
+
+            if (peak > 0) {
+              int peak_radius = std::log2(peak);
+
+              if (peak_radius < 1)
+                peak_radius = 1;
+              if (peak_radius > 4)
+                peak_radius = 4;
+
+              lv_draw_arc_dsc_t arc;
+              lv_draw_arc_dsc_init(&arc);
+
+              arc.color = lv_color_hex(0xFFFF00);
+              arc.opa = LV_OPA_COVER;
+              arc.center.x = loudness_width / 2;
+              arc.center.y = h - f_peak_height / 2;
+              arc.radius = peak_radius;
+              arc.width = peak_radius;
+              arc.start_angle = 0;
+              arc.end_angle = 360;
+
+              lv_draw_arc(&layer, &arc);
+            }
+
+            // SPECTRUM
+            for (int i = 0; i < x.size(); i++) {
+              const int n = x[i] * segments / 48000;
+              const int remainder = x[i] * segments % 48000;
+              const uint8_t partial = remainder * 255 / 48000;
+
+              for (int s = 0; s < segments; s++) {
+                lv_color_t full_color;
+                lv_color_t dark_color;
+
+                if (s < 13) {
+                  full_color = lv_color_hex(0x00D000);
+                  dark_color = lv_color_hex(0x003000);
+                } else if (s < 17) {
+                  full_color = lv_color_hex(0xFFD000);
+                  dark_color = lv_color_hex(0x403500);
+                } else {
+                  full_color = lv_color_hex(0xFF2020);
+                  dark_color = lv_color_hex(0x400808);
+                }
+
+                d.bg_opa = LV_OPA_COVER;
+
+                if (s < n)
+                  d.bg_color = full_color;
+                else if (s == n && partial > 0)
+                  d.bg_color = lv_color_mix(full_color, dark_color, partial);
+                else
+                  d.bg_color = dark_color;
+
+                lv_area_t a{
+                  loudness_width + i * (sw + gap),
+                  spectrum_height - (s + 1) * (sh + gap),
+                  loudness_width + i * (sw + gap) + sw - 1,
+                  spectrum_height - (s + 1) * (sh + gap) + sh - 1
+                };
+
+                lv_draw_rect(&layer, &d, &a);
+              }
+            }
+
+            lv_canvas_finish_layer(c, &layer);
+
+    on_peak:
+      then:
+        - lambda: |-
+            id(visualizer_peak) = x;
+
+    on_f_peak:
+      then:
+        - lambda: |-
+            id(visualizer_f_peak_frequency) = frequency_hz;
+            id(visualizer_f_peak_amplitude) = amplitude;
+
+    on_loudness:
+      then:
+        - lambda: |-
+            id(visualizer_loudness) = x;
+
+    on_beat:
+      then:
+        - lambda: |-
+            id(visualizer_beat) = x;
+            
 # -------------------------------------------------------------------
 # Text-Sensoren incl. Sendspin
 # -------------------------------------------------------------------
@@ -445,65 +717,6 @@ text_sensor:
             id: lvgl_label_media_album
             text: !lambda 'return x;'
 
-
-  - platform: sendspin
-    id: sendspin_primary
-    type: primary
-    name: Color Primary
-    on_value:
-      then:
-        - logger.log:
-            format: "Primary: %s"
-            args: [ 'x.c_str()' ]
-        - light.turn_on:
-            id: onboard_led
-            effect: None 
-            red: !lambda return sendspin_::to_color(x).r / 255.0f;
-            green: !lambda return sendspin_::to_color(x).g / 255.0f;
-            blue: !lambda return sendspin_::to_color(x).b / 255.0f;
-            brightness: 0.25
-
-  - platform: sendspin
-    id: sendspin_bg_dark
-    type: background_dark
-    name: Color BG_Dark
-    on_value:
-      then:
-        - logger.log:
-            format: "BG_Dark: %s"
-            args: [ 'x.c_str()' ]
-        - lvgl.page.update:
-            id: lvgl_page_media
-            bg_color: !lambda |-
-              if (x.empty()) x = "#303030";
-              return sendspin_::to_color(x);
-
-  - platform: sendspin
-    id: sendspin_on_dark
-    type: on_dark
-    name: Color on_Dark
-    on_value:
-      then:
-        - logger.log:
-            format: "on_Dark: %s"
-            args: [ 'x.c_str()' ]
-        - lvgl.label.update:
-            id: lvgl_label_media_title
-            text_color: !lambda |-
-              if (x.empty()) x = "#d0d0d0";
-              return sendspin_::to_color(x);
-        - lvgl.label.update:
-            id: lvgl_label_media_artist
-            text_color: !lambda |-
-              if (x.empty()) x = "#d0d0d0";
-              return sendspin_::to_color(x);
-        - lvgl.label.update:
-            id: lvgl_label_media_album
-            text_color: !lambda |-
-              if (x.empty()) x = "#d0d0d0";
-              return sendspin_::to_color(x);
-
-
 # -------------------------------------------------------------------
 # Wifi und Sensoren
 # -------------------------------------------------------------------
@@ -585,12 +798,12 @@ sensor:
         - lvgl.label.update:
             id: lvgl_label_progress
             text: !lambda |-
-              if (std::isnan(x)) return "---:--:--";
+              if (std::isnan(x)) return "---:--";
               int progress = (int)(x / 1000.0f);
-              return str_sprintf("%02d:%02d:%02d", progress / 3600, (progress % 3600) / 60, progress % 60);
+              return str_sprintf("%3d:%02d", progress / 60, progress % 60);
         - lvgl.bar.update:
             id: track_progress_bar
-            value: !lambda 'return x / 2000.0f;'                    
+            value: !lambda 'return x / 2000.0f;'
   - platform: sendspin
     type: track_duration
     name: "SendSpin Track Duration"
@@ -606,10 +819,10 @@ sensor:
         - lvgl.label.update:
             id: lvgl_label_duration
             text: !lambda |-
-              if (std::isnan(x)) return "---:--:--";
-              if (x == 0) return "---:--:--";
+              if (std::isnan(x)) return "---:--";
+              if (x == 0) return "---:--";
               int duration = (int)(x / 1000.0f);
-              return str_sprintf("%02d:%02d:%02d", duration / 3600, (duration % 3600) / 60, duration % 60);
+              return str_sprintf("%3d:%02d", duration / 60, duration % 60);
         - lvgl.bar.update:
             id: track_progress_bar
             min_value: 0
@@ -826,6 +1039,11 @@ image:
     type: BINARY
     resize: 32x32
   - platform: file
+    file: mdi:sleep
+    id: icon_sleep
+    type: binary
+    resize: 32x32
+  - platform: file
     file: mdi:weather-sunny
     id: icon_sun
     type: binary
@@ -835,6 +1053,29 @@ image:
     id: icon_moon_unknown
     type: binary
     resize: 32x32
+  # Buttons
+  - platform: file
+    file: mdi:play
+    id: icon_play
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:pause
+    id: icon_pause
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:skip-previous
+    id: icon_previous
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:skip-next
+    id: icon_next
+    type: binary
+    resize: 32x32
+
+  # Moon Phases
   - platform: file
     file: mdi:moon-new
     id: icon_moon_new_moon
@@ -1026,10 +1267,10 @@ lvgl:
       # - lvgl.widget.focus: lvgl_button_play_stop
 
   on_idle:
-    timeout: 60s
+    timeout: 0.5s
     then:
-      logger.log: "lvgl: on_idle"
-      # switch.turn_off: ha_switch_power
+      - logger.log: "lvgl: on_idle"
+      - script.execute: sleep_timer
 
   on_pause:
     then:
@@ -1038,6 +1279,13 @@ lvgl:
   on_resume:
     then:
       logger.log: "lvgl: on_resume"
+
+  on_all_events:
+    - lambda: |-
+        auto code = lv_event_get_code(event);
+        if (code >= LV_EVENT_SCROLL && code <= LV_EVENT_SCROLL_END) {
+          ESP_LOGD(__FILE__, "LVGL: event=%d", code);
+        }
 
   theme:
     dark_mode: true
@@ -1091,7 +1339,6 @@ lvgl:
         border_opa: COVER
         border_width: 3
 
-
   # Statusbar
   top_layer:
     widgets:
@@ -1101,12 +1348,12 @@ lvgl:
           width: 100%
           height: 30
           bg_color: 0x606060
+          bg_opa: COVER
           border_width: 0
           text_color: 0xFFFF00
-          # text_font: roboto_medium
-          scrollable: false        
-          
-          # Die eigentlichen Elemente werden JETZT als Kinder in den Balken gelegt:
+          clickable: false
+          scrollable: false
+
           widgets:
             - label:
                 id: lvgl_label_status_title
@@ -1125,6 +1372,7 @@ lvgl:
                 recolor: "0xFFFF00"
                 recolor_opa: 100%
                 hidden: true
+                gesture_bubble: true
 
             - image:
                 id: lvgl_icon_wifi
@@ -1134,7 +1382,8 @@ lvgl:
                 y: 0 
                 recolor: "0xFFFF00"
                 recolor_opa: 100% 
-
+                gesture_bubble: true
+ 
   # Die GUI-Elemente
   pages:
     - id: lvgl_page_boot
@@ -1143,6 +1392,8 @@ lvgl:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "BOOTING..."
+
+      skip: true
 
       widgets:
         - label:
@@ -1202,6 +1453,8 @@ lvgl:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "INFO"
+
+      skip: true
 
       widgets:
         - button:
@@ -1335,242 +1588,380 @@ lvgl:
             text_color: 0xa0a0a0
 
     - id: lvgl_page_media
-      on_swipe_left:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_media!"
-        - lvgl.page.show:
-            id: lvgl_page_settings
-            animation: move_left
-            time: 300ms
-      on_swipe_right:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_media!"
-        - lvgl.page.show:
-            id: lvgl_page_library
-            animation: move_right
-            time: 300ms
-      on_swipe_bottom:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_media!" # Logger-Text beibehalten
-        - lvgl.page.show:
-            id: lvgl_page_info
-            animation: move_bottom
-            time: 300ms
-        - switch.turn_off: ha_switch_power
       on_load:
         then:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "MEDIA"
-
-      widgets:
-        # 🖼️ ALBUM COVER MIT RAHMEN
-        - obj:
-            align: TOP_LEFT
-            x: "0%"
-            y: "33%"
-            width: SIZE_CONTENT
-            height: SIZE_CONTENT
-            bg_opa: TRANSP
-            border_width: 2
-            border_color: 0xD4AF37
-            pad_all: 0
-            scrollable: false
-            widgets:
-              - image:
-                  id: lvgl_img_album_art
-                  src: img_art_clear
-                  align: CENTER
-
-        # 🎵 TRACK INFOS (Nutzen jetzt die volle Breite oberhalb des Covers)
-        - label:
-            id: lvgl_label_media_title
-            align: TOP_LEFT
-            x: "2%"
-            y: "13%"
-            width: "96%"
-            text: "Warte auf Server"
-            text_font: roboto_huge
-            text_align: CENTER
-            long_mode: SCROLL
-
-        - label:
-            id: lvgl_label_media_artist
-            align: TOP_LEFT
-            x: "40%"
-            y: "32%"
-            width: "96%"
-            text: "---"
-            # text_font: roboto_medium
-            text_color: 0xBBBBBB
-            text_align: LEFT
-            long_mode: SCROLL_CIRCULAR
-
-        # Albumname (Rechts neben dem vergrößerten Cover platziert)
-        - label:
-            id: lvgl_label_media_album
-            align: TOP_LEFT
-            x: "40%"
-            y: "42%"
-            width: "58%"
-            text: "---"
-            # text_font: roboto_medium
-            text_color: 0xBB4477
-            text_align: LEFT
-            long_mode: SCROLL_CIRCULAR
-
-        # ⏳ COMBINIERTE ZEITLEISTE (Dauer & Fortschritt links/rechts)
-        - obj:
-            align: BOTTOM_RIGHT
-            x: "0"
-            y: "-50"
-            width: "60%"
-            height: 45        
-            bg_opa: TRANSP
-            border_width: 2
-            border_color: 0xff007f
-            pad_all: 4        
-            layout:
-              type: FLEX
-              flex_flow: COLUMN              # Elemente untereinander
-              flex_align_main: SPACE_BETWEEN # Zeitleiste oben, Balken unten
-              flex_align_cross: CENTER       # Korrigierter Fallback für die Kreuzachse
-            widgets:
-            
-              # ⏱️ Obere Zeile für die Zeitangaben
-              - obj:
-                  width: 100%                # Explizit auf volle Breite der Hauptbox gezwungen
-                  height: 20
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
-                  layout:
-                    type: FLEX
-                    flex_flow: ROW           
-                    flex_align_main: SPACE_BETWEEN 
-                    flex_align_cross: CENTER
-                  widgets:
-                    # Aktueller Fortschritt (Links)
-                    - label:
-                        id: lvgl_label_progress
-                        text: ""
-                        text_color: 0x00FFD2
-
-                    # Gesamtlänge (Rechts)
-                    - label:
-                        id: lvgl_label_duration
-                        text: ""
-                        text_color: 0xaaaaaa
-
-              # 📊 Integrierte FORTSCHRITTSLEISTE
-              - bar:
-                  id: track_progress_bar
-                  width: 100%                # Verhindert das Schrumpfen, füllt die Box voll aus
-                  height: 4
-                  bg_color: 0x804020
-
-
-        # 🎛️ BUTTONBAR UNTEN (Dank Flexbox extrem dankbar beim Skalieren!)
-        - obj:
-            align: BOTTOM_MID
-            x: 0
-            y: 0
-            width: "100%"
-            height: 40
-            bg_color: 0x606060
-            pad_all: 4
-            layout:
-              type: FLEX
-              flex_flow: ROW             
-              flex_align_main: SPACE_EVENLY
-              flex_align_cross: CENTER   
-            widgets:
-              # 📌 BUTTON: PREVIOUS
-              - button:
-                  id: lvgl_button_prev
-                  width: "24%"
-                  height: 32
-                  widgets:
-                    - label:
-                        text: "<<"
-                        align: CENTER
-                  group: encoder_group                  
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "PREV: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_media
-                  on_click:
-                    then:
-                      - logger.log: "prev via GUI"
-                      - media_player.previous: sendspin_player
-                      
-              # 📌 BUTTON: PLAY
-              - button:
-                  id: lvgl_button_play_stop
-                  width: "34%"
-                  height: 32
-                  widgets:
-                    - label:
-                        id: lvgl_button_play_stop_label
-                        text: "Wait..."
-                        align: CENTER
-                  group: encoder_group                  
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "PLAY: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_media
-                  on_click:
-                    then:
-                      - logger.log: "play via GUI"
-                      - media_player.toggle: sendspin_player
-
-              # 📌 BUTTON: NEXT
-              - button:
-                  id: lvgl_button_next
-                  width: "24%"
-                  height: 32
-                  widgets:
-                    - label:
-                        text: ">>"
-                        align: CENTER
-                  group: encoder_group                  
-                  on_focus:
-                    then:
-                      - lambda: 'ESP_LOGD(__FILE__, "NEXT: on_focus");'
-                      - script.execute:
-                          id: show_page
-                          page: lvgl_page_media
-                  on_click:
-                    then:
-                      - logger.log: "next via GUI"
-                      - media_player.next: sendspin_player
-
-    - id: lvgl_page_settings
       on_swipe_left:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_settings!"
-        - lvgl.page.show:
-            id: lvgl_page_library
-            animation: move_left
+        - logger.log: "Page: Nach links gewischt"
+        - lvgl.page.next:
+            animation: out_left
             time: 300ms
       on_swipe_right:
         - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_settings!"
-        - lvgl.page.show:
-            id: lvgl_page_media
-            animation: move_right
+        - logger.log: "Page: Nach rechts gewischt"
+        - lvgl.page.previous:
+            animation: out_right
             time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach unten gewischt"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
+
+      widgets:
+        - obj:
+            width: 100%
+            height: 100%
+            pad_top: 30
+            pad_left: 4
+            pad_right: 4
+            pad_bottom: 4
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+
+            layout:
+              type: GRID
+              grid_rows:
+                - 34px
+                - FR(1)
+                - FR(1)
+                - FR(1)
+                - FR(1)
+                - 40px
+              grid_columns:
+                - 60%
+                - 40%
+              pad_row: 4
+              pad_column: 6
+
+            widgets:
+
+              # ==========================================================
+              # TITEL
+              # ==========================================================
+
+              - label:
+                  id: lvgl_label_media_title
+                  text: "Warte auf Server"
+                  text_font: roboto_huge
+                  text_align: CENTER
+                  long_mode: SCROLL
+                  grid_cell_row_pos: 0
+                  grid_cell_column_pos: 0
+                  grid_cell_column_span: 2
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+
+              # ==========================================================
+              # COVER
+              # ==========================================================
+
+              - obj:
+                  bg_opa: TRANSP
+                  border_width: 2
+                  border_color: 0xD4AF37
+                  pad_all: 0
+                  scrollable: false
+
+                  grid_cell_row_pos: 1
+                  grid_cell_column_pos: 0
+                  grid_cell_row_span: 5
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: STRETCH
+
+                  widgets:
+                    - image:
+                        id: lvgl_img_album_art
+                        src: img_art_clear
+                        align: CENTER
+
+
+              # ==========================================================
+              # ARTIST
+              # ==========================================================
+
+              - label:
+                  id: lvgl_label_media_artist
+                  width: 100%
+                  text: "---"
+                  text_color: 0xBBBBBB
+                  text_align: CENTER
+                  long_mode: SCROLL_CIRCULAR
+                  grid_cell_row_pos: 1
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+
+              # ==========================================================
+              # ALBUM
+              # ==========================================================
+
+              - label:
+                  id: lvgl_label_media_album
+                  width: 100%
+                  text: "---"
+                  text_color: 0xBB4477
+                  text_align: CENTER
+                  long_mode: SCROLL_CIRCULAR
+                  grid_cell_row_pos: 2
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+
+              # ==========================================================
+              # SLEEP TIMER
+              # ==========================================================
+
+              - obj:
+                  width: 100%
+                  height: 32
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+
+                  grid_cell_row_pos: 3
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+                  widgets:
+                    - image:
+                        src: icon_sleep
+                        width: 32
+                        height: 32
+                        recolor: "0x7744BB"
+                        recolor_opa: 100%
+
+                    - label:
+                        id: lvgl_label_sleep_timer
+                        text: "Off"
+                        text_color: 0x7744BB
+
+
+              # ==========================================================
+              # PROGRESS
+              # ==========================================================
+
+              - obj:
+                  width: 100%
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+
+                  grid_cell_row_pos: 4
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+                  widgets:
+
+                    - obj:
+                        width: 100%
+                        height: 20
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_main: SPACE_BETWEEN
+                          flex_align_cross: CENTER
+
+                        widgets:
+                          - label:
+                              id: lvgl_label_progress
+                              text: ""
+                              text_color: 0x00FFD2
+
+                          - label:
+                              id: lvgl_label_duration
+                              text: ""
+                              text_color: 0xAAAAAA
+
+                    - bar:
+                        id: track_progress_bar
+                        width: 100%
+                        height: 4
+                        bg_color: 0x804020
+
+
+              # ==========================================================
+              # BUTTONS
+              # ==========================================================
+
+              - obj:
+                  width: 100%
+                  height: 40
+                  bg_color: 0x303030
+                  pad_all: 4
+
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_main: SPACE_EVENLY
+                    flex_align_cross: CENTER
+
+                  grid_cell_row_pos: 5
+                  grid_cell_column_pos: 1
+                  grid_cell_x_align: STRETCH
+                  grid_cell_y_align: CENTER
+
+                  widgets:
+
+                    - button:
+                        id: lvgl_button_prev
+                        width: 24%
+                        height: 32
+                        widgets:
+                          - image:
+                              src: icon_previous
+                              align: CENTER
+                              recolor: "0xFFFFFF"
+                              recolor_opa: 100%
+                        group: encoder_group
+                        on_focus:
+                          then:
+                            - lambda: 'ESP_LOGD(__FILE__, "PREV: on_focus");'
+                            - script.execute:
+                                id: show_page
+                                page: lvgl_page_media
+                        on_click:
+                          then:
+                            - logger.log: "prev via GUI"
+                            - media_player.previous: sendspin_player
+
+                    - button:
+                        id: lvgl_button_play_stop
+                        width: 34%
+                        height: 32
+                        widgets:
+                          - image:
+                              id: lvgl_button_play_stop_image
+                              src: icon_play
+                              align: CENTER
+                              recolor: "0xFFFFFF"
+                              recolor_opa: 100%
+                        group: encoder_group
+                        on_focus:
+                          then:
+                            - lambda: 'ESP_LOGD(__FILE__, "PLAY: on_focus");'
+                            - script.execute:
+                                id: show_page
+                                page: lvgl_page_media
+                        on_click:
+                          then:
+                            - logger.log: "play via GUI"
+                            - media_player.toggle: sendspin_player
+
+                    - button:
+                        id: lvgl_button_next
+                        width: 24%
+                        height: 32
+                        widgets:
+                          - image:
+                              src: icon_next
+                              align: CENTER
+                              recolor: "0xFFFFFF"
+                              recolor_opa: 100%
+
+                        group: encoder_group
+                        on_focus:
+                          then:
+                            - lambda: 'ESP_LOGD(__FILE__, "NEXT: on_focus");'
+                            - script.execute:
+                                id: show_page
+                                page: lvgl_page_media
+                        on_click:
+                          then:
+                            - logger.log: "next via GUI"
+                            - media_player.next: sendspin_player
+
+    - id: lvgl_page_settings
       on_load:
         then:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "SETTINGS"
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach links gewischt"
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach rechts gewischt"
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach unten gewischt"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
 
       widgets:
+        - obj:  # invisible swipe area on Statusbar
+            x: 0
+            y: 0
+            width: 100%
+            height: 30
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            on_swipe_left:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "SB: Nach links gewischt"
+              - lvgl.page.next:
+                  animation: out_left
+                  time: 300ms
+            on_swipe_right:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "SB: Nach rechts gewischt"
+              - lvgl.page.previous:
+                  animation: out_right
+                  time: 300ms
+            on_swipe_bottom:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "SB: Nach unten gewischt"
+              - lvgl.page.show:
+                  id: lvgl_page_info
+                  animation: out_bottom
+                  time: 300ms
+              - switch.turn_off: ha_switch_power
+            on_all_events:
+              - lambda: |-
+                  auto code = lv_event_get_code(event);
+                  if (code >= 34 && code <= 99) {
+                    ESP_LOGD(__FILE__, "Statusbar: event=%d", code);
+                  }      
         # 🔊 DIGITALE LAUTSTÄRKEANZEIGE
         - label:
             id: lvgl_label_volume
@@ -1581,6 +1972,7 @@ lvgl:
             text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
+
         # 🎚️ VOLUME-SLIDER
         - slider:
             id: lvgl_slider_volume
@@ -1599,30 +1991,24 @@ lvgl:
                 - script.execute:
                     id: show_page
                     page: lvgl_page_settings
-            on_change:
-              then:
-                - lambda: |-
-                    ESP_LOGD(__FILE__, "lvgl_slider_volume: on_change => ha_volume_man = %.0f (%0.0f%%)", x, x * 5.0f);
-                - lvgl.label.update:
-                    id: lvgl_label_volume
-                    text: !lambda 'return str_sprintf("Volume: %.0f%%", x * 5.0f);'
 
-        # ☀️ DIGITALE HELLIGKEITSANZEIGE (Groß und zentriert)
+        # ☀️ DIGITALE HELLIGKEITSANZEIGE
         - label:
             id: lvgl_label_backlight
             align: TOP_MID
             x: 0
-            y: 50%
+            y: 40%
             text: "--"
             text_font: roboto_large
             text_color: 0x00FFD2
             text_align: CENTER
-        # 🎚️ HELLIGKEITS-SLIDER 
+
+        # 🎚️ HELLIGKEITS-SLIDER
         - slider:
             id: lvgl_slider_backlight
             align: TOP_MID
             x: 0
-            y: 62%
+            y: 52%
             width: 85%
             height: 20
             min_value: 2
@@ -1635,19 +2021,34 @@ lvgl:
                 - script.execute:
                     id: show_page
                     page: lvgl_page_settings
-            on_change:
-              then:
-                - lambda: |-
-                    ESP_LOGD(__FILE__, "lvgl_slider_backlight: on_change => ha_backlight_man = %.0f (%0.0f%%)", x, x * 5.0f);
-                - lvgl.label.update:
-                    id: lvgl_label_backlight
-                    text: !lambda 'return str_sprintf("Helligkeit: %.0f%%", x * 5.0f);'
 
+        # ⏱️ SLEEP TIMER
+        - dropdown:
+            id: lvgl_dropdown_timer_duration
+            align: TOP_MID
+            x: "-25%"
+            y: 75%
+            height: 28
+            width: 40%
+            dropdown_list:
+              max_height: 120
+            group: encoder_group
+            click_focusable: true
+            options:
+              - "Off"
+              - "5 Min"
+              - "10 Min"
+              - "15 Min"
+              - "30 Min"
+              - "45 Min"
+              - "60 Min"
+
+        # ☀️ AUTOMATISCHE HELLIGKEIT
         - checkbox:
             id: lvgl_checkbox_backlight_auto
             align: TOP_MID
-            x: 0
-            y: 74%
+            x: "25%"
+            y: 75%
             height: 20
             text: "Auto"
             group: encoder_group
@@ -1659,29 +2060,69 @@ lvgl:
                     id: show_page
                     page: lvgl_page_settings
 
-
     - id: lvgl_page_library
-      on_swipe_left:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach links gewischt von lvgl_page_library!"
-        - lvgl.page.show:
-            id: lvgl_page_media
-            animation: move_left
-            time: 300ms
-      on_swipe_right:
-        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
-        - logger.log: "Nach rechts gewischt von lvgl_page_library!"
-        - lvgl.page.show:
-            id: lvgl_page_settings
-            animation: move_right
-            time: 300ms
       on_load:
         then:
           - lvgl.label.update:
               id: lvgl_label_status_title
               text: "LIBRARY"
           # - script.execute: load_library
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach links gewischt"
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach rechts gewischt"
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - logger.log: "Page: Nach unten gewischt"
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
+
       widgets:
+        - obj:  # invisible swipe area on Statusbar
+            x: 0
+            y: 0
+            width: 100%
+            height: 30
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            on_swipe_left:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "SB: Nach links gewischt"
+              - lvgl.page.next:
+                  animation: out_left
+                  time: 300ms
+            on_swipe_right:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "SB: Nach rechts gewischt"
+              - lvgl.page.previous:
+                  animation: out_right
+                  time: 300ms
+            on_swipe_bottom:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - logger.log: "SB: Nach unten gewischt"
+              - lvgl.page.show:
+                  id: lvgl_page_info
+                  animation: out_bottom
+                  time: 300ms
+              - switch.turn_off: ha_switch_power
+            on_all_events:
+              - lambda: |-
+                  auto code = lv_event_get_code(event);
+                  if (code >= 34 && code <= 99) {
+                    ESP_LOGD(__FILE__, "Statusbar: event=%d", code);
+                  }      
         - roller:
             id: lvgl_roller_library
             x: "3%"
@@ -1703,14 +2144,110 @@ lvgl:
             #     format: "Roller Index: %d, Text: %s"
             #     args: [ 'x', 'text.c_str()' ]
 
+    - id: lvgl_page_visualizer
+      on_load:
+        then:
+          - lvgl.label.update:
+              id: lvgl_label_status_title
+              text: "VISUALIZER"
+
+      on_swipe_left:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - lvgl.page.next:
+            animation: out_left
+            time: 300ms
+
+      on_swipe_right:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - lvgl.page.previous:
+            animation: out_right
+            time: 300ms
+
+      on_swipe_bottom:
+        - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+        - lvgl.page.show:
+            id: lvgl_page_info
+            animation: out_bottom
+            time: 300ms
+        - switch.turn_off: ha_switch_power
+
+      widgets:
+
+        # unsichtbare Statusbar-Swipefläche
+        - obj:
+            x: 0
+            y: 0
+            width: 100%
+            height: 30
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+
+            on_swipe_left:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - lvgl.page.next:
+                  animation: out_left
+                  time: 300ms
+
+            on_swipe_right:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - lvgl.page.previous:
+                  animation: out_right
+                  time: 300ms
+
+            on_swipe_bottom:
+              - lambda: 'lv_indev_wait_release(lv_indev_get_act());'
+              - lvgl.page.show:
+                  id: lvgl_page_info
+                  animation: out_bottom
+                  time: 300ms
+              - switch.turn_off: ha_switch_power
+
+        - obj:
+            id: lvgl_spectrum_focus
+            x: 0
+            y: 30
+            width: 1
+            height: 1
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            group: encoder_group
+            click_focusable: true
+            on_focus:
+              then:
+                - lambda: |-
+                    ESP_LOGD(__FILE__, "SPECTRUM: on_focus");
+                - script.execute:
+                    id: show_page
+                    page: lvgl_page_visualizer
+        - canvas:
+            id: lvgl_spectrum_canvas
+            x: 0
+            y: 40
+            width: 320
+            height: 200
+            transparent: false
 
 select:
+  - platform: lvgl
+    id: lvgl_select_timer_duration
+    name: "Timer Duration"
+    widget: lvgl_dropdown_timer_duration
+    restore_value: true
+    on_value:
+      then:
+        - lambda: |-
+            const int minutes = atoi(x.c_str());
+            id(sleep_timer_duration) = minutes * 60;
+            ESP_LOGW(__FILE__, "Sleep timer: %d min = %lu s", minutes, id(sleep_timer_duration));
+        - script.execute: sleep_timer
+
   - platform: lvgl
     id: lvgl_select_library
     widget: lvgl_roller_library
     restore_value: False
     internal: True
-
     on_value:
       - lambda: |-
           const size_t idx =
@@ -1766,6 +2303,96 @@ select:
           id(library_play_media).execute(uri);
 
 script:
+  - id: sleep_timer
+    mode: restart
+    then:
+      - logger.log:
+          format: "SLEEP: after delay | duration=%lu s | player_state=%d | time_power_off=%lu | millis=%lu"
+          args:
+            - "id(sleep_timer_duration)"
+            - "id(audio_player).state"
+            - "id(time_power_off)"
+            - "millis()"
+
+      - if:
+          condition:
+            lambda: |-
+              return id(sleep_timer_duration) > 0 &&
+                     id(audio_player).state ==
+                     media_player::MEDIA_PLAYER_STATE_PLAYING;
+          then:
+            - logger.log:
+                format: "SLEEP: starting/restarting timer for %lu s"
+                args:
+                  - "id(sleep_timer_duration)"
+
+            - lambda: |-
+                id(time_power_off) =
+                    millis() + id(sleep_timer_duration) * 1000;
+
+            - logger.log:
+                format: "SLEEP: timer started | time_power_off=%lu | millis=%lu"
+                args:
+                  - "id(time_power_off)"
+                  - "millis()"
+
+            - while:
+                condition:
+                  lambda: |-
+                    return millis() < id(time_power_off) &&
+                           id(audio_player).state ==
+                           media_player::MEDIA_PLAYER_STATE_PLAYING;
+                then:
+                  - lvgl.label.update:
+                      id: lvgl_label_sleep_timer
+                      text:
+                        format: "%02lu:%02lu"
+                        args:
+                          - "(id(time_power_off) - millis()) / 1000 / 60"
+                          - "((id(time_power_off) - millis()) / 1000) % 60"
+
+                  - delay: 1s
+
+            - logger.log:
+                format: "SLEEP: while ended | player_state=%d | remaining=%ld ms"
+                args:
+                  - "id(audio_player).state"
+                  - "id(time_power_off) - millis()"
+
+            - if:
+                condition:
+                  lambda: |-
+                    return id(audio_player).state ==
+                           media_player::MEDIA_PLAYER_STATE_PLAYING;
+                then:
+                  - logger.log:
+                      format: "SLEEP: TIMER EXPIRED -> power off"
+
+                  - lvgl.label.update:
+                      id: lvgl_label_sleep_timer
+                      text: "00:00"
+
+                  - switch.turn_off: ha_switch_power
+
+                else:
+                  - logger.log:
+                      format: "SLEEP: playback stopped -> abort timer"
+
+                  - lvgl.label.update:
+                      id: lvgl_label_sleep_timer
+                      text: "Off"
+
+          else:
+            - logger.log:
+                format: "SLEEP: NOT starting | duration=%lu s | player_state=%d"
+                args:
+                  - "id(sleep_timer_duration)"
+                  - "id(audio_player).state"
+
+            - lvgl.label.update:
+                id: lvgl_label_sleep_timer
+                text: "Off"
+
   - id: update_backlight
     then:
       - lambda: |-
@@ -1876,9 +2503,9 @@ script:
                       condition: 
                         lambda: "return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PLAYING;"
                       then: 
-                        - lvgl.label.update:
-                            id: lvgl_button_play_stop_label
-                            text: "Pause"
+                        - lvgl.image.update:
+                            id: lvgl_button_play_stop_image
+                            src: icon_pause
 
                   # SCHRITT 4: Wenn Musik pausiert/leerläuft (IDLE/PAUSED) -> Play anzeigen, Stop verstecken
                   - if: 
@@ -1887,9 +2514,9 @@ script:
                           return id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_IDLE || 
                                 id(sendspin_player).state == media_player::MEDIA_PLAYER_STATE_PAUSED;
                       then: 
-                        - lvgl.label.update:
-                            id: lvgl_button_play_stop_label
-                            text: "Play"
+                        - lvgl.image.update:
+                            id: lvgl_button_play_stop_image
+                            src: icon_play
       - logger.log: "LVGL Display-Updates beendet."
 
   - id: show_page

@@ -6,7 +6,7 @@ sensor:
   - platform: template
     name: "Illuminance"
     id: illuminance_id
-    update_interval: 5s
+    update_interval: 60s
     unit_of_measurement: "lx"
     device_class: illuminance
     state_class: measurement

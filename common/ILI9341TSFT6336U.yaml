@@ -1,5 +1,7 @@
 substitutions:
   cover_image_dimension: 150x150
+  display_width: 320
+  display_height: 240
   font_size_small: 16
   font_size_medium: 20
   font_size_large: 24
@@ -36,8 +38,8 @@ display:
       mirror_x: true
       mirror_y: true
     dimensions:
-      height: 240
-      width: 320
+      height: ${display_height}
+      width: ${display_width}
 
 touchscreen:
   - platform: ft63x6

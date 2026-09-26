@@ -4,7 +4,7 @@ esphome:
   min_version: 2026.8.2
   project:
     name: "hufi.musicbox"
-    version: 0.7.5
+    version: 0.7.6
   on_boot:
     priority: -100
     then:
@@ -241,9 +241,6 @@ media_player:
     on_idle:
       then:
         - logger.log: "SendSpin: on_idle"
-        - lvgl.canvas.fill:
-            id: lvgl_spectrum_canvas
-            color: 0x000000
 
   - id: !extend audio_player
 
@@ -266,6 +263,9 @@ media_player:
     on_idle:
       then:
         - logger.log: "AudioPlayer: on_idle"
+        - lvgl.canvas.fill:
+            id: lvgl_spectrum_canvas
+            color: 0x000000
     on_mute:
       then:
         - logger.log: "AudioPlayer: on_mute"
@@ -1321,6 +1321,11 @@ lvgl:
       text_color: 0xFFFFFF
       text_font: roboto_medium
 
+      focused:
+        border_color: 0xFFFF00
+        border_opa: COVER
+        border_width: 3
+
       pressed:
         bg_color: 0x2C3E50
         bg_opa: COVER
@@ -1332,6 +1337,11 @@ lvgl:
         border_width: 3
 
     slider:
+      focused:
+        border_color: 0xFFFF00
+        border_opa: COVER
+        border_width: 3
+
       pressed:
         border_color: 0xCCCC00
         border_opa: COVER
@@ -1345,6 +1355,11 @@ lvgl:
     roller:
       text_color: 0xFFFFFF
       text_font: roboto_small
+
+      focused:
+        border_color: 0xFFFF00
+        border_opa: COVER
+        border_width: 3
 
       edited:
         border_color: 0xFFFF00
@@ -2237,8 +2252,8 @@ lvgl:
             id: lvgl_spectrum_canvas
             x: 0
             y: 40
-            width: 320
-            height: 200
+            width: ${display_width}
+            height: ${display_height - 40}
             transparent: false
 
 select:

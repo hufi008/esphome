@@ -9,29 +9,30 @@ substitutions:
   # ========================================================
   # --- LINKE SEITE: (3V3) DISPLAY/TOUCH, Drehimpulsgeber --
   # ========================================================
-  # --- ILI9341 Block ---
-  # 3V3                      # -> VCC 
-  # GND                      # -> GND
-  pin_display_cs:    GPIO4   # -> LCD_CS
-  pin_display_reset: GPIO5   # -> LCD_RST
-  pin_display_dc:    GPIO6   # -> LCD_DS
-  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)
-  pin_spi_clk:       GPIO15  # -> SCK
-  pin_display_led:   GPIO16  # -> LED
-  pin_spi_miso:      GPIO17  # -> SDO(MISO) nicht verbinden
+  # Optimierung Pins
+  # --- BLOCK 1: KY-040 Drehgeber (Ganz oben am ESP32) ---
+  pin_encoder_clk:   GPIO4   # ESP32: J1-4  -> Geht an: KY-040 CLK
+  pin_encoder_dt:    GPIO5   # ESP32: J1-5  -> Geht an: KY-040 DT
+  pin_encoder_sw:    GPIO6   # ESP32: J1-6  -> Geht an: KY-040 SW
 
-  pin_touch_irq:     GPIO18  # -> CTP_INT
-  pin_touch_reset:   GPIO08  # -> CTP_RST
-  pin_i2c_scl:       GPIO09  # -> CTP_SCL
-  pin_i2c_sda:       GPIO10  # -> CTP_SDA
+  # --- BLOCK 2: Touch & Display (Spiegelbildlich zum Display-Header) ---
+  # (Hinweis: Display SD_CS lassen wir frei oder legen es auf einen freien Pin)
+  pin_touch_irq:     GPIO7   # ESP32: J1-7  -> Geht an: CTP_INT
+  pin_i2c_sda:       GPIO15  # ESP32: J1-8  -> Geht an: CTP_SDA
+  pin_touch_reset:   GPIO16  # ESP32: J1-9  -> Geht an: CTP_RST
+  pin_i2c_scl:       GPIO17  # ESP32: J1-10 -> Geht an: CTP_SCL
 
-  # --- KY-040 Drehgeber Block ---
-  pin_encoder_clk:   GPIO12  # -> CLK
-  pin_encoder_dt:    GPIO13  # -> DT
-  pin_encoder_sw:    GPIO14  # -> SW
-  # 3V3 !!!                  # -> +
-  # GND                      # -> GND
+  # --- BLOCK 3: Hardware-SPI & Display-Steuerung ---
+  # (Hinweis: ESP32 J1-13 [GPIO3] und J1-14 [GPIO46] überspringen )
 
+
+  pin_display_dc:     GPIO08  # J1-12 -> D10 LCD_RS (DC)
+  pin_display_reset:  GPIO09  # J1-15 -> D11 LCD_RST
+  pin_display_cs:     GPIO10  # J1-16 -> D12 LCD_CS
+  pin_spi_mosi:       GPIO11  # J1-17 -> D09 SDI(MOSI)
+  pin_spi_clk:        GPIO12  # J1-18 -> D08 SCK
+  pin_spi_miso:       GPIO13  # J1-19 -> D06 SDO(MISO)
+  pin_display_led:    GPIO14  # J1-20 -> D07 LED
   # ========================================================
   # --- RECHTE SEITE (5V): AUDIO, LED  ---
   # ========================================================

@@ -2,8 +2,10 @@
 
 substitutions:
   device_name: "musicbox-ib3"
-  
-  #device_name: "esphome-web-a2f8c0"
+  display_width: "320"
+  display_height: "240"
+  spectrum_height: "200"
+  # device_name: "esphome-web-a2f8c0"
   friendly_name: "MusicBox IB3"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home

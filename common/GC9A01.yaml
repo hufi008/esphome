@@ -1,0 +1,31 @@
+# common/GC9A01.yaml
+
+substitutions:
+  display_width: 240
+  display_height: 240
+  font_size_small: 12
+  font_size_medium: 16
+  font_size_large: 24
+  font_size_huge: 32
+
+# -------------------------------------------------------------------
+# Display
+# -------------------------------------------------------------------
+
+spi:
+  id: my_spi
+  interface: SPI
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+
+display:
+  - platform: mipi_spi
+    model: GC9A01A
+    id: my_display
+    spi_id: my_spi
+    data_rate: 20MHz
+    cs_pin: ${pin_display_cs}
+    dc_pin: ${pin_display_dc}
+    reset_pin: ${pin_display_reset}
+    invert_colors: true
+    rotation: 0

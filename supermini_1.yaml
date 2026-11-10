@@ -65,6 +65,15 @@ display:
         if (x_start < 0) x_start = 0;
 
         for (int x = x_start; x < 120; x++) {
+          // Schwarze, senkrechte Pupille mit elliptisch zugespitzten Enden.
+          // Der Hintergrund wurde einmalig schwarz gefüllt und bleibt stehen.
+          // Deshalb: innerhalb der Pupille weder Plasma berechnen noch Pixel zeichnen.
+          const float pupil_dx = ((float)x - 119.5f) / 3.0f;
+          const float pupil_dy = ((float)y - 119.5f) / 50.0f;
+          if (pupil_dx * pupil_dx + pupil_dy * pupil_dy < 1.0f) {
+            continue;
+          }
+
           // Domain Warping:
           // Langsame, großflächige Wellen verschieben das Koordinatenfeld.
           // Dadurch werden die folgenden Plasma-Wellen gebogen und verwirbelt,

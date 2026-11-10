@@ -40,7 +40,7 @@ display:
         background_initialized = true;
       }
 
-      // Render-Frequenz messen und oben links anzeigen.
+      // Render-Frequenz messen und oben mittig anzeigen.
       static uint32_t last_frame_ms = 0;
       const uint32_t now = millis();
       float fps = 0.0f;
@@ -49,9 +49,9 @@ display:
       }
       last_frame_ms = now;
 
-      // Anzeigebereich freiräumen, damit keine alten Ziffern stehen bleiben.
-      it.filled_rectangle(0, 0, 80, 28, Color::BLACK);
-      it.printf(4, 6, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
+      // Kleiner Anzeigebereich nahe der oberen Mitte des runden Displays.
+      it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
+      it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
       // Sinus-Lookup-Tabelle: einmalig berechnen, danach nur Integer-Zugriffe.
       static int8_t sine[256];

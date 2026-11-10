@@ -48,7 +48,7 @@ display:
         sine_ready = true;
       }
 
-      // Zeitphasen: unterschiedliche Geschwindigkeiten und Richtungen.
+      // Zeitphasen mit unterschiedlichen Geschwindigkeiten.
       const uint32_t t = millis() / 35;
       const int phase1 = t & 255;
       const int phase2 = (t * 2) & 255;
@@ -65,12 +65,23 @@ display:
         if (x_start < 0) x_start = 0;
 
         for (int x = x_start; x < 120; x++) {
-          // Vier überlagerte, gegeneinander laufende Wellen.
-          // Die Kombination erzeugt wandernde und sich verformende Strukturen.
-          const int p1 = (x * 3 + y * 2 + phase1) & 255;
-          const int p2 = (x * 2 - y * 3 - phase2) & 255;
-          const int p3 = (x * 4 + y * 1 + phase3) & 255;
-          const int p4 = (x * 1 - y * 4 - phase4) & 255;
+          // Domain Warping:
+          // Langsame, großflächige Wellen verschieben das Koordinatenfeld.
+          // Dadurch werden die folgenden Plasma-Wellen gebogen und verwirbelt,
+          // statt als gleichmäßige diagonale Streifen durchzulaufen.
+          const int wx1 = sine[(x + y * 2 + phase4) & 255];
+          const int wx2 = sine[(x * 2 - y + phase2) & 255];
+          const int wy1 = sine[(x - y * 2 - phase3) & 255];
+          const int wy2 = sine[(x * 2 + y + phase1) & 255];
+
+          const int warped_x = x + (wx1 + wx2) / 12;
+          const int warped_y = y + (wy1 + wy2) / 12;
+
+          // Vier Wellen werden im verzerrten Koordinatenfeld überlagert.
+          const int p1 = (warped_x * 3 + warped_y * 2 + phase1) & 255;
+          const int p2 = (warped_x * 2 - warped_y * 3 - phase2) & 255;
+          const int p3 = (warped_x * 4 + warped_y + phase3) & 255;
+          const int p4 = (warped_x - warped_y * 4 - phase4) & 255;
 
           const int wave =
               (int)sine[p1] +
@@ -78,22 +89,24 @@ display:
               (int)sine[p3] +
               (int)sine[p4];
 
+          // Kontrast leicht anheben: mehr zusammenhängende heiße Bereiche
+          // und dunklere Zwischenräume.
           int v = 128 + wave / 4;
           if (v < 0) v = 0;
           if (v > 255) v = 255;
 
           // Farbpalette: Schwarz -> Gelb -> Rot.
-          // Der Übergang zu Gelb liegt bewusst sehr früh,
-          // damit der Gesamteindruck deutlich rot dominiert.
-          int r = 0;
-          int g = 0;
+          // Gelb bleibt auf die hellsten Spitzen konzentriert;
+          // der Gesamteindruck soll überwiegend rot sein.
+          int r;
+          int g;
 
-          if (v < 24) {
-            r = (v * 255) / 24;
+          if (v < 18) {
+            r = (v * 255) / 18;
             g = r;
           } else {
             r = 255;
-            g = 255 - ((v - 24) * 255) / 231;
+            g = 255 - ((v - 18) * 255) / 237;
           }
 
           const Color color(r, g, 0);

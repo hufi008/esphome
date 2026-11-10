@@ -8,10 +8,10 @@ Der eingecheckte Stand ist der nachweislich funktionierende Hallo-Welt-Test. Die
 
 ## Dateien
 
-- `supermini_1.yaml`: Projektkonfiguration, Pinbelegung, Schrift und Zeichen-Lambda
-- `../common/base-c3_supermini.yaml`: ESP32-C3-Basis
-- `../common/GC9A01.yaml`: SPI-Bus und GC9A01A-Display
-- `../common/base-esp32.yaml`: gemeinsame WLAN-, API- und OTA-Konfiguration
+- `supermini_1.yaml`: Hauptkonfiguration im Repository-Root
+- `common/base-c3_supermini.yaml`: ESP32-C3-Basis
+- `common/GC9A01.yaml`: SPI-Bus und GC9A01A-Display
+- `common/base-esp32.yaml`: gemeinsame WLAN-, API- und OTA-Konfiguration
 
 ## Pinbelegung
 
@@ -34,8 +34,8 @@ Die ESPHome-Secrets müssen im ESPHome-Konfigurationsverzeichnis vorhanden sein.
 Vom Repository-Root aus:
 
 ```sh
-esphome config saurons_eye_gc9a01/supermini_1.yaml
-esphome compile saurons_eye_gc9a01/supermini_1.yaml
+esphome config supermini_1.yaml
+esphome compile supermini_1.yaml
 ```
 
 ## Display-Baseline

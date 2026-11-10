@@ -16,18 +16,110 @@ packages:
   display: !include common/GC9A01.yaml
 
 logger:
-  level: DEBUG
+  level: VERBOSE
 
 esphome:
 
 font:
   - id: font_large
     file: "gfonts://Roboto"
-    size: 24
+    size: ${font_size_large}
+
+
 
 display:
   - id: !extend my_display
-    update_interval: 1s
+    update_interval: 250ms
+    auto_clear_enabled: true
     lambda: |-
-      it.fill(Color::BLACK);
-      it.printf(120, 120, id(font_large), Color(30, 0, 255), TextAlign::CENTER, "Hallo Welt!");
+      static uint8_t noise[16 * 16];
+      static bool noise_ready = false;
+
+      // Noise-Feld einmalig initialisieren
+      if (!noise_ready) {
+        uint32_t rng = 0x12345678;
+
+        for (int i = 0; i < 256; i++) {
+          rng ^= rng << 13;
+          rng ^= rng >> 17;
+          rng ^= rng << 5;
+          noise[i] = rng >> 24;
+        }
+
+        noise_ready = true;
+      }
+
+      // Langsame Verschiebung des Noise-Feldes
+      const uint32_t phase = millis();
+      const int shift_x = (phase / 4) & 255;
+      const int shift_y = (phase / 6) & 255;
+
+      // Ellipse: 240 x 160 Pixel, zentriert
+      // Nur die linke Hälfte wird berechnet.
+      // Die rechte Hälfte erhält die gespiegelten Pixel.
+
+      for (int y = 40; y < 200; y++) {
+
+        // Vertikale Position relativ zum Ellipsenzentrum
+        const float dy = ((float)y - 119.5f) / 80.0f;
+
+        // Horizontale Halbausdehnung dieser Zeile
+        const float half_width =
+            120.0f * sqrtf(1.0f - dy * dy);
+
+        // Erster sichtbarer Pixel auf der linken Seite
+        int x_start = (int)ceilf(119.5f - half_width);
+
+        if (x_start < 0) x_start = 0;
+
+        const int yf = (y * 34 + shift_y) & 4095;
+        const int iy = (yf >> 8) & 15;
+        const int fy = yf & 255;
+        const int iy1 = (iy + 1) & 15;
+
+        const int ty = (fy * fy * (768 - 2 * fy)) >> 16;
+
+        for (int x = x_start; x < 120; x++) {
+
+          const int xf = (x * 34 + shift_x) & 4095;
+          const int ix = (xf >> 8) & 15;
+          const int fx = xf & 255;
+          const int ix1 = (ix + 1) & 15;
+
+          const int tx = (fx * fx * (768 - 2 * fx)) >> 16;
+
+          // Vier Nachbarwerte des Noise-Feldes
+          const int a = noise[iy * 16 + ix];
+          const int b = noise[iy * 16 + ix1];
+          const int c = noise[iy1 * 16 + ix];
+          const int d = noise[iy1 * 16 + ix1];
+
+          // Bilineare Interpolation
+          const int top = a + ((b - a) * tx) / 255;
+          const int bottom = c + ((d - c) * tx) / 255;
+          const int v = top + ((bottom - top) * ty) / 255;
+
+          // Farbverlauf
+          int r = (v > 80) ? (v - 80) * 2 : 0;
+          int g = (v < 128) ? v * 2 : 255 - (v - 128) * 2;
+          int bcol = (v < 180) ? 255 - v : (v - 180) * 3;
+
+          if (r > 255) r = 255;
+          if (g < 0) g = 0;
+          if (g > 255) g = 255;
+          if (bcol > 255) bcol = 255;
+
+          // RGB332
+          const uint8_t color =
+              (r & 0xE0) |
+              ((g & 0xE0) >> 3) |
+              (bcol >> 6);
+
+          // Linker Pixel und gespiegelter rechter Pixel
+          const int mirror_x = 239 - x;
+
+          it.draw_pixel_at(x, y, Color(r, g, bcol));
+          it.draw_pixel_at(mirror_x, y, Color(r, g, bcol));
+        }
+      }
+

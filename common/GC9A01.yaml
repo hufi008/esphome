@@ -23,9 +23,13 @@ display:
     model: GC9A01A
     id: my_display
     spi_id: my_spi
-    data_rate: 20MHz
     cs_pin: ${pin_display_cs}
     dc_pin: ${pin_display_dc}
     reset_pin: ${pin_display_reset}
+    data_rate: 40MHz
     invert_colors: true
+    auto_clear_enabled: true
+    color_depth: 8
+    buffer_size: 100%
     rotation: 0
+

@@ -25,102 +25,81 @@ font:
     file: "gfonts://Roboto"
     size: ${font_size_large}
 
-
-
 display:
   - id: !extend my_display
     update_interval: 250ms
     auto_clear_enabled: false
     lambda: |-
       // Hintergrund nur beim ersten Durchlauf initial schwarz setzen.
-      // Danach bleibt der Bereich außerhalb der Ellipse unverändert.
       static bool background_initialized = false;
       if (!background_initialized) {
         it.fill(Color::BLACK);
         background_initialized = true;
       }
 
-      static uint8_t noise[16 * 16];
-      static bool noise_ready = false;
+      // Sinus-Lookup-Tabelle: einmalig berechnen, danach nur Integer-Zugriffe.
+      static int8_t sine[256];
+      static bool sine_ready = false;
 
-      // Noise-Feld einmalig initialisieren
-      if (!noise_ready) {
-        uint32_t rng = 0x12345678;
-
+      if (!sine_ready) {
         for (int i = 0; i < 256; i++) {
-          rng ^= rng << 13;
-          rng ^= rng >> 17;
-          rng ^= rng << 5;
-          noise[i] = rng >> 24;
+          sine[i] = (int8_t) (sinf(i * 0.0245436926f) * 127.0f);
         }
-
-        noise_ready = true;
+        sine_ready = true;
       }
 
-      // Langsame Verschiebung des Noise-Feldes
-      const uint32_t phase = millis();
-      const int shift_x = (phase / 4) & 255;
-      const int shift_y = (phase / 6) & 255;
+      // Zeitphasen: unterschiedliche Geschwindigkeiten und Richtungen.
+      const uint32_t t = millis() / 35;
+      const int phase1 = t & 255;
+      const int phase2 = (t * 2) & 255;
+      const int phase3 = (t * 3) & 255;
+      const int phase4 = (t / 2) & 255;
 
-      // Ellipse: 240 x 160 Pixel, zentriert
-      // Nur die linke Hälfte wird berechnet.
-      // Die rechte Hälfte erhält die gespiegelten Pixel.
-
+      // Ellipse: 240 x 160 Pixel, zentriert.
+      // Nur die linke Hälfte berechnen und nach rechts spiegeln.
       for (int y = 40; y < 200; y++) {
-
-        // Vertikale Position relativ zum Ellipsenzentrum
         const float dy = ((float)y - 119.5f) / 80.0f;
+        const float half_width = 120.0f * sqrtf(1.0f - dy * dy);
 
-        // Horizontale Halbausdehnung dieser Zeile
-        const float half_width =
-            120.0f * sqrtf(1.0f - dy * dy);
-
-        // Erster sichtbarer Pixel auf der linken Seite
         int x_start = (int)ceilf(119.5f - half_width);
-
         if (x_start < 0) x_start = 0;
 
-        const int yf = (y * 34 + shift_y) & 4095;
-        const int iy = (yf >> 8) & 15;
-        const int fy = yf & 255;
-        const int iy1 = (iy + 1) & 15;
-
-        const int ty = (fy * fy * (768 - 2 * fy)) >> 16;
-
         for (int x = x_start; x < 120; x++) {
+          // Vier überlagerte, gegeneinander laufende Wellen.
+          // Die Kombination erzeugt wandernde und sich verformende Strukturen.
+          const int p1 = (x * 3 + y * 2 + phase1) & 255;
+          const int p2 = (x * 2 - y * 3 - phase2) & 255;
+          const int p3 = (x * 4 + y * 1 + phase3) & 255;
+          const int p4 = (x * 1 - y * 4 - phase4) & 255;
 
-          const int xf = (x * 34 + shift_x) & 4095;
-          const int ix = (xf >> 8) & 15;
-          const int fx = xf & 255;
-          const int ix1 = (ix + 1) & 15;
+          const int wave =
+              (int)sine[p1] +
+              (int)sine[p2] +
+              (int)sine[p3] +
+              (int)sine[p4];
 
-          const int tx = (fx * fx * (768 - 2 * fx)) >> 16;
+          int v = 128 + wave / 4;
+          if (v < 0) v = 0;
+          if (v > 255) v = 255;
 
-          // Vier Nachbarwerte des Noise-Feldes
-          const int a = noise[iy * 16 + ix];
-          const int b = noise[iy * 16 + ix1];
-          const int c = noise[iy1 * 16 + ix];
-          const int d = noise[iy1 * 16 + ix1];
+          // Farbpalette: Schwarz -> Gelb -> Rot.
+          // Der Übergang zu Gelb liegt bewusst sehr früh,
+          // damit der Gesamteindruck deutlich rot dominiert.
+          int r = 0;
+          int g = 0;
 
-          // Bilineare Interpolation
-          const int top = a + ((b - a) * tx) / 255;
-          const int bottom = c + ((d - c) * tx) / 255;
-          const int v = top + ((bottom - top) * ty) / 255;
+          if (v < 24) {
+            r = (v * 255) / 24;
+            g = r;
+          } else {
+            r = 255;
+            g = 255 - ((v - 24) * 255) / 231;
+          }
 
-          // Farbverlauf
-          int r = (v > 80) ? (v - 80) * 2 : 0;
-          int g = (v < 128) ? v * 2 : 255 - (v - 128) * 2;
-          int bcol = (v < 180) ? 255 - v : (v - 180) * 3;
-
-          if (r > 255) r = 255;
-          if (g < 0) g = 0;
-          if (g > 255) g = 255;
-          if (bcol > 255) bcol = 255;
-
-          // Linker Pixel und gespiegelter rechter Pixel
+          const Color color(r, g, 0);
           const int mirror_x = 239 - x;
 
-          it.draw_pixel_at(x, y, Color(r, g, bcol));
-          it.draw_pixel_at(mirror_x, y, Color(r, g, bcol));
+          it.draw_pixel_at(x, y, color);
+          it.draw_pixel_at(mirror_x, y, color);
         }
       }

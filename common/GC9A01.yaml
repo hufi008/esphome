@@ -28,8 +28,7 @@ display:
     reset_pin: ${pin_display_reset}
     data_rate: 40MHz
     invert_colors: true
-    auto_clear_enabled: true
+    auto_clear_enabled: false
     color_depth: 8
     buffer_size: 100%
     rotation: 0
-

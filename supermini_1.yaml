@@ -30,8 +30,16 @@ font:
 display:
   - id: !extend my_display
     update_interval: 250ms
-    auto_clear_enabled: true
+    auto_clear_enabled: false
     lambda: |-
+      // Hintergrund nur beim ersten Durchlauf initial schwarz setzen.
+      // Danach bleibt der Bereich außerhalb der Ellipse unverändert.
+      static bool background_initialized = false;
+      if (!background_initialized) {
+        it.fill(Color::BLACK);
+        background_initialized = true;
+      }
+
       static uint8_t noise[16 * 16];
       static bool noise_ready = false;
 
@@ -109,12 +117,6 @@ display:
           if (g > 255) g = 255;
           if (bcol > 255) bcol = 255;
 
-          // RGB332
-          const uint8_t color =
-              (r & 0xE0) |
-              ((g & 0xE0) >> 3) |
-              (bcol >> 6);
-
           // Linker Pixel und gespiegelter rechter Pixel
           const int mirror_x = 239 - x;
 
@@ -122,4 +124,3 @@ display:
           it.draw_pixel_at(mirror_x, y, Color(r, g, bcol));
         }
       }
-

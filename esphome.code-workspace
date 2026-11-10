@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"python-envs.defaultEnvManager": "ms-python.python:system",
+		"yaml.customTags": [
+			"!lambda scalar",
+			"!secret scalar",
+			"!extend scalar"
+		]
+	}
+}

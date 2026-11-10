@@ -1,0 +1,141 @@
+substitutions:
+  device_name: "esphome-web-0dc5df"
+  friendly_name: "Mini 1"
+
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: false
+
+
+esp8266:
+  board: nodemcuv2
+
+api:
+  id: api_id
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+- platform: esphome
+  password: !secret ota_password
+
+wifi:
+  id: wifi_id
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap: 
+    ssid: "${friendly_name} Fallback"
+    password: !secret wifi_ap_password
+
+captive_portal:
+
+logger:
+
+
+button:
+  - platform: restart
+    name: "Restart"
+    icon: mdi:restart
+    on_press:
+      then:
+        - safe_mode.mark_successful
+  - platform: factory_reset
+    name: "Factory Reset NVS"
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812X
+    pin: GPIO2
+    method: ESP8266_UART1      
+    num_leds: 5
+    name: "Lichtstreifen"
+    id: led_strip
+    restore_mode: RESTORE_DEFAULT_ON
+
+    on_turn_on:
+      - light.turn_on:
+          id: led_strip
+          effect: "Fackeln"
+
+    effects:
+      - addressable_lambda:
+          name: "Lagerfeuer"
+          update_interval: 50ms        # Ruhige, gleichmäßige Aktualisierungsrate
+          lambda: |-
+            // Jede LED wird einzeln berechnet (4 = Unten im Glutkern, 0 = Oben in der Spitze)
+            
+            // LED 4: Der Glutkern (Unten am Kabel)
+            // Sehr helles, sattes Gelb-Orange, das extrem stabil bleibt.
+            float f4 = esphome::random_float();
+            it[4] = Color(255, 150 + int(f4 * 40), 20);
+
+            // LED 3: Untere Hauptflamme
+            // Kräftiges Orange, das weich in hellere Gelbphasen ausbricht.
+            float f3 = esphome::random_float();
+            if (f3 > 0.4) {
+              it[3] = Color(255, 110 + int(f3 * 50), 10); // Heißes Auslohern
+            } else {
+              it[3] = Color(220, 80 + int(f3 * 30), 0);   // Standard Flamme
+            }
+
+            // LED 2: Mittlere Hauptflamme
+            // Lodert synchron mit, bricht aber auch mal in dunkleres Rot-Orange ein.
+            float f2 = esphome::random_float();
+            if (f2 > 0.5) {
+              it[2] = Color(240, 100 + int(f2 * 40), 5);  // Gelbliches Lodern
+            } else {
+              it[2] = Color(160, 40 + int(f2 * 30), 0);   // Rötliches Absinken
+            }
+
+            // LED 1: Obere Flamme
+            // Höhere Instabilität. Wechselt stark zwischen hellem Rot-Orange und tiefem Dunkelrot.
+            float f1 = esphome::random_float();
+            if (f1 > 0.5) {
+              it[1] = Color(200, 60 + int(f1 * 40), 0);   // Aufsteigen der Hitze
+            } else {
+              it[1] = Color(70 + int(f1 * 40), 10, 0);    // Weites Absinken
+            }
+
+            // LED 0: Die Flammenspitze (Ganz oben, am weitesten weg vom Kabel)
+            // Extrem unruhig. Schießt selten hell nach oben, erlischt sonst fast vollständig (Flammenabriss).
+            float f0 = esphome::random_float();
+            if (f0 > 0.75) {
+              it[0] = Color(230, 90 + int(f0 * 30), 5);   // Spitze schlägt voll nach oben aus (Gelblich)
+            } else if (f0 > 0.35) {
+              it[0] = Color(120, 20 + int(f0 * 20), 0);   // Normales, schwaches rotes Züngeln
+            } else {
+              it[0] = Color(10, 1, 0);                    // Flamme reißt ab, LED wird fast schwarz
+            }
+
+      - addressable_lambda:
+          name: "Fackeln"
+          update_interval: 40ms
+          lambda: |-
+            // 'current_color' ist ein fertiges esphome::Color Objekt.
+            // Die Kanäle werden direkt per .r, .g, .b als Werte von 0 bis 255 ausgelesen.
+            uint8_t base_r = current_color.r;
+            uint8_t base_g = current_color.g;
+            uint8_t base_b = current_color.b;
+
+            for (int i = 0; i < it.size(); i++) {
+              // 1. Helligkeitsflackern (Zufallswert zwischen 0.5 und 1.0)
+              float flicker = esphome::random_float() * 0.50f + 0.50f;
+              
+              // 2. Farb-Zittern (Verschiebt den Grünanteil im Byte-Bereich um bis zu ±45)
+              // Da base_g ein uint8_t ist, rechnen wir in Ganzzahlen, um das Zittern zu erzeugen.
+              int g_shift = (int)(esphome::random_float() * 90.0f) - 45; 
+              int g_modified = (int)base_g + g_shift;
+              
+              // Verhindert ein Über- oder Unterlaufen des Byte-Wertes (0-255)
+              g_modified = clamp(g_modified, 0, 255);
+
+              // Da r, g und b bereits Werte von 0-255 sind, multiplizieren wir nur noch den Helligkeitsfaktor
+              it[i] = esphome::Color(
+                (uint8_t)(base_r * flicker),
+                (uint8_t)(g_modified * flicker),
+                (uint8_t)(base_b * flicker)
+              );
+            }

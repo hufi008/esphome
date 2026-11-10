@@ -1,0 +1,18 @@
+
+# common/base-c3_supermini.yaml
+
+packages:
+  - !include base-esp32.yaml
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+wifi:
+  power_save_mode: NONE
+  fast_connect: true
+
+logger:
+  level: DEBUG

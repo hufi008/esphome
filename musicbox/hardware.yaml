@@ -23,7 +23,7 @@ number:
   - platform: lvgl
     id: ha_volume_man
     name: "Lautstärke"
-    widget: lvgl_slider_volume
+    widget: lvgl_slider_volume    
     restore_value: true
   - platform: lvgl
     id: ha_backlight_man

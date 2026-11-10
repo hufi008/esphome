@@ -1,0 +1,89 @@
+# antbox_1.yaml
+
+substitutions:
+  device_name: "esphome-web-d541d0"
+  friendly_name: "AntBox 2"
+  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
+  weather_forecast_id: weather.forecast_home
+
+  # ========================================================
+  # --- LINKE SEITE: (3V3) DISPLAY/TOUCH, Drehimpulsgeber --
+  # ========================================================
+  # --- ILI9341 Block ---
+  # 3V3                      # -> VCC 
+  # GND                      # -> GND
+  pin_display_cs:    GPIO4   # -> LCD_CS
+  pin_display_reset: GPIO5   # -> LCD_RST
+  pin_display_dc:    GPIO6   # -> LCD_DS
+  pin_spi_mosi:      GPIO7   # -> SDI(MOSI)
+  pin_spi_clk:       GPIO15  # -> SCK
+  pin_display_led:   GPIO16  # -> LED
+  pin_spi_miso:      GPIO17  # -> SDO(MISO)
+
+  pin_touch_irq:     GPIO18  # -> CTP_INT
+  pin_touch_reset:   GPIO08  # -> CTP_RST
+  pin_i2c_scl:       GPIO09  # -> CTP_SCL
+  pin_i2c_sda:       GPIO10  # -> CTP_SDA
+
+  # --- KY-040 Drehgeber Block ---
+  pin_encoder_clk:   GPIO12   # -> CLK
+  pin_encoder_dt:    GPIO13   # -> DT
+  pin_encoder_sw:    GPIO14  # -> SW
+  # 3V3 !!!                  # -> +
+  # GND                      # -> GND
+
+  # ========================================================
+  # --- RECHTE SEITE (5V): AUDIO, LED  ---
+  # ========================================================
+
+  # --- WS2812 RGB-LED ---
+  # 5V                       # -> +5V
+  pin_ws2812_din:    GPIO01  # -> DIN
+  # GND                      # -> GND
+
+  # --- MAX98357 I2S Audio Block ---
+  pin_max98357_lrc:  GPIO41  # -> LRC
+  pin_max98357_bclk: GPIO40  # -> BCLK
+  pin_max98357_din:  GPIO39  # -> DIN
+  # 100kOhm gegen GND        # -> GAIN
+  # frei für stereo          # -> SD
+  # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
+  # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
+  # GND                      # -> GND
+  # 5V                       # -> VIN
+
+
+esphome:
+
+logger:
+  level: DEBUG
+  logs:
+    xpt2046: DEBUG
+    esp-idf.httpd: ERROR
+    sendspin.player: ERROR    
+
+sensor:
+  - platform: htu21d
+    id: climate_id
+    update_interval: 60s
+    address: 0x40
+    temperature:
+      id: room_temp
+      name: "Temperature"
+      device_class: temperature
+      state_class: measurement
+    humidity:
+      id: room_hum
+      name: "Humidity"
+      device_class: humidity
+      state_class: measurement
+
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include common/base-s3_devkitc_1.yaml
+  illuminance: !include common/bh1750.yaml
+  display: !include common/ST7796TSFT6336U.yaml
+  sound: !include common/MediaPlayerSendspin.yaml
+  light: !include common/LedStripOnboard.yaml
+  hardware: !include musicbox/hardware.yaml
+  functions: !include musicbox/main.yaml

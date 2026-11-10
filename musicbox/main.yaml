@@ -108,25 +108,16 @@ time:
           id(my_sunrise).update();
           id(my_sunset).update();
           id(my_moonphase).update();
-      - media_player.volume_set:
-          id: audio_player
-          volume: !lambda return id(ha_volume_man).state;
-      - lvgl.slider.update:
-          id: lvgl_slider_volume
-          value: !lambda return id(ha_volume_man).state;
-      - lvgl.slider.update:
-          id: lvgl_slider_backlight
-          value: !lambda return id(ha_backlight_man).state;
       - if:
           condition:
             lambda: 'return id(is_blocked);'
           then:
-            - sensor.rotary_encoder.set_value:
-                id: my_encoder_pulse
-                value: 0
             - globals.set:
                 id: is_blocked
                 value: 'false'
+            - sensor.rotary_encoder.set_value:
+                id: my_encoder_pulse
+                value: 0
             - lambda: 'ESP_LOGD(__FILE__, "lvgl: enable all indev");'
             - lambda: |-
                 lv_indev_t *indev = nullptr;
@@ -136,6 +127,15 @@ time:
 
             - script.execute: update_states
             # - lvgl.widget.focus: lvgl_button_play_stop
+            - media_player.volume_set:
+                id: audio_player
+                volume: !lambda return id(ha_volume_man).state / 20.0f;
+            - lvgl.slider.update:
+                id: lvgl_slider_volume
+                value: !lambda return id(ha_volume_man).state;
+            - lvgl.slider.update:
+                id: lvgl_slider_backlight
+                value: !lambda return id(ha_backlight_man).state;
 
   - id: !extend my_time
     on_time_sync:
@@ -293,7 +293,12 @@ media_player:
             // reicht ein minimaler Epsilon-Vergleich aus.
             if (std::isnan(current_slider) || std::abs(current_slider - rounded_target) > 0.1f) {
               ESP_LOGD("custom_volume", "Propagiere neuen Wert an Slider: %.0f", rounded_target);
-              id(ha_volume_man).publish_state(rounded_target);
+              // id(ha_volume_man).publish_state(rounded_target);
+              // C++ Äquivalent zu number.set laut ESPHome Core API:
+              auto call = id(ha_volume_man).make_call();
+              call.set_value(rounded_target);
+              call.perform();
+
               id(audio_player).volume = rounded_target / 20.0f;
             } else {
               // Optionale Log-Ausgabe zur Bestätigung, dass die Schleife hier stirbt
@@ -1356,7 +1361,7 @@ lvgl:
         text_color: 0x3498DB
 
       edited:
-        border_color: 0xFFFF00
+        border_color: 0xFF00FF
         border_opa: COVER
         border_width: 3
 
@@ -1372,7 +1377,7 @@ lvgl:
         border_width: 2
 
       edited:
-        border_color: 0xFFFF00
+        border_color: 0xFF00FF
         border_opa: COVER
         border_width: 3
 
@@ -1386,7 +1391,7 @@ lvgl:
         border_width: 3
 
       edited:
-        border_color: 0xFFFF00
+        border_color: 0xFF00FF
         border_opa: COVER
         border_width: 3
 
@@ -2301,6 +2306,12 @@ select:
     internal: True
     on_value:
       - lambda: |-
+          ESP_LOGD(
+            __FILE__,
+            "Library selection count: %zu",
+            id(current_library_uris).size()
+          );
+
           const size_t idx =
               id(lvgl_select_library).active_index().value_or(0);
 
@@ -2606,6 +2617,7 @@ script:
             id(library_request_mass).execute(id(current_library_path));
           };
 
+
   - id: library_fill_root
     mode: single
     parameters:
@@ -2726,7 +2738,7 @@ script:
 
           on_error:
             - lambda: |-
-                ESP_LOGD(
+                ESP_LOGW(
                   __FILE__,
                   "Library request failed for category '%s'.",
                   id(current_library_path).c_str()

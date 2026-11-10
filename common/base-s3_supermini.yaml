@@ -1,4 +1,4 @@
-# common/base-s3_devkitc_1.yaml
+# common/base-s3_supermini.yaml
 
 packages:
 - !include base-esp32.yaml

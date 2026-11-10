@@ -1,3 +1,5 @@
+# common/ST7796TSFT6336U.yaml
+
 substitutions:
   cover_image_dimension: 180x180
   display_width: 480
@@ -20,13 +22,15 @@ i2c:
   - id: my_i2c
     sda: ${pin_i2c_sda}
     scl: ${pin_i2c_scl}
+    scan: True
+    frequency: 100kHz
 
 display:
   - platform: mipi_spi
     model: ST7796
     id: my_display
     spi_mode: MODE0
-    data_rate: 80MHz
+    data_rate: 40MHz
     cs_pin: ${pin_display_cs}
     dc_pin: ${pin_display_dc}
     reset_pin: ${pin_display_reset}
@@ -42,6 +46,7 @@ display:
       width: ${display_width}
 
 touchscreen:
+  # adress: 0x38
   - platform: ft63x6
     id: my_touch
     i2c_id: my_i2c

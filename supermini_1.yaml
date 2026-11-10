@@ -30,7 +30,7 @@ font:
 
 display:
   - id: !extend my_display
-    update_interval: 250ms
+    update_interval: 150ms
     auto_clear_enabled: false
     lambda: |-
       // Hintergrund nur beim ersten Durchlauf initial schwarz setzen.

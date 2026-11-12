@@ -110,6 +110,14 @@ display:
             
             // Stärkere seitliche Ablenkung (-2 bis +2 Pixel) für züngelnde Spitzen
             int wind = (r % 5) - 2;
+
+            // Leichter Sog zur waagerechten Mittelachse des Auges.
+            // Je weiter die Flamme davon entfernt ist, desto wahrscheinlicher
+            // wird sie um einen Pixel zurück zur Mitte gelenkt.
+            const int center = W / 2;
+            if (x < center && (r & 3) == 0) wind += 1;
+            else if (x > center && (r & 3) == 0) wind -= 1;
+
             int dstX = x + wind;
             if (dstX < 0) dstX = 0;
             if (dstX >= W) dstX = W - 1;

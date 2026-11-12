@@ -34,10 +34,10 @@ font:
 
 display:
   - id: !extend my_display
-    update_interval: 200ms
+    update_interval: 50ms
     auto_clear_enabled: false
     lambda: |-
-      bool first_paint = true;
+      static bool first_paint = true;
       if (first_paint) {
         it.fill(Color::BLACK);
         first_paint = false;
@@ -74,12 +74,22 @@ display:
         Color(255, 255, 255)
       };
 
-      // Hitze-Buffer im RAM (10 KB)
+      // Hitze-Buffer im RAM.
       static uint8_t fire[W * H] = {0};
 
-      // 1. Lebendige Glutnester am Boden erzeugen (für echte Flammenzungen)
+      // Schneller lokaler Zufallszahlengenerator statt esp_random()
+      // bei jedem einzelnen Simulationsschritt.
+      static uint32_t rng = 0xA341316Cu;
+      auto random32 = [&]() -> uint32_t {
+        rng ^= rng << 13;
+        rng ^= rng >> 17;
+        rng ^= rng << 5;
+        return rng;
+      };
+
+      // 1. Lebendige Glutnester am Boden erzeugen.
       for (int x = 0; x < W; x++) {
-        uint32_t r = esp_random();
+        uint32_t r = random32();
         if ((r & 15) == 0) {
           fire[(H - 1) * W + x] = 16;
         } else {
@@ -96,7 +106,7 @@ display:
           if (heat == 0) {
             fire[src - W] = 0;
           } else {
-            uint32_t r = esp_random();
+            uint32_t r = random32();
             
             // Stärkere seitliche Ablenkung (-2 bis +2 Pixel) für züngelnde Spitzen
             int wind = (r % 5) - 2;
@@ -118,6 +128,9 @@ display:
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
           uint8_t heat = fire[y * W + x];
-          it.draw_pixel_at(x + OFFSET_X, y + OFFSET_Y, PALETTE[heat]);
+          // Erst 90 Grad nach links drehen, danach horizontal spiegeln.
+          const int rotated_x = W - 1 - y;
+          const int rotated_y = H - 1 - x;
+          it.draw_pixel_at(rotated_x + OFFSET_X, rotated_y + OFFSET_Y, PALETTE[heat]);
         }
       }

@@ -1,10 +1,8 @@
 # testbox_1.yaml
 
 substitutions:
-  device_name: "esphome-web-479ce4"
-  friendly_name: "MusicBox 2"
-  media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
-  weather_forecast_id: weather.forecast_home
+  device_name: "esphome-web-d541d0"
+  friendly_name: "TestBox 1"
 
   # ========================================================
   # --- LINKE SEITE: (3V3) DISPLAY/TOUCH, Drehimpulsgeber --
@@ -17,7 +15,7 @@ substitutions:
   pin_display_dc:    GPIO6   # -> LCD_DS
   pin_spi_mosi:      GPIO7   # -> SDI(MOSI)
   pin_spi_clk:       GPIO15  # -> SCK
-  pin_display_led:   GPIO16  # -> LED
+  pin_display_led:   GPIO11  # -> LED
   pin_spi_miso:      GPIO17  # -> SDO(MISO) nicht verbinden
 
   pin_touch_irq:     GPIO18  # -> CTP_INT
@@ -84,15 +82,41 @@ esphome:
       - delay: 3s
       - light.turn_on:
           id: display_backlight
-          brightness: 40%
+          brightness: 100%
 
 logger:
-  level: VERY_VERBOSE
+  level: DEBUG
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include common/base-s3_devkitc_1.yaml
   display: !include common/ST7796TSFT6336U.yaml
+
+button:
+  - platform: restart
+    name: "Restart"
+    icon: mdi:restart
+    on_press:
+      then:
+        - safe_mode.mark_successful
+
+number:
+  - platform: template
+    name: "Display Brightness"
+    id: display_brightness
+    icon: mdi:brightness-6
+    min_value: 0
+    max_value: 100
+    step: 5
+    unit_of_measurement: "%"
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 40
+    set_action:
+      - light.turn_on:
+          id: display_backlight
+          brightness: !lambda "return x / 100.0;"
 
 output:
   - platform: ledc
@@ -111,10 +135,10 @@ display:
     spi_mode: MODE0
     data_rate: 20MHz
     byte_order: big_endian
-    color_order: RGB
+    color_order: BGR
     invert_colors: false
     auto_clear_enabled: true
-    update_interval: 1000ms
+    update_interval: 100ms
     transform:
       swap_xy: true
       mirror_x: true
@@ -124,13 +148,13 @@ display:
 
       it.rectangle(0, 0, 479, 319, Color(255, 0, 0));
 
-      it.filled_rectangle(20, 20, 119, 119, Color(255, 0, 0));
-      it.filled_rectangle(130, 20, 229, 119, Color(0, 255, 0));
-      it.filled_rectangle(240, 20, 339, 119, Color(0, 0, 255));
+      it.filled_rectangle( 20, 140, 109, 109, Color(255, 0, 0));
+      it.filled_rectangle(130, 140, 109, 109, Color(0, 255, 0));
+      it.filled_rectangle(240, 140, 109, 109, Color(0, 0, 255));
 
-      it.filled_rectangle(20, 140, 119, 239, Color(255, 255, 255));
-      it.filled_rectangle(130, 140, 229, 239, Color(255, 255, 0));
-      it.filled_rectangle(240, 140, 339, 239, Color(0, 255, 255));
+      it.filled_rectangle( 20,  20, 109, 109, Color(255, 255, 0));
+      it.filled_rectangle(130,  20, 109, 109, Color(255, 0, 255));
+      it.filled_rectangle(240,  20, 109, 109, Color(0, 255, 255));
 
       it.line(0, 0, 479, 319, Color(255, 255, 255));
       it.line(479, 0, 0, 319, Color(255, 255, 255));

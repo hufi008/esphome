@@ -20,6 +20,10 @@ logger:
 
 esphome:
 
+button:
+  - platform: restart
+    name: "Restart"
+
 font:
   - id: font_small
     file: "gfonts://Roboto"

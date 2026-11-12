@@ -17,9 +17,10 @@ esp32:
 wifi:
   power_save_mode: NONE
   fast_connect: true
-  
+  output_power: 11dB
 
 logger:
+  hardware_uart: USB_SERIAL_JTAG
   level: DEBUG
 
 psram:

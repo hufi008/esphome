@@ -1,0 +1,174 @@
+# supermini_1.yaml
+
+substitutions:
+  device_name: "esphome-web-675044"
+  friendly_name: "SuperMini 2"
+
+  # GC9A01
+  pin_display_reset: GPIO09
+  pin_display_cs:    GPIO10
+  pin_display_dc:    GPIO11
+  pin_spi_mosi:      GPIO12
+  pin_spi_clk:       GPIO13
+
+packages:
+  base: !include common/base-s3_supermini.yaml
+  display: !include common/GC9A01.yaml
+
+logger:
+  level: DEBUG
+
+esphome:
+
+button:
+  - platform: restart
+    name: "Restart"
+
+font:
+  - id: font_small
+    file: "gfonts://Roboto"
+    size: ${font_size_small}
+  - id: font_large
+    file: "gfonts://Roboto"
+    size: ${font_size_large}
+
+display:
+  - id: !extend my_display
+    update_interval: 100ms
+    auto_clear_enabled: false
+    lambda: |-
+      // Hintergrund nur beim ersten Durchlauf initial schwarz setzen.
+      static bool background_initialized = false;
+      if (!background_initialized) {
+        it.fill(Color::BLACK);
+        background_initialized = true;
+      }
+
+      // Render-Frequenz messen und oben mittig anzeigen.
+      static uint32_t last_frame_ms = 0;
+      const uint32_t now = millis();
+      float fps = 0.0f;
+      if (last_frame_ms != 0 && now > last_frame_ms) {
+        fps = 1000.0f / (now - last_frame_ms);
+      }
+      last_frame_ms = now;
+
+      // Kleiner Anzeigebereich nahe der oberen Mitte des runden Displays.
+      it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
+      it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
+
+
+      // ---------------------------------------------------------------
+      // 2D-FLAMMENSIMULATION
+      // Die Pupille ist die Wärmequelle, die Flammen breiten sich
+      // nach außen aus und bewegen sich durch vertikale Diffusion.
+      // ---------------------------------------------------------------
+
+      static const int FIRE_W = 73;
+      static const int FIRE_H = 145;
+      static uint8_t heat[FIRE_W][FIRE_H] = {};
+
+      // Schneller Pseudozufallsgenerator.
+      static uint32_t rng = 0xA341316Cu;
+      auto random8 = [&]() -> uint8_t {
+        rng ^= rng << 13;
+        rng ^= rng >> 17;
+        rng ^= rng << 5;
+        return (uint8_t)rng;
+      };
+
+      const int center_y = 72;
+
+      // 1. Wärmequelle entlang der schwarzen Pupille.
+      for (int y = 0; y < FIRE_H; y++) {
+        const int distance = abs(y - center_y);
+
+        if (distance < 67) {
+          int cooling = 0;
+          if (distance > 52) {
+            cooling = (distance - 52) * 4;
+          }
+
+          int value = 255 - cooling - (random8() & 63);
+          if (value < 0) value = 0;
+
+          heat[0][y] = value;
+        } else {
+          heat[0][y] = 0;
+        }
+      }
+
+      // 2. Hitze nach außen transportieren.
+      for (int x = 1; x < FIRE_W; x++) {
+        for (int y = 1; y < FIRE_H - 1; y++) {
+
+          const int a = heat[x - 1][y - 1];
+          const int b = heat[x - 1][y];
+          const int c = heat[x - 1][y + 1];
+
+          // Vertikale Diffusion.
+          int value = (a + 2 * b + c) / 4;
+
+          // Abkühlung nimmt nach außen leicht zu.
+          const int cooling = 2 + (x / 20);
+          value -= cooling;
+
+          if (value < 0) value = 0;
+          heat[x][y] = value;
+        }
+
+        heat[x][0] = 0;
+        heat[x][FIRE_H - 1] = 0;
+      }
+
+      // 3. Flammen zeichnen.
+      for (int x = 0; x < FIRE_W; x++) {
+
+        // Elliptische Begrenzung der Iris.
+        const float nx = ((float)x + 6.0f) / 78.0f;
+        const float y_limit = 72.0f * sqrtf(1.0f - nx * nx);
+
+        const int y_min = max(0, (int)ceilf(center_y - y_limit));
+        const int y_max = min(FIRE_H - 1, (int)floorf(center_y + y_limit));
+
+        const int left_x = 113 - x;
+        const int right_x = 126 + x;
+
+        for (int y = y_min; y <= y_max; y++) {
+
+          const int v = heat[x][y];
+
+          if (v < 20) continue;
+
+          // Schwarz -> Dunkelrot -> Rot -> Orange -> Gelb.
+          int r;
+          int g;
+
+          if (v < 90) {
+            r = v * 2;
+            g = 0;
+          } else if (v < 160) {
+            r = 180 + (v - 90);
+            g = v - 90;
+          } else if (v < 220) {
+            r = 255;
+            g = 70 + (v - 160) * 2;
+          } else {
+            r = 255;
+            g = min(255, 190 + (v - 220) * 2);
+          }
+
+          const Color color(r, g, 0);
+          const int screen_y = 47 + y;
+
+          const float pupil_dx = ((float)left_x - 119.5f) / 6.0f;
+          const float pupil_dy = ((float)screen_y - 119.5f) / 70.0f;
+
+          if (pupil_dx * pupil_dx + pupil_dy * pupil_dy < 1.0f) {
+            continue;
+          }
+
+          it.draw_pixel_at(left_x, screen_y, color);
+          it.draw_pixel_at(right_x, screen_y, color);
+        }
+      }

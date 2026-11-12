@@ -133,7 +133,7 @@ display:
 
           // Moderate Diffusion mit temperaturabhaengigem Energieverlust.
           // So kann sich Waerme ausbreiten, ohne das ganze Feld aufzuheizen.
-          const float diffusion = 0.48f + (r & 7) * 0.004f;
+          const float diffusion = 0.50f + (r & 7) * 0.004f;
           const float cooling = current * 0.006f;
           // Keine kuenstliche Zufallshelligkeit in jeder Zelle.
           // Das Flackern entsteht zunaechst an der unruhigen Waermequelle.

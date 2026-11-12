@@ -125,13 +125,26 @@ display:
       }
 
       // 3. Feuer ohne Rotation zeichnen: links und rechts gespiegelt.
-      // Jede Simulationszelle wird 1 Pixel breit und 2 Pixel hoch dargestellt.
+      // Jede Zelle belegt 2 Pixel Breite und 1 Pixel Höhe.
+      // Unveränderte Hitze muss nicht erneut ans Display übertragen werden.
+      static uint8_t last_drawn[W * H] = {0};
+
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-          const uint8_t heat = fire[y * W + x];
-          const Color color = PALETTE[heat];
+          const int index = y * W + x;
+          const uint8_t heat = fire[index];
 
-          it.filled_rectangle(OFFSET_X - H - H + y + y + 1, OFFSET_Y + x, 2, 1, color);
-          it.filled_rectangle(OFFSET_X + H + H - y - y - 1, OFFSET_Y + x, 2, 1, color);
+          if (heat == last_drawn[index]) {
+            continue;
+          }
+          last_drawn[index] = heat;
+
+          const Color &color = PALETTE[heat];
+          const int screen_x_left = OFFSET_X - 2 * H + 2 * y + 1;
+          const int screen_x_right = OFFSET_X + 2 * H - 2 * y - 1;
+          const int screen_y = OFFSET_Y + x;
+
+          it.filled_rectangle(screen_x_left, screen_y, 2, 1, color);
+          it.filled_rectangle(screen_x_right, screen_y, 2, 1, color);
         }
       }

@@ -34,11 +34,14 @@ font:
 
 display:
   - id: !extend my_display
-    update_interval: 100ms
+    update_interval: 200ms
     auto_clear_enabled: false
     lambda: |-
-      // Jeder Frame beginnt mit einem schwarzen Hintergrund.
-      it.fill(Color::BLACK);
+      bool first_paint = true;
+      if (first_paint) {
+        it.fill(Color::BLACK);
+        first_paint = false;
+      }
 
       // Render-Frequenz messen und oben mittig anzeigen.
       static uint32_t last_frame_ms = 0;
@@ -52,10 +55,12 @@ display:
       it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
       it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
-      // Originale Fire-Propagation, 1 Simulationszelle pro Displaypixel.
-      constexpr int W = 240;
-      constexpr int H = 240;
+      constexpr int W = 100;
+      constexpr int H = 100;
+      constexpr int OFFSET_X = 80;
+      constexpr int OFFSET_Y = 80;
 
+      // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {
         Color(0, 0, 0),       Color(31, 7, 7),     Color(47, 15, 7),    Color(71, 15, 7),
         Color(87, 23, 7),     Color(103, 31, 7),   Color(119, 31, 7),   Color(143, 39, 7),
@@ -69,11 +74,12 @@ display:
         Color(255, 255, 255)
       };
 
-      static uint8_t fire[W * H] = {};
+      // Hitze-Buffer im RAM (10 KB)
+      static uint8_t fire[W * H] = {0};
 
-      // Glut am unteren Rand erzeugen.
+      // 1. Lebendige Glutnester am Boden erzeugen (für echte Flammenzungen)
       for (int x = 0; x < W; x++) {
-        const uint32_t r = esp_random();
+        uint32_t r = esp_random();
         if ((r & 15) == 0) {
           fire[(H - 1) * W + x] = 16;
         } else {
@@ -81,57 +87,37 @@ display:
         }
       }
 
-      // Originale Ausbreitung: zufällige Ablenkung um -2 bis +2 Pixel.
+      // 2. Feuer-Ausbreitung mit stärkerem Lodern berechnen
       for (int x = 0; x < W; x++) {
         for (int y = 1; y < H; y++) {
-          const int src = y * W + x;
-          const uint8_t heat = fire[src];
+          int src = y * W + x;
+          uint8_t heat = fire[src];
 
           if (heat == 0) {
             fire[src - W] = 0;
           } else {
-            const uint32_t r = esp_random();
-            const int wind = (r % 5) - 2;
-            int dst_x = x + wind;
-            if (dst_x < 0) dst_x = 0;
-            if (dst_x >= W) dst_x = W - 1;
+            uint32_t r = esp_random();
+            
+            // Stärkere seitliche Ablenkung (-2 bis +2 Pixel) für züngelnde Spitzen
+            int wind = (r % 5) - 2;
+            int dstX = x + wind;
+            if (dstX < 0) dstX = 0;
+            if (dstX >= W) dstX = W - 1;
 
+            // Unregelmäßigere Abkühlung für unterschiedlich hohe Flammenzungen
             int decay = (r >> 4) % 3;
             if (y > 40 && decay == 2) decay = 1;
 
-            const int new_heat = heat - decay;
-            fire[(y - 1) * W + dst_x] =
-              (new_heat > 0) ? (uint8_t)new_heat : 0;
+            int newHeat = heat - decay;
+            fire[(y - 1) * W + dstX] = (newHeat > 0) ? newHeat : 0;
           }
         }
       }
 
-      // Auf das runde Display zeichnen; außerhalb des Kreises bleibt es schwarz.
+      // 3. Mit Offset auf das ESPHome Display zeichnen
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-          const uint8_t heat = fire[y * W + x];
-          if (heat == 0) continue;
-
-          const int dx = x - 119;
-          const int dy = y - 119;
-          if (dx * dx + dy * dy > 119 * 119) continue;
-
-          it.draw_pixel_at(x, y, PALETTE[heat]);
-        }
-      }
-
-      // Jede Simulationszelle belegt 2 x 2 Pixel.
-      for (int y = 0; y < H; y++) {
-        for (int x = 0; x < W; x++) {
-          const uint8_t heat = fire[y * W + x];
-          if (heat == 0) continue;
-
-          const int px = x * 2;
-          const int py = y * 2;
-          const int dx = px + 1 - 119;
-          const int dy = py + 1 - 119;
-          if (dx * dx + dy * dy > 119 * 119) continue;
-
-          it.filled_rectangle(px, py, 2, 2, PALETTE[heat]);
+          uint8_t heat = fire[y * W + x];
+          it.draw_pixel_at(x + OFFSET_X, y + OFFSET_Y, PALETTE[heat]);
         }
       }

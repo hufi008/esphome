@@ -116,7 +116,7 @@ display:
 
             // Unregelmäßigere Abkühlung für unterschiedlich hohe Flammenzungen
             int decay = (r >> 4) % 3;
-            if (y > 40 && decay == 2) decay = 1;
+            if (y > 20 && decay == 2) decay = 1;
 
             int newHeat = heat - decay;
             fire[(y - 1) * W + dstX] = (newHeat > 0) ? newHeat : 0;

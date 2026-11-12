@@ -89,39 +89,41 @@ display:
         }
       }
 
-      // 2. Turbulente Ausbreitung:
-      // Jede Wärmeportion wandert zufällig nach links, geradeaus
-      // oder rechts. Gelegentlich entsteht zusätzlich ein schwacher
-      // seitlicher Ausläufer. So bleiben einzelne Flammenzungen sichtbar.
-      for (int y = FIRE_H - 2; y >= 0; y--) {
-        for (int x = 0; x < FIRE_W; x++) {
-          fire[y][x] = 0;
-        }
+      // 2. Ausbreitung nur jeden zweiten Display-Frame berechnen.
+      // Das beruhigt das Flackern, ohne die Anzeige-FPS zu verändern.
+      static bool simulation_tick = false;
+      simulation_tick = !simulation_tick;
 
-        for (int x = 0; x < FIRE_W; x++) {
-          const int source = fire[y + 1][x];
-          if (source == 0) continue;
+      if (simulation_tick) {
+        for (int y = FIRE_H - 2; y >= 0; y--) {
+          for (int x = 0; x < FIRE_W; x++) {
+            fire[y][x] = 0;
+          }
 
-          const int drift = (int)(random8() % 3) - 1;
-          const int target_x = x + drift;
-          const int cooling = 2 + (random8() % 5);
-          const int value = source - cooling;
+          for (int x = 0; x < FIRE_W; x++) {
+            const int source = fire[y + 1][x];
+            if (source == 0) continue;
 
-          if (value > 0 && target_x >= 0 && target_x < FIRE_W) {
-            if (value > fire[y][target_x]) {
-              fire[y][target_x] = (uint8_t)value;
+            // Ein zufälliger Drift verschiebt die ganze Flammenzunge.
+            const int drift = (int)(random8() % 3) - 1;
+            const int target_x = x + drift;
+            if (target_x < 1 || target_x >= FIRE_W - 1) continue;
+
+            // Der Kern bleibt heiß; die Flanken sind unterschiedlich stark.
+            const int center_value = source - (2 + (random8() % 4));
+            const int left_value = source - (9 + (random8() % 15));
+            const int right_value = source - (9 + (random8() % 15));
+
+            if (center_value > 0 && center_value > fire[y][target_x]) {
+              fire[y][target_x] = (uint8_t)center_value;
             }
-
-            // Nur gelegentlich Wärme seitlich abgeben.
-            // Die Wahrscheinlichkeit und Stärke variieren pro Zelle.
-            if (random8() < 92) {
-              const int side = (random8() & 1) ? -1 : 1;
-              const int side_x = target_x + side;
-              const int side_value = value - (12 + (random8() % 24));
-              if (side_value > 0 && side_x >= 0 && side_x < FIRE_W &&
-                  side_value > fire[y][side_x]) {
-                fire[y][side_x] = (uint8_t)side_value;
-              }
+            if (left_value > 0 && random8() < 205 &&
+                left_value > fire[y][target_x - 1]) {
+              fire[y][target_x - 1] = (uint8_t)left_value;
+            }
+            if (right_value > 0 && random8() < 205 &&
+                right_value > fire[y][target_x + 1]) {
+              fire[y][target_x + 1] = (uint8_t)right_value;
             }
           }
         }

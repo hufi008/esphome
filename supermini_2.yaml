@@ -145,7 +145,7 @@ display:
       // Kontinuierliche, leicht flackernde Waermequelle entlang der Pupille.
       // Die Pupille selbst wird spaeter schwarz darueber gezeichnet.
       for (int x = 21; x <= 79; x++) {
-        next_heat[x] = 215 + (random32() % 41);
+        next_heat[(H - 1) * W + x] = 215 + (random32() % 41);
       }
 
       // Simulationspuffer tauschen: alle Zellen arbeiten mit dem alten Feld.

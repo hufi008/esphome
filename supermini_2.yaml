@@ -37,12 +37,8 @@ display:
     update_interval: 100ms
     auto_clear_enabled: false
     lambda: |-
-      // Hintergrund nur beim ersten Durchlauf initial schwarz setzen.
-      static bool background_initialized = false;
-      if (!background_initialized) {
-        it.fill(Color::BLACK);
-        background_initialized = true;
-      }
+      // Jeder Frame beginnt mit einem schwarzen Hintergrund.
+      it.fill(Color::BLACK);
 
       // Render-Frequenz messen und oben mittig anzeigen.
       static uint32_t last_frame_ms = 0;
@@ -53,122 +49,90 @@ display:
       }
       last_frame_ms = now;
 
-      // Kleiner Anzeigebereich nahe der oberen Mitte des runden Displays.
       it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
       it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
-
       // ---------------------------------------------------------------
-      // 2D-FLAMMENSIMULATION
-      // Die Pupille ist die Wärmequelle, die Flammen breiten sich
-      // nach außen aus und bewegen sich durch vertikale Diffusion.
+      // DOOM FIRE: klassische 2D-Feuersimulation
+      // Wärmequelle unten, Ausbreitung nach oben.
+      // 120 x 120 Zellen, jede Zelle wird als 2 x 2 Pixel dargestellt.
       // ---------------------------------------------------------------
 
-      static const int FIRE_W = 73;
-      static const int FIRE_H = 145;
-      static uint8_t heat[FIRE_W][FIRE_H] = {};
+      static const int FIRE_W = 120;
+      static const int FIRE_H = 120;
+      static uint8_t fire[FIRE_H][FIRE_W] = {};
 
-      // Schneller Pseudozufallsgenerator.
+      // Reproduzierbarer schneller Pseudozufall.
       static uint32_t rng = 0xA341316Cu;
       auto random8 = [&]() -> uint8_t {
         rng ^= rng << 13;
         rng ^= rng >> 17;
         rng ^= rng << 5;
-        return (uint8_t)rng;
+        return (uint8_t)(rng & 0xFF);
       };
 
-      const int center_y = 72;
-
-      // 1. Wärmequelle entlang der schwarzen Pupille.
-      for (int y = 0; y < FIRE_H; y++) {
-        const int distance = abs(y - center_y);
-
-        if (distance < 67) {
-          int cooling = 0;
-          if (distance > 52) {
-            cooling = (distance - 52) * 4;
-          }
-
-          int value = 255 - cooling - (random8() & 63);
-          if (value < 0) value = 0;
-
-          heat[0][y] = value;
-        } else {
-          heat[0][y] = 0;
-        }
-      }
-
-      // 2. Hitze nach außen transportieren.
-      for (int x = 1; x < FIRE_W; x++) {
-        for (int y = 1; y < FIRE_H - 1; y++) {
-
-          const int a = heat[x - 1][y - 1];
-          const int b = heat[x - 1][y];
-          const int c = heat[x - 1][y + 1];
-
-          // Vertikale Diffusion.
-          int value = (a + 2 * b + c) / 4;
-
-          // Abkühlung nimmt nach außen leicht zu.
-          const int cooling = 2 + (x / 20);
-          value -= cooling;
-
-          if (value < 0) value = 0;
-          heat[x][y] = value;
-        }
-
-        heat[x][0] = 0;
-        heat[x][FIRE_H - 1] = 0;
-      }
-
-      // 3. Flammen zeichnen.
+      // 1. Wärmequelle am unteren Rand.
       for (int x = 0; x < FIRE_W; x++) {
+        fire[FIRE_H - 1][x] = 180 + (random8() % 76);
+      }
 
-        // Elliptische Begrenzung der Iris.
-        const float nx = ((float)x + 6.0f) / 78.0f;
-        const float y_limit = 72.0f * sqrtf(1.0f - nx * nx);
+      // 2. Feuer von unten nach oben fortschreiben.
+      // Jede Zelle übernimmt Wärme aus der Zeile darunter.
+      // Zufälliger seitlicher Versatz lässt die Flammen züngeln.
+      for (int y = 0; y < FIRE_H - 1; y++) {
+        for (int x = 0; x < FIRE_W; x++) {
+          const int shift = (int)(random8() % 3) - 1;
+          int source_x = x + shift;
 
-        const int y_min = max(0, (int)ceilf(center_y - y_limit));
-        const int y_max = min(FIRE_H - 1, (int)floorf(center_y + y_limit));
+          if (source_x < 0) source_x = 0;
+          if (source_x >= FIRE_W) source_x = FIRE_W - 1;
 
-        const int left_x = 113 - x;
-        const int right_x = 126 + x;
+          int value = fire[y + 1][source_x];
+          value -= (int)(random8() % 4);
 
-        for (int y = y_min; y <= y_max; y++) {
+          if (value < 0) value = 0;
+          fire[y][x] = (uint8_t)value;
+        }
+      }
 
-          const int v = heat[x][y];
+      // 3. Temperatur in die klassische Feuerfarbpalette umsetzen.
+      for (int y = 0; y < FIRE_H; y++) {
+        for (int x = 0; x < FIRE_W; x++) {
+          const int v = fire[y][x];
 
-          if (v < 20) continue;
+          int r = 0;
+          int g = 0;
+          int b = 0;
 
-          // Schwarz -> Dunkelrot -> Rot -> Orange -> Gelb.
-          int r;
-          int g;
-
-          if (v < 90) {
+          if (v < 32) {
             r = v * 2;
-            g = 0;
+          } else if (v < 96) {
+            r = 64 + (v - 32) * 3;
           } else if (v < 160) {
-            r = 180 + (v - 90);
-            g = v - 90;
-          } else if (v < 220) {
             r = 255;
-            g = 70 + (v - 160) * 2;
+            g = (v - 96) * 3;
+          } else if (v < 224) {
+            r = 255;
+            g = 192 + (v - 160);
           } else {
             r = 255;
-            g = min(255, 190 + (v - 220) * 2);
+            g = 255;
+            b = v - 224;
           }
 
-          const Color color(r, g, 0);
-          const int screen_y = 47 + y;
+          // Zellmitte auf das 240 x 240 Display abbilden.
+          const int px = x * 2;
+          const int py = y * 2;
+          const int dx = px + 1 - 119;
+          const int dy = py + 1 - 119;
 
-          const float pupil_dx = ((float)left_x - 119.5f) / 6.0f;
-          const float pupil_dy = ((float)screen_y - 119.5f) / 70.0f;
-
-          if (pupil_dx * pupil_dx + pupil_dy * pupil_dy < 1.0f) {
+          // Rundes Display: außerhalb des sichtbaren Kreises schwarz lassen.
+          if (dx * dx + dy * dy > 119 * 119) {
             continue;
           }
 
-          it.draw_pixel_at(left_x, screen_y, color);
-          it.draw_pixel_at(right_x, screen_y, color);
+          if (v > 3) {
+            it.filled_rectangle(px, py, 2, 2, Color(r, g, b));
+          }
         }
       }

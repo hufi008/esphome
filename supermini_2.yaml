@@ -131,9 +131,9 @@ display:
 
           // Waerme soll deutlich weiter von der Pupille weg diffundieren.
           // Die Abkuehlung bleibt klein, damit die Ausbreitung nicht direkt versiegt.
-          const float diffusion = 0.30f + (r & 7) * 0.006f;
-          const float cooling = 0.06f + ((r >> 8) & 3) * 0.025f;
-          const float flicker = ((int)((r >> 12) & 7) - 3) * 0.18f;
+          const float diffusion = 0.42f + (r & 7) * 0.006f;
+          const float cooling = 0.025f + ((r >> 8) & 3) * 0.012f;
+          const float flicker = ((int)((r >> 12) & 7) - 3) * 0.22f;
 
           float value = current + (average - current) * diffusion - cooling + flicker;
           if (value < 0.0f) value = 0.0f;
@@ -153,44 +153,21 @@ display:
       heat = next_heat;
       next_heat = swap;
 
-      // 3. Feuer in einer waagerechten Ellipse zeichnen.
-      // Die bestehende Flammensimulation und ihre Spiegelung bleiben unverändert.
-      static uint8_t last_drawn[W * H] = {255};
-
-      constexpr float EYE_CX = 119.5f;
-      constexpr float EYE_CY = 119.5f;
-      constexpr float EYE_RX = 119.0f;
-      constexpr float EYE_RY = 49.0f;
-
+      // 3. Das komplette Waermefeld in jedem Frame neu zeichnen.
+      // So werden auch abgekuehlte Pixel und die alte Pupillenform geloescht.
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
           const int index = y * W + x;
           const uint8_t heat_value = heat[index];
           const uint8_t heat_color = (heat_value * 36 + 127) / 255;
 
-          if (heat_color == last_drawn[index]) {
-            continue;
-          }
-          last_drawn[index] = heat_color;
-
           const Color &color = PALETTE[heat_color];
           const int screen_x_left = OFFSET_X - 2 * H + 2 * y + 1;
           const int screen_x_right = OFFSET_X + 2 * H - 2 * y - 1;
           const int screen_y = OFFSET_Y + x;
 
-          const float dy = (screen_y + 0.5f - EYE_CY) / EYE_RY;
-          const float dy2 = dy * dy;
-          if (dy2 > 1.0f) continue;
-
-          const float dx_left = (screen_x_left + 1.0f - EYE_CX) / EYE_RX;
-          if (dx_left * dx_left + dy2 <= 1.0f) {
-            it.filled_rectangle(screen_x_left, screen_y, 2, 1, color);
-          }
-
-          const float dx_right = (screen_x_right + 1.0f - EYE_CX) / EYE_RX;
-          if (dx_right * dx_right + dy2 <= 1.0f) {
-            it.filled_rectangle(screen_x_right, screen_y, 2, 1, color);
-          }
+          it.filled_rectangle(screen_x_left, screen_y, 2, 1, color);
+          it.filled_rectangle(screen_x_right, screen_y, 2, 1, color);
         }
       }
 

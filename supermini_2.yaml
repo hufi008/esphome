@@ -52,56 +52,81 @@ display:
       it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
       it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
-      // Klassische Fire-Propagation mit 37-Farben-Palette.
-      // 120 x 120 Zellen, jede Zelle wird als 2 x 2 Displaypixel gezeichnet.
-      constexpr int W = 120;
-      constexpr int H = 120;
+      // Einfache Fire-Propagation mit 37-Farben-Palette.
+      // 80 x 80 Simulationszellen, jede Zelle wird als 3 x 3 Pixel gezeichnet.
+      // Weniger Zeichenaufrufe als bei 120 x 120 / 2 x 2.
+      constexpr int W = 80;
+      constexpr int H = 80;
+      constexpr int SCALE = 3;
 
       static const std::array<Color, 37> PALETTE = {
         Color(0, 0, 0),       Color(31, 7, 7),      Color(47, 15, 7),
         Color(71, 15, 7),      Color(87, 23, 7),     Color(103, 31, 7),
-        Color(119, 31, 7),     Color(143, 39, 7),    Color(159, 47, 7),
-        Color(175, 63, 7),     Color(191, 71, 7),    Color(199, 71, 7),
-        Color(223, 79, 7),     Color(223, 87, 7),    Color(223, 87, 7),
-        Color(215, 95, 7),     Color(215, 95, 7),    Color(215, 103, 15),
-        Color(207, 111, 15),   Color(207, 119, 15),  Color(207, 127, 15),
-        Color(207, 135, 23),   Color(199, 135, 23),  Color(199, 143, 23),
-        Color(199, 151, 31),   Color(191, 159, 31),  Color(191, 159, 31),
-        Color(191, 167, 39),   Color(191, 167, 39),  Color(191, 175, 47),
-        Color(183, 175, 47),   Color(183, 183, 47),  Color(183, 183, 55),
-        Color(207, 207, 111),  Color(223, 223, 159), Color(239, 239, 199),
+        Color(119, 31, 7),    Color(143, 39, 7),    Color(159, 47, 7),
+        Color(175, 63, 7),    Color(191, 71, 7),    Color(199, 71, 7),
+        Color(223, 79, 7),    Color(223, 87, 7),    Color(223, 87, 7),
+        Color(215, 95, 7),    Color(215, 95, 7),    Color(215, 103, 15),
+        Color(207, 111, 15),  Color(207, 119, 15),  Color(207, 127, 15),
+        Color(207, 135, 23),  Color(199, 135, 23),  Color(199, 143, 23),
+        Color(199, 151, 31),  Color(191, 159, 31),  Color(191, 159, 31),
+        Color(191, 167, 39),  Color(191, 167, 39),  Color(191, 175, 47),
+        Color(183, 175, 47),  Color(183, 183, 47),  Color(183, 183, 55),
+        Color(207, 207, 111), Color(223, 223, 159), Color(239, 239, 199),
         Color(255, 255, 255)
       };
 
       static uint8_t fire[W * H] = {};
 
-      // 1. Glutquelle am unteren Rand.
+      // 1. Glutquelle am unteren Rand – wie im getesteten Beispiel.
       for (int x = 0; x < W; x++) {
         const uint32_t r = esp_random();
-        fire[(H - 1) * W + x] =
-          ((r & 15) == 0) ? 16 : 30 + (r % 7);
+        if ((r & 15) == 0) {
+          fire[(H - 1) * W + x] = 16;
+        } else {
+          fire[(H - 1) * W + x] = 30 + (r % 7);
+        }
       }
 
-      // 2. Klassische DOOM-Propagation:
-      // Jede Zelle übernimmt Wärme aus einer zufällig versetzten
-      // Zelle direkt darunter. Alle Zellen werden pro Frame erneuert.
-      // Dadurch bleibt das Feuer flächig statt aus Partikelspuren zu bestehen.
-      for (int y = 0; y < H - 1; y++) {
+      // 2. Ursprüngliche Propagation: jede Zelle wandert zufällig
+      // um -2 bis +2 Spalten nach oben. In-place wie im Beispiel.
+      for (int y = 1; y < H; y++) {
         for (int x = 0; x < W; x++) {
-          const uint32_t r = esp_random();
+          const int src = y * W + x;
+          const uint8_t heat = fire[src];
 
-          const int wind = (r % 5) - 2;
-          int src_x = x + wind;
-          if (src_x < 0) src_x = 0;
-          if (src_x >= W) src_x = W - 1;
+          if (heat == 0) {
+            fire[src - W] = 0;
+          } else {
+            const uint32_t r = esp_random();
+            const int wind = (r % 5) - 2;
+            int dst_x = x + wind;
+            if (dst_x < 0) dst_x = 0;
+            if (dst_x >= W) dst_x = W - 1;
 
-          const int heat = fire[(y + 1) * W + src_x];
+            int decay = (r >> 4) % 3;
+            if (y > H * 2 / 5 && decay == 2) decay = 1;
 
-          int decay = (r >> 4) % 3;
-          if (y > 40 && decay == 2) decay = 1;
+            const int new_heat = heat - decay;
+            fire[(y - 1) * W + dst_x] =
+              (new_heat > 0) ? (uint8_t)new_heat : 0;
+          }
+        }
+      }
 
-          const int new_heat = heat - decay;
-          fire[y * W + x] = (new_heat > 0) ? new_heat : 0;
+      // 3. Auf das runde 240 x 240 Display zeichnen.
+      // 80 x 80 Zellen x 3 Pixel = 240 x 240.
+      for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+          const uint8_t heat = fire[y * W + x];
+          if (heat == 0) continue;
+
+          const int px = x * SCALE;
+          const int py = y * SCALE;
+          const int dx = px + 1 - 119;
+          const int dy = py + 1 - 119;
+          if (dx * dx + dy * dy > 119 * 119) continue;
+
+          it.filled_rectangle(px, py, SCALE, SCALE, PALETTE[heat]);
         }
       }
 

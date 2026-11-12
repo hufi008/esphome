@@ -71,26 +71,27 @@ display:
         return (uint8_t)(rng & 0xFF);
       };
 
-      // 1. Unregelmäßige Wärmequelle am unteren Rand.
-      // Kleine Lücken und unterschiedlich heiße Abschnitte verhindern
-      // eine durchgehend gleichmäßige Feuerwand.
-      for (int x = 0; x < FIRE_W; x++) {
-        const int n = random8();
-
-        if (n < 38) {
-          fire[FIRE_H - 1][x] = 0;
-        } else if (n < 105) {
-          fire[FIRE_H - 1][x] = 90 + (random8() % 100);
-        } else {
-          fire[FIRE_H - 1][x] = 175 + (random8() % 81);
+      // 1. Wärmequelle am Boden nur alle drei Frames verändern.
+      // Dadurch bleibt die Flammenbasis ruhiger.
+      static uint8_t source_frame = 0;
+      source_frame++;
+      if (source_frame >= 3) {
+        source_frame = 0;
+        for (int x = 0; x < FIRE_W; x++) {
+          const int n = random8();
+          if (n < 30) {
+            fire[FIRE_H - 1][x] = 0;
+          } else if (n < 95) {
+            fire[FIRE_H - 1][x] = 115 + (random8() % 90);
+          } else {
+            fire[FIRE_H - 1][x] = 195 + (random8() % 61);
+          }
         }
       }
 
-      // 2. Klassisches DOOM-Prinzip:
-      // Jede heiße Zelle verteilt ihre Wärme auf eine zufällig
-      // versetzte Zelle in der Zeile darüber und kühlt dabei ab.
-      // Die Zielzeile wird zuerst geleert; bei mehreren Treffern
-      // bleibt jeweils der höhere Temperaturwert erhalten.
+      // 2. Wärme breitet sich auf drei Zellen aus.
+      // In der Mitte bleibt mehr Energie erhalten; seitlich
+      // kühlt sie stärker ab. Das erzeugt breitere Flammenzungen.
       for (int y = FIRE_H - 2; y >= 0; y--) {
         for (int x = 0; x < FIRE_W; x++) {
           fire[y][x] = 0;
@@ -100,15 +101,17 @@ display:
           const int source = fire[y + 1][x];
           if (source == 0) continue;
 
-          const int target_x = x + (int)(random8() % 3) - 1;
+          const int center_value = source - (2 + (random8() % 3));
+          const int side_value = source - (6 + (random8() % 4));
 
-          int value = source - (4 + (random8() % 9));
-          if (value <= 0) continue;
-
-          if (target_x >= 0 && target_x < FIRE_W) {
-            if (value > fire[y][target_x]) {
-              fire[y][target_x] = (uint8_t)value;
-            }
+          if (center_value > 0 && center_value > fire[y][x]) {
+            fire[y][x] = (uint8_t)center_value;
+          }
+          if (side_value > 0 && x > 0 && side_value > fire[y][x - 1]) {
+            fire[y][x - 1] = (uint8_t)side_value;
+          }
+          if (side_value > 0 && x < FIRE_W - 1 && side_value > fire[y][x + 1]) {
+            fire[y][x + 1] = (uint8_t)side_value;
           }
         }
       }

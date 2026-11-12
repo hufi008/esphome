@@ -75,7 +75,7 @@ display:
       // Kleine Lücken und unterschiedlich heiße Abschnitte verhindern
       // eine durchgehend gleichmäßige Feuerwand.
       for (int x = 0; x < FIRE_W; x++) {
-        const n = random8();
+        const int n = random8();
 
         if (n < 38) {
           fire[FIRE_H - 1][x] = 0;

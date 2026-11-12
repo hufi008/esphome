@@ -71,27 +71,45 @@ display:
         return (uint8_t)(rng & 0xFF);
       };
 
-      // 1. Wärmequelle am unteren Rand.
+      // 1. Unregelmäßige Wärmequelle am unteren Rand.
+      // Kleine Lücken und unterschiedlich heiße Abschnitte verhindern
+      // eine durchgehend gleichmäßige Feuerwand.
       for (int x = 0; x < FIRE_W; x++) {
-        fire[FIRE_H - 1][x] = 180 + (random8() % 76);
+        const n = random8();
+
+        if (n < 38) {
+          fire[FIRE_H - 1][x] = 0;
+        } else if (n < 105) {
+          fire[FIRE_H - 1][x] = 90 + (random8() % 100);
+        } else {
+          fire[FIRE_H - 1][x] = 175 + (random8() % 81);
+        }
       }
 
-      // 2. Feuer von unten nach oben fortschreiben.
-      // Jede Zelle übernimmt Wärme aus der Zeile darunter.
-      // Zufälliger seitlicher Versatz lässt die Flammen züngeln.
-      for (int y = 0; y < FIRE_H - 1; y++) {
+      // 2. Klassisches DOOM-Prinzip:
+      // Jede heiße Zelle verteilt ihre Wärme auf eine zufällig
+      // versetzte Zelle in der Zeile darüber und kühlt dabei ab.
+      // Die Zielzeile wird zuerst geleert; bei mehreren Treffern
+      // bleibt jeweils der höhere Temperaturwert erhalten.
+      for (int y = FIRE_H - 2; y >= 0; y--) {
         for (int x = 0; x < FIRE_W; x++) {
-          const int shift = (int)(random8() % 3) - 1;
-          int source_x = x + shift;
+          fire[y][x] = 0;
+        }
 
-          if (source_x < 0) source_x = 0;
-          if (source_x >= FIRE_W) source_x = FIRE_W - 1;
+        for (int x = 0; x < FIRE_W; x++) {
+          const int source = fire[y + 1][x];
+          if (source == 0) continue;
 
-          int value = fire[y + 1][source_x];
-          value -= (int)(random8() % 4);
+          const int target_x = x + (int)(random8() % 3) - 1;
 
-          if (value < 0) value = 0;
-          fire[y][x] = (uint8_t)value;
+          int value = source - (4 + (random8() % 9));
+          if (value <= 0) continue;
+
+          if (target_x >= 0 && target_x < FIRE_W) {
+            if (value > fire[y][target_x]) {
+              fire[y][target_x] = (uint8_t)value;
+            }
+          }
         }
       }
 

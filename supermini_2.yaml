@@ -57,8 +57,8 @@ display:
 
       constexpr int W = 100;
       constexpr int H = 100;
-      constexpr int OFFSET_X = 80;
-      constexpr int OFFSET_Y = 80;
+      constexpr int OFFSET_X = 70;
+      constexpr int OFFSET_Y = 70;
 
       // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {

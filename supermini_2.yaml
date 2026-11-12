@@ -52,32 +52,26 @@ display:
       it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
       it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
-      // Einfache Fire-Propagation mit 37-Farben-Palette.
-      // 80 x 80 Simulationszellen, jede Zelle wird als 3 x 3 Pixel gezeichnet.
-      // Weniger Zeichenaufrufe als bei 120 x 120 / 2 x 2.
-      constexpr int W = 80;
-      constexpr int H = 80;
-      constexpr int SCALE = 3;
+      // Originale Fire-Propagation, 1 Simulationszelle pro Displaypixel.
+      constexpr int W = 240;
+      constexpr int H = 240;
 
       static const std::array<Color, 37> PALETTE = {
-        Color(0, 0, 0),       Color(31, 7, 7),      Color(47, 15, 7),
-        Color(71, 15, 7),      Color(87, 23, 7),     Color(103, 31, 7),
-        Color(119, 31, 7),    Color(143, 39, 7),    Color(159, 47, 7),
-        Color(175, 63, 7),    Color(191, 71, 7),    Color(199, 71, 7),
-        Color(223, 79, 7),    Color(223, 87, 7),    Color(223, 87, 7),
-        Color(215, 95, 7),    Color(215, 95, 7),    Color(215, 103, 15),
-        Color(207, 111, 15),  Color(207, 119, 15),  Color(207, 127, 15),
-        Color(207, 135, 23),  Color(199, 135, 23),  Color(199, 143, 23),
-        Color(199, 151, 31),  Color(191, 159, 31),  Color(191, 159, 31),
-        Color(191, 167, 39),  Color(191, 167, 39),  Color(191, 175, 47),
-        Color(183, 175, 47),  Color(183, 183, 47),  Color(183, 183, 55),
-        Color(207, 207, 111), Color(223, 223, 159), Color(239, 239, 199),
+        Color(0, 0, 0),       Color(31, 7, 7),     Color(47, 15, 7),    Color(71, 15, 7),
+        Color(87, 23, 7),     Color(103, 31, 7),   Color(119, 31, 7),   Color(143, 39, 7),
+        Color(159, 47, 7),    Color(175, 63, 7),   Color(191, 71, 7),   Color(199, 71, 7),
+        Color(223, 79, 7),    Color(223, 87, 7),   Color(223, 87, 7),   Color(215, 95, 7),
+        Color(215, 95, 7),    Color(215, 103, 15), Color(207, 111, 15), Color(207, 119, 15),
+        Color(207, 127, 15),  Color(207, 135, 23), Color(199, 135, 23), Color(199, 143, 23),
+        Color(199, 151, 31),  Color(191, 159, 31), Color(191, 159, 31), Color(191, 167, 39),
+        Color(191, 167, 39),  Color(191, 175, 47), Color(183, 175, 47), Color(183, 183, 47),
+        Color(183, 183, 55),  Color(207, 207, 111),Color(223, 223, 159),Color(239, 239, 199),
         Color(255, 255, 255)
       };
 
       static uint8_t fire[W * H] = {};
 
-      // 1. Glutquelle am unteren Rand – wie im getesteten Beispiel.
+      // Glut am unteren Rand erzeugen.
       for (int x = 0; x < W; x++) {
         const uint32_t r = esp_random();
         if ((r & 15) == 0) {
@@ -87,10 +81,9 @@ display:
         }
       }
 
-      // 2. Ursprüngliche Propagation: jede Zelle wandert zufällig
-      // um -2 bis +2 Spalten nach oben. In-place wie im Beispiel.
-      for (int y = 1; y < H; y++) {
-        for (int x = 0; x < W; x++) {
+      // Originale Ausbreitung: zufällige Ablenkung um -2 bis +2 Pixel.
+      for (int x = 0; x < W; x++) {
+        for (int y = 1; y < H; y++) {
           const int src = y * W + x;
           const uint8_t heat = fire[src];
 
@@ -104,7 +97,7 @@ display:
             if (dst_x >= W) dst_x = W - 1;
 
             int decay = (r >> 4) % 3;
-            if (y > H * 2 / 5 && decay == 2) decay = 1;
+            if (y > 40 && decay == 2) decay = 1;
 
             const int new_heat = heat - decay;
             fire[(y - 1) * W + dst_x] =
@@ -113,21 +106,19 @@ display:
         }
       }
 
-      // 3. Auf das runde 240 x 240 Display zeichnen.
-      // 80 x 80 Zellen x 3 Pixel = 240 x 240.
+      // Auf das runde Display zeichnen; außerhalb des Kreises bleibt es schwarz.
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
           const uint8_t heat = fire[y * W + x];
           if (heat == 0) continue;
 
-          const int px = x * SCALE;
-          const int py = y * SCALE;
-          const int dx = px + 1 - 119;
-          const int dy = py + 1 - 119;
+          const int dx = x - 119;
+          const int dy = y - 119;
           if (dx * dx + dy * dy > 119 * 119) continue;
 
-          it.filled_rectangle(px, py, SCALE, SCALE, PALETTE[heat]);
+          it.draw_pixel_at(x, y, PALETTE[heat]);
         }
+      }
       }
 
       // 4. Auf das runde 240 x 240 Display zeichnen.

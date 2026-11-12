@@ -129,10 +129,11 @@ display:
           const float average = (weight_sum > 0.0f) ? sum / weight_sum : current;
           const uint32_t r = random32();
 
-          // Diffusionsrate schwankt leicht, damit die Waerme nicht statisch wirkt.
-          const float diffusion = 0.19f + (r & 7) * 0.008f;
-          const float cooling = 0.35f + ((r >> 8) & 3) * 0.18f;
-          const float flicker = ((int)((r >> 12) & 7) - 3) * 0.30f;
+          // Waerme soll deutlich weiter von der Pupille weg diffundieren.
+          // Die Abkuehlung bleibt klein, damit die Ausbreitung nicht direkt versiegt.
+          const float diffusion = 0.30f + (r & 7) * 0.006f;
+          const float cooling = 0.06f + ((r >> 8) & 3) * 0.025f;
+          const float flicker = ((int)((r >> 12) & 7) - 3) * 0.18f;
 
           float value = current + (average - current) * diffusion - cooling + flicker;
           if (value < 0.0f) value = 0.0f;

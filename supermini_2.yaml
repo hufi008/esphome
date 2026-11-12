@@ -119,9 +119,7 @@ display:
           it.draw_pixel_at(x, y, PALETTE[heat]);
         }
       }
-      }
 
-      // 4. Auf das runde 240 x 240 Display zeichnen.
       // Jede Simulationszelle belegt 2 x 2 Pixel.
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {

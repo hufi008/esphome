@@ -124,10 +124,14 @@ display:
         }
       }
 
-      // 3. Feuer ohne Rotation zeichnen: links und rechts gespiegelt.
-      // Jede Zelle belegt 2 Pixel Breite und 1 Pixel Höhe.
-      // Unveränderte Hitze muss nicht erneut ans Display übertragen werden.
+      // 3. Feuer in einer waagerechten Ellipse zeichnen.
+      // Die bestehende Flammensimulation und ihre Spiegelung bleiben unverändert.
       static uint8_t last_drawn[W * H] = {0};
+
+      constexpr float EYE_CX = 119.5f;
+      constexpr float EYE_CY = 119.5f;
+      constexpr float EYE_RX = 119.0f;
+      constexpr float EYE_RY = 49.0f;
 
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
@@ -144,7 +148,41 @@ display:
           const int screen_x_right = OFFSET_X + 2 * H - 2 * y - 1;
           const int screen_y = OFFSET_Y + x;
 
-          it.filled_rectangle(screen_x_left, screen_y, 2, 1, color);
-          it.filled_rectangle(screen_x_right, screen_y, 2, 1, color);
+          const float dy = (screen_y + 0.5f - EYE_CY) / EYE_RY;
+          const float dy2 = dy * dy;
+          if (dy2 > 1.0f) continue;
+
+          const float dx_left = (screen_x_left + 1.0f - EYE_CX) / EYE_RX;
+          if (dx_left * dx_left + dy2 <= 1.0f) {
+            it.filled_rectangle(screen_x_left, screen_y, 2, 1, color);
+          }
+
+          const float dx_right = (screen_x_right + 1.0f - EYE_CX) / EYE_RX;
+          if (dx_right * dx_right + dy2 <= 1.0f) {
+            it.filled_rectangle(screen_x_right, screen_y, 2, 1, color);
+          }
         }
+      }
+
+      // 4. Senkrechte Pupille: gelegentliche, sprunghafte Weitenänderung.
+      static int pupil_width = 6;
+      static uint32_t next_pupil_change = 0;
+      if (now >= next_pupil_change) {
+        pupil_width = 4 + (random32() % 5) * 2;  // 4, 6, 8, 10 oder 12 Pixel
+        next_pupil_change = now + 1200 + (random32() % 2200);
+      }
+
+      // Zugespitzte Enden ergeben einen schmalen, organisch wirkenden Schlitz.
+      constexpr int PUPIL_TOP = 91;
+      constexpr int PUPIL_HEIGHT = 58;
+      for (int row = 0; row < PUPIL_HEIGHT; row++) {
+        int row_width = pupil_width;
+        if (row < 5) row_width = 2 + (pupil_width - 2) * row / 5;
+        if (row >= PUPIL_HEIGHT - 5) {
+          row_width = 2 + (pupil_width - 2) * (PUPIL_HEIGHT - 1 - row) / 5;
+        }
+        if (row_width < 2) row_width = 2;
+
+        const int pupil_x = 120 - row_width / 2;
+        it.filled_rectangle(pupil_x, PUPIL_TOP + row, row_width, 1, Color::BLACK);
       }

@@ -124,14 +124,15 @@ display:
         }
       }
 
-      // 3. Mit Offset auf das ESPHome Display zeichnen
+      // 3. Feuer ohne Rotation zeichnen: links und rechts gespiegelt.
+      // Jede Simulationszelle wird 1 Pixel breit und 2 Pixel hoch dargestellt.
       for (int y = 0; y < H; y++) {
+        const int screen_y = OFFSET_Y + y * 2;
         for (int x = 0; x < W; x++) {
-          uint8_t heat = fire[y * W + x];
-          // Erst 90 Grad nach links drehen, danach horizontal spiegeln.
-          const int rotated_x = W - 1 - y;
-          const int rotated_y = H - 1 - x;
-          it.filled_rectangle(OFFSET_X + rotated_x, OFFSET_Y + rotated_y, 1, 2, PALETTE[heat]);
-          it.filled_rectangle(OFFSET_X - rotated_x, OFFSET_Y + rotated_y, 1, 2, PALETTE[heat]);
+          const uint8_t heat = fire[y * W + x];
+          const Color color = PALETTE[heat];
+
+          it.filled_rectangle(OFFSET_X + x, screen_y, 1, 2, color);
+          it.filled_rectangle(OFFSET_X - 1 - x, screen_y, 1, 2, color);
         }
       }

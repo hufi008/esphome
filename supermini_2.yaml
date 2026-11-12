@@ -89,9 +89,10 @@ display:
         }
       }
 
-      // 2. Wärme breitet sich auf drei Zellen aus.
-      // In der Mitte bleibt mehr Energie erhalten; seitlich
-      // kühlt sie stärker ab. Das erzeugt breitere Flammenzungen.
+      // 2. Turbulente Ausbreitung:
+      // Jede Wärmeportion wandert zufällig nach links, geradeaus
+      // oder rechts. Gelegentlich entsteht zusätzlich ein schwacher
+      // seitlicher Ausläufer. So bleiben einzelne Flammenzungen sichtbar.
       for (int y = FIRE_H - 2; y >= 0; y--) {
         for (int x = 0; x < FIRE_W; x++) {
           fire[y][x] = 0;
@@ -101,17 +102,27 @@ display:
           const int source = fire[y + 1][x];
           if (source == 0) continue;
 
-          const int center_value = source - (2 + (random8() % 3));
-          const int side_value = source - (6 + (random8() % 4));
+          const int drift = (int)(random8() % 3) - 1;
+          const int target_x = x + drift;
+          const int cooling = 2 + (random8() % 5);
+          const int value = source - cooling;
 
-          if (center_value > 0 && center_value > fire[y][x]) {
-            fire[y][x] = (uint8_t)center_value;
-          }
-          if (side_value > 0 && x > 0 && side_value > fire[y][x - 1]) {
-            fire[y][x - 1] = (uint8_t)side_value;
-          }
-          if (side_value > 0 && x < FIRE_W - 1 && side_value > fire[y][x + 1]) {
-            fire[y][x + 1] = (uint8_t)side_value;
+          if (value > 0 && target_x >= 0 && target_x < FIRE_W) {
+            if (value > fire[y][target_x]) {
+              fire[y][target_x] = (uint8_t)value;
+            }
+
+            // Nur gelegentlich Wärme seitlich abgeben.
+            // Die Wahrscheinlichkeit und Stärke variieren pro Zelle.
+            if (random8() < 92) {
+              const int side = (random8() & 1) ? -1 : 1;
+              const int side_x = target_x + side;
+              const int side_value = value - (12 + (random8() % 24));
+              if (side_value > 0 && side_x >= 0 && side_x < FIRE_W &&
+                  side_value > fire[y][side_x]) {
+                fire[y][side_x] = (uint8_t)side_value;
+              }
+            }
           }
         }
       }

@@ -133,9 +133,10 @@ display:
 
           // Waerme soll deutlich weiter von der Pupille weg diffundieren.
           // Die Abkuehlung bleibt klein, damit die Ausbreitung nicht direkt versiegt.
-          const float diffusion = 0.48f + (r & 7) * 0.004f;
+          const float diffusion = 0.58f + (r & 7) * 0.004f;
           const float cooling = 0.001f + ((r >> 8) & 3) * 0.001f;
-          const float flicker = ((int)((r >> 12) & 7) - 3) * 0.22f;
+          // Deutlich sichtbare lokale Turbulenz statt praktisch wirkungslosem Mikroflackern.
+          const float flicker = ((int)((r >> 12) & 7) - 3) * 2.5f;
 
           float value = current + (average - current) * diffusion - cooling + flicker;
           if (value < 0.0f) value = 0.0f;

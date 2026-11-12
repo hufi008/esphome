@@ -180,16 +180,17 @@ display:
         next_pupil_change = now + 1200 + (random32() % 2200);
       }
 
-      // Zugespitzte Enden ergeben einen schmalen, organisch wirkenden Schlitz.
+      // Elliptische Pupille mit weich gerundeten Enden.
       constexpr int PUPIL_TOP = 91;
       constexpr int PUPIL_HEIGHT = 58;
+      constexpr float PUPIL_RADIUS_Y = (PUPIL_HEIGHT - 1) / 2.0f;
       for (int row = 0; row < PUPIL_HEIGHT; row++) {
-        int row_width = pupil_width;
-        if (row < 5) row_width = 2 + (pupil_width - 2) * row / 5;
-        if (row >= PUPIL_HEIGHT - 5) {
-          row_width = 2 + (pupil_width - 2) * (PUPIL_HEIGHT - 1 - row) / 5;
-        }
-        if (row_width < 2) row_width = 2;
+        const float dy = (row - PUPIL_RADIUS_Y) / PUPIL_RADIUS_Y;
+        const float shape = 1.0f - dy * dy;
+        if (shape <= 0.0f) continue;
+
+        int row_width = (int)(pupil_width * sqrtf(shape));
+        if (row_width < 1) row_width = 1;
 
         const int pupil_x = 120 - row_width / 2;
         it.filled_rectangle(pupil_x, PUPIL_TOP + row, row_width, 1, Color::BLACK);

@@ -74,58 +74,35 @@ display:
       };
 
       static uint8_t fire[W * H] = {};
-      static uint8_t next_fire[W * H] = {};
 
-      // 1. Neue Glut am unteren Rand des aktuellen Frames.
+      // 1. Glutquelle am unteren Rand.
       for (int x = 0; x < W; x++) {
         const uint32_t r = esp_random();
-        if ((r & 15) == 0) {
-          fire[(H - 1) * W + x] = 16;
-        } else {
-          fire[(H - 1) * W + x] = 30 + (r % 7);
-        }
+        fire[(H - 1) * W + x] =
+          ((r & 15) == 0) ? 16 : 30 + (r % 7);
       }
 
-      // 2. Nächsten Frame separat berechnen.
-      // Der zweite Buffer verhindert, dass Quellwerte überschrieben werden.
-      for (int i = 0; i < W * H; i++) {
-        next_fire[i] = 0;
-      }
-
-      // Die Glutbasis bleibt auch im nächsten Frame erhalten.
-      for (int x = 0; x < W; x++) {
-        next_fire[(H - 1) * W + x] = fire[(H - 1) * W + x];
-      }
-
-      // Wärme von unten nach oben verteilen.
-      for (int y = H - 1; y >= 1; y--) {
+      // 2. Klassische DOOM-Propagation:
+      // Jede Zelle übernimmt Wärme aus einer zufällig versetzten
+      // Zelle direkt darunter. Alle Zellen werden pro Frame erneuert.
+      // Dadurch bleibt das Feuer flächig statt aus Partikelspuren zu bestehen.
+      for (int y = 0; y < H - 1; y++) {
         for (int x = 0; x < W; x++) {
-          const uint8_t heat = fire[y * W + x];
-          if (heat == 0) continue;
-
           const uint32_t r = esp_random();
+
           const int wind = (r % 5) - 2;
-          int dst_x = x + wind;
-          if (dst_x < 0) dst_x = 0;
-          if (dst_x >= W) dst_x = W - 1;
+          int src_x = x + wind;
+          if (src_x < 0) src_x = 0;
+          if (src_x >= W) src_x = W - 1;
+
+          const int heat = fire[(y + 1) * W + src_x];
 
           int decay = (r >> 4) % 3;
           if (y > 40 && decay == 2) decay = 1;
 
           const int new_heat = heat - decay;
-          const int dst = (y - 1) * W + dst_x;
-          const uint8_t value = (new_heat > 0) ? new_heat : 0;
-
-          // Bei mehreren Treffern gewinnt der heißeste Wert.
-          if (value > next_fire[dst]) {
-            next_fire[dst] = value;
-          }
+          fire[y * W + x] = (new_heat > 0) ? new_heat : 0;
         }
-      }
-
-      // Berechneten Frame übernehmen.
-      for (int i = 0; i < W * H; i++) {
-        fire[i] = next_fire[i];
       }
 
       // 4. Auf das runde 240 x 240 Display zeichnen.

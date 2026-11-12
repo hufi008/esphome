@@ -55,10 +55,10 @@ display:
       it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
       it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
-      constexpr int W = 120;
-      constexpr int H = 120;
+      constexpr int W = 60;
+      constexpr int H = 100;
       constexpr int OFFSET_X = 120;
-      constexpr int OFFSET_Y = 60;
+      constexpr int OFFSET_Y = 90;
 
       // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {
@@ -131,7 +131,7 @@ display:
           // Erst 90 Grad nach links drehen, danach horizontal spiegeln.
           const int rotated_x = W - 1 - y;
           const int rotated_y = H - 1 - x;
-          it.draw_pixel_at(OFFSET_X + rotated_x, OFFSET_Y + rotated_y, PALETTE[heat]);
-          it.draw_pixel_at(OFFSET_X - rotated_x, OFFSET_Y + rotated_y, PALETTE[heat]);
+          it.filled_rectangle(OFFSET_X + rotated_x, OFFSET_Y + rotated_y, 1, 2, PALETTE[heat]);
+          it.filled_rectangle(OFFSET_X - rotated_x, OFFSET_Y + rotated_y, 1, 2, PALETTE[heat]);
         }
       }

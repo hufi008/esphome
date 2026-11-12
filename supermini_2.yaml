@@ -55,10 +55,10 @@ display:
       it.filled_rectangle(92, 2, 56, 22, Color::BLACK);
       it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
 
-      constexpr int W = 60;
-      constexpr int H = 100;
+      constexpr int W = 100;
+      constexpr int H = 60;
       constexpr int OFFSET_X = 120;
-      constexpr int OFFSET_Y = 90;
+      constexpr int OFFSET_Y = 70;
 
       // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {
@@ -127,12 +127,11 @@ display:
       // 3. Feuer ohne Rotation zeichnen: links und rechts gespiegelt.
       // Jede Simulationszelle wird 1 Pixel breit und 2 Pixel hoch dargestellt.
       for (int y = 0; y < H; y++) {
-        const int screen_y = OFFSET_Y + y * 2;
         for (int x = 0; x < W; x++) {
           const uint8_t heat = fire[y * W + x];
           const Color color = PALETTE[heat];
 
-          it.filled_rectangle(OFFSET_X + x, screen_y, 1, 2, color);
-          it.filled_rectangle(OFFSET_X - 1 - x, screen_y, 1, 2, color);
+          it.filled_rectangle(OFFSET_X - H - H + y + y + 1, OFFSET_Y + x, 2, 1, color);
+          it.filled_rectangle(OFFSET_X + H + H - y - y - 1, OFFSET_Y + x, 2, 1, color);
         }
       }

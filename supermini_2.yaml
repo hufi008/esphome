@@ -94,7 +94,9 @@ display:
 
       const int center = W / 2;
 
-      // Waerme diffundiert in alle 8 Nachbarzellen.
+      // Mehrere kleine Diffusionsschritte pro Bild: schnellere Ausbreitung.
+      for (int step = 0; step < 4; step++) {
+        // Waerme diffundiert in alle 8 Nachbarzellen.
       // Der Transport zur horizontalen Augenmittelachse wird verstaerkt.
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
@@ -132,7 +134,7 @@ display:
           // Waerme soll deutlich weiter von der Pupille weg diffundieren.
           // Die Abkuehlung bleibt klein, damit die Ausbreitung nicht direkt versiegt.
           const float diffusion = 0.48f + (r & 7) * 0.004f;
-          const float cooling = 0.004f + ((r >> 8) & 3) * 0.002f;
+          const float cooling = 0.001f + ((r >> 8) & 3) * 0.001f;
           const float flicker = ((int)((r >> 12) & 7) - 3) * 0.22f;
 
           float value = current + (average - current) * diffusion - cooling + flicker;
@@ -142,16 +144,17 @@ display:
         }
       }
 
-      // Kontinuierliche, leicht flackernde Waermequelle entlang der Pupille.
-      // Die Pupille selbst wird spaeter schwarz darueber gezeichnet.
-      for (int x = 21; x <= 79; x++) {
-        next_heat[(H - 1) * W + x] = 215 + (random32() % 41);
-      }
+        // Kontinuierliche, leicht flackernde Waermequelle entlang der Pupille.
+        // Die Pupille selbst wird spaeter schwarz darueber gezeichnet.
+        for (int x = 21; x <= 79; x++) {
+          next_heat[(H - 1) * W + x] = 215 + (random32() % 41);
+        }
 
-      // Simulationspuffer tauschen: alle Zellen arbeiten mit dem alten Feld.
-      uint8_t *swap = heat;
-      heat = next_heat;
-      next_heat = swap;
+        // Simulationspuffer tauschen.
+        uint8_t *swap = heat;
+        heat = next_heat;
+        next_heat = swap;
+      }
 
       // 3. Das komplette Waermefeld in jedem Frame neu zeichnen.
       // So werden auch abgekuehlte Pixel und die alte Pupillenform geloescht.

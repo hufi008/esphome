@@ -106,6 +106,8 @@ display:
       } else if (previous_mode == 0 && !draining) {
         draining = true;
         drain_started = millis();
+        // Letzte Glut an der Quelle entfernen, damit nichts mehr nachheizt.
+        for (int x = 0; x < 100; x++) fire[x + 59 * 100] = 0;
       }
 
       if (draining && millis() - drain_started >= 3000) {

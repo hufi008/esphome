@@ -93,17 +93,33 @@ display:
     auto_clear_enabled: false
     lambda: |-
       static int previous_mode = -1;
+      static bool draining = false;
+      static uint32_t drain_started = 0;
       const std::string mode = id(display_mode);
       const int mode_index = (mode == "Saurons Auge") ? 0 :
                              (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
+      const bool eye_requested = id(display_enabled) && mode_index == 0;
 
-      if (!id(display_enabled)) {
-        it.fill(Color::BLACK);
-        previous_mode = -1;
-        return;
+      // Beim Verlassen des Augenmodus die Glutquelle stoppen und das Feuer auslaufen lassen.
+      if (eye_requested) {
+        draining = false;
+      } else if (previous_mode == 0 && !draining) {
+        draining = true;
+        drain_started = millis();
       }
 
-      if (mode_index != 0) {
+      if (draining && millis() - drain_started >= 3000) {
+        draining = false;
+        previous_mode = id(display_enabled) ? mode_index : -1;
+      }
+
+      if (!eye_requested && !draining) {
+        if (!id(display_enabled)) {
+          it.fill(Color::BLACK);
+          previous_mode = -1;
+          return;
+        }
+
         previous_mode = mode_index;
         it.fill(Color::BLACK);
         const auto t = id(homeassistant_time).now();
@@ -214,13 +230,16 @@ display:
         return rng;
       };
 
-      // 1. Lebendige Glutnester am Boden erzeugen.
-      for (int x = 0; x < W; x++) {
-        uint32_t r = random32();
-        if ((r & 15) == 0) {
-          fire[(H - 1) * W + x] = 16;
-        } else {
-          fire[(H - 1) * W + x] = 30 + (r % 7);
+      // 1. Im normalen Augenmodus Glut nachlegen.
+      // Beim Verlassen des Modus bleibt die Quelle aus: Das Feuer läuft leer.
+      if (!draining) {
+        for (int x = 0; x < W; x++) {
+          uint32_t r = random32();
+          if ((r & 15) == 0) {
+            fire[(H - 1) * W + x] = 16;
+          } else {
+            fire[(H - 1) * W + x] = 30 + (r % 7);
+          }
         }
       }
 
@@ -303,7 +322,8 @@ display:
         }
       }
 
-      // 4. Senkrechte Pupille: gelegentliche, sprunghafte Weitenänderung.
+      // 4. Pupille nur im aktiven Augenmodus zeichnen.
+      if (!draining) {
       static int pupil_width = 6;
       static uint32_t next_pupil_change = 0;
       if (now >= next_pupil_change) {
@@ -325,4 +345,5 @@ display:
 
         const int pupil_x = 120 - row_width / 2;
         it.filled_rectangle(pupil_x, PUPIL_TOP + row, row_width, 1, Color::BLACK);
+      }
       }

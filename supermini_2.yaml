@@ -250,13 +250,6 @@ display:
         for (int i = 0; i < W * H; i++) last_drawn[i] = 255;
         previous_mode = 0;
       }
-      // Beim Wechsel zurueck zum Auge den Bildcache einmalig invalidieren.
-      if (previous_mode != 0) {
-        it.fill(Color::BLACK);
-        for (int i = 0; i < W * H; i++) last_drawn[i] = 255;
-        previous_mode = 0;
-      }
-
       constexpr float EYE_CX = 119.5f;
       constexpr float EYE_CY = 119.5f;
       constexpr float EYE_RX = 119.0f;

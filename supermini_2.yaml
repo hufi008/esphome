@@ -72,6 +72,23 @@ display:
     auto_clear_enabled: false
     lambda: |-
       static int previous_mode = -1;
+      // Einheitliche FPS-Messung für alle Anzeigemodi.
+      static uint32_t last_frame_ms = 0;
+      const uint32_t now = millis();
+      float fps = 0.0f;
+      if (last_frame_ms != 0 && now > last_frame_ms) {
+        fps = 1000.0f / (now - last_frame_ms);
+      }
+      last_frame_ms = now;
+
+      auto draw_fps = [&]() {
+        it.filled_rectangle(88, 2, 64, 22, Color::BLACK);
+        if (id(fps_switch).state) {
+          it.printf(120, 5, id(font_small), Color(130, 130, 130),
+                    TextAlign::CENTER, "FPS %.1f", fps);
+        }
+      };
+
       static bool draining = false;
       static uint32_t drain_started = 0;
       const auto mode = id(display_mode_select).current_option();
@@ -148,14 +165,7 @@ display:
           }
         }
 
-        if (id(fps_switch).state) {
-          static uint32_t clock_last_frame_ms = 0;
-          const uint32_t clock_now = millis();
-          const float clock_fps = (clock_last_frame_ms && clock_now > clock_last_frame_ms)
-              ? 1000.0f / (clock_now - clock_last_frame_ms) : 0.0f;
-          clock_last_frame_ms = clock_now;
-          it.printf(120, 5, id(font_small), Color(130, 130, 130), TextAlign::CENTER, "FPS %.1f", clock_fps);
-        }
+        draw_fps();
         return;
       }
 
@@ -165,7 +175,7 @@ display:
         first_paint = false;
       }
 
-      // Render-Frequenz messen und oben mittig anzeigen.
+      // Einheitliche FPS-Messung für alle Anzeigemodi.
       static uint32_t last_frame_ms = 0;
       const uint32_t now = millis();
       float fps = 0.0f;
@@ -174,10 +184,13 @@ display:
       }
       last_frame_ms = now;
 
-      it.filled_rectangle(88, 2, 64, 22, Color::BLACK);
-      if (id(fps_switch).state) {
-        it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
-      }
+      auto draw_fps = [&]() {
+        it.filled_rectangle(88, 2, 64, 22, Color::BLACK);
+        if (id(fps_switch).state) {
+          it.printf(120, 5, id(font_small), Color(130, 130, 130),
+                    TextAlign::CENTER, "FPS %.1f", fps);
+        }
+      };
 
       constexpr int W = 100;
       constexpr int H = 60;
@@ -306,6 +319,8 @@ display:
           }
         }
       }
+
+      draw_fps();
 
       // 4. Pupille nur im aktiven Augenmodus zeichnen.
       if (!draining) {

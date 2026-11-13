@@ -20,19 +20,6 @@ logger:
 
 esphome:
 
-globals:
-  - id: display_enabled
-    type: bool
-    restore_value: yes
-    initial_value: "true"
-  - id: show_fps
-    type: bool
-    restore_value: yes
-    initial_value: "false"
-  - id: display_mode
-    type: std::string
-    restore_value: yes
-    initial_value: '"Saurons Auge"'
 
 # Das GC9A01A wird per Display-Lambda schwarz geschaltet.
 # Echtes Display-Off/Sleep benötigt einen Zugriff innerhalb des MIPI-Treibers.
@@ -41,34 +28,26 @@ switch:
   - platform: template
     name: "Anzeige"
     id: display_power
-    lambda: |-
-      return id(display_enabled);
-    turn_on_action:
-      - lambda: id(display_enabled) = true;
-    turn_off_action:
-      - lambda: id(display_enabled) = false;
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
   - platform: template
     name: "FPS anzeigen"
     id: fps_switch
-    lambda: |-
-      return id(show_fps);
-    turn_on_action:
-      - lambda: id(show_fps) = true;
-    turn_off_action:
-      - lambda: id(show_fps) = false;
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
 
 select:
   - platform: template
     name: "Anzeigemodus"
     id: display_mode_select
-    lambda: |-
-      return id(display_mode);
+    restore_value: true
+    initial_option: "Saurons Auge"
     options:
       - "Saurons Auge"
       - "Uhrzeit/Datum (analog)"
       - "Uhrzeit/Datum (digital)"
     set_action:
-      - lambda: id(display_mode) = x;
+      - lambda: id(display_mode_select).publish_state(x);
 
 time:
   - platform: homeassistant
@@ -95,10 +74,10 @@ display:
       static int previous_mode = -1;
       static bool draining = false;
       static uint32_t drain_started = 0;
-      const std::string mode = id(display_mode);
+      const std::string mode = id(display_mode_select).state;
       const int mode_index = (mode == "Saurons Auge") ? 0 :
                              (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
-      const bool eye_requested = id(display_enabled) && mode_index == 0;
+      const bool eye_requested = id(display_power).state && mode_index == 0;
       bool clear_fire_source = false;
 
       // Beim Verlassen des Augenmodus die Glutquelle stoppen und das Feuer auslaufen lassen.
@@ -112,11 +91,11 @@ display:
 
       if (draining && millis() - drain_started >= 3000) {
         draining = false;
-        previous_mode = id(display_enabled) ? mode_index : -1;
+        previous_mode = id(display_power).state ? mode_index : -1;
       }
 
       if (!eye_requested && !draining) {
-        if (!id(display_enabled)) {
+        if (!id(display_power).state) {
           it.fill(Color::BLACK);
           previous_mode = -1;
           return;
@@ -169,7 +148,7 @@ display:
           }
         }
 
-        if (id(show_fps)) {
+        if (id(fps_switch).state) {
           static uint32_t clock_last_frame_ms = 0;
           const uint32_t clock_now = millis();
           const float clock_fps = (clock_last_frame_ms && clock_now > clock_last_frame_ms)
@@ -196,7 +175,7 @@ display:
       last_frame_ms = now;
 
       it.filled_rectangle(88, 2, 64, 22, Color::BLACK);
-      if (id(show_fps)) {
+      if (id(fps_switch).state) {
         it.printf(94, 5, id(font_small), Color(255, 255, 255), "FPS %.1f", fps);
       }
 

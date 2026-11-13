@@ -46,7 +46,7 @@ spi_device:
   spi_id: my_spi
   cs_pin: GPIO10
   data_rate: 40MHz
-  mode: mode0
+  spi_mode: mode0
   bit_order: msb_first
 
 switch:

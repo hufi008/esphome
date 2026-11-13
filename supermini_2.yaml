@@ -23,15 +23,15 @@ esphome:
 globals:
   - id: display_enabled
     type: bool
-    restore_value: no
+    restore_value: yes
     initial_value: "true"
   - id: show_fps
     type: bool
-    restore_value: no
+    restore_value: yes
     initial_value: "false"
   - id: display_mode
     type: std::string
-    restore_value: no
+    restore_value: yes
     initial_value: '"Saurons Auge"'
 
 # Das GC9A01A wird per Display-Lambda schwarz geschaltet.
@@ -61,8 +61,8 @@ select:
   - platform: template
     name: "Anzeigemodus"
     id: display_mode_select
-    optimistic: true
-    initial_option: "Saurons Auge"
+    lambda: |-
+      return id(display_mode);
     options:
       - "Saurons Auge"
       - "Uhrzeit/Datum (analog)"

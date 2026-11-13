@@ -99,6 +99,7 @@ display:
       const int mode_index = (mode == "Saurons Auge") ? 0 :
                              (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
       const bool eye_requested = id(display_enabled) && mode_index == 0;
+      bool clear_fire_source = false;
 
       // Beim Verlassen des Augenmodus die Glutquelle stoppen und das Feuer auslaufen lassen.
       if (eye_requested) {
@@ -106,8 +107,7 @@ display:
       } else if (previous_mode == 0 && !draining) {
         draining = true;
         drain_started = millis();
-        // Letzte Glut an der Quelle entfernen, damit nichts mehr nachheizt.
-        for (int x = 0; x < 100; x++) fire[x + 59 * 100] = 0;
+        clear_fire_source = true;
       }
 
       if (draining && millis() - drain_started >= 3000) {
@@ -221,6 +221,10 @@ display:
 
       // Hitze-Buffer im RAM.
       static uint8_t fire[W * H] = {0};
+      if (clear_fire_source) {
+        // Letzte Glut an der Quelle entfernen, damit nichts mehr nachheizt.
+        for (int x = 0; x < W; x++) fire[(H - 1) * W + x] = 0;
+      }
 
       // Schneller lokaler Zufallszahlengenerator statt esp_random()
       // bei jedem einzelnen Simulationsschritt.

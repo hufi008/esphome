@@ -175,23 +175,6 @@ display:
         first_paint = false;
       }
 
-      // Einheitliche FPS-Messung für alle Anzeigemodi.
-      static uint32_t last_frame_ms = 0;
-      const uint32_t now = millis();
-      float fps = 0.0f;
-      if (last_frame_ms != 0 && now > last_frame_ms) {
-        fps = 1000.0f / (now - last_frame_ms);
-      }
-      last_frame_ms = now;
-
-      auto draw_fps = [&]() {
-        it.filled_rectangle(88, 2, 64, 22, Color::BLACK);
-        if (id(fps_switch).state) {
-          it.printf(120, 5, id(font_small), Color(130, 130, 130),
-                    TextAlign::CENTER, "FPS %.1f", fps);
-        }
-      };
-
       constexpr int W = 100;
       constexpr int H = 60;
       constexpr int OFFSET_X = 120;
@@ -320,8 +303,6 @@ display:
         }
       }
 
-      draw_fps();
-
       // 4. Pupille nur im aktiven Augenmodus zeichnen.
       if (!draining) {
       static int pupil_width = 6;
@@ -347,3 +328,5 @@ display:
         it.filled_rectangle(pupil_x, PUPIL_TOP + row, row_width, 1, Color::BLACK);
       }
       }
+
+      draw_fps();

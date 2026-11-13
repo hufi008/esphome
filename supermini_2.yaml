@@ -245,17 +245,14 @@ display:
         }
       }
 
-      // Nach einem Wechsel zurueck zum Auge den alten Bildcache invalidieren.
-      if (previous_mode != 0) {
-        it.fill(Color::BLACK);
-        previous_mode = 0;
-      }
-
       // 3. Feuer in einer waagerechten Ellipse zeichnen.
       // Die bestehende Flammensimulation und ihre Spiegelung bleiben unverändert.
       static uint8_t last_drawn[W * H] = {0};
-      if (previous_mode == 0) {
+      // Beim Wechsel zurueck zum Auge den Bildcache einmalig invalidieren.
+      if (previous_mode != 0) {
+        it.fill(Color::BLACK);
         for (int i = 0; i < W * H; i++) last_drawn[i] = 255;
+        previous_mode = 0;
       }
 
       constexpr float EYE_CX = 119.5f;

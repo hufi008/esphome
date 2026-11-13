@@ -34,20 +34,8 @@ globals:
     restore_value: no
     initial_value: '"Saurons Auge"'
 
-# Separater SPI-Zugriff für GC9A01A Display-Off/Sleep-Befehle.
-# Nutzt denselben SPI-Bus sowie dieselben CS-/DC-Leitungen wie my_display.
-output:
-  - platform: gpio
-    id: display_dc
-    pin: GPIO11
-
-spi_device:
-  id: display_cmd_spi
-  spi_id: my_spi
-  cs_pin: GPIO10
-  data_rate: 40MHz
-  spi_mode: mode0
-  bit_order: msb_first
+# Das GC9A01A wird per Display-Lambda schwarz geschaltet.
+# Echtes Display-Off/Sleep benötigt einen Zugriff innerhalb des MIPI-Treibers.
 
 switch:
   - platform: template
@@ -56,37 +44,9 @@ switch:
     lambda: |-
       return id(display_enabled);
     turn_on_action:
-      - delay: 120ms
-      - lambda: |-
-          id(display_cmd_spi).enable();
-          id(display_dc).turn_off();
-          id(display_cmd_spi).write_byte(0x11);  // SLPOUT
-          id(display_dc).turn_on();
-          id(display_cmd_spi).disable();
-      - delay: 5ms
-      - lambda: |-
-          id(display_cmd_spi).enable();
-          id(display_dc).turn_off();
-          id(display_cmd_spi).write_byte(0x29);  // DISPON
-          id(display_dc).turn_on();
-          id(display_cmd_spi).disable();
       - lambda: id(display_enabled) = true;
-      - component.resume: my_display
     turn_off_action:
       - lambda: id(display_enabled) = false;
-      - component.suspend: my_display
-      - lambda: |-
-          id(display_cmd_spi).enable();
-          id(display_dc).turn_off();
-          id(display_cmd_spi).write_byte(0x28);  // DISPOFF
-          id(display_dc).turn_on();
-          id(display_cmd_spi).disable();
-      - lambda: |-
-          id(display_cmd_spi).enable();
-          id(display_dc).turn_off();
-          id(display_cmd_spi).write_byte(0x10);  // SLPIN
-          id(display_dc).turn_on();
-          id(display_cmd_spi).disable();
   - platform: template
     name: "FPS anzeigen"
     id: fps_switch

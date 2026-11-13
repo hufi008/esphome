@@ -39,70 +39,11 @@ switch:
     name: "Anzeige"
     id: display_power
     lambda: |-
-      static int previous_mode = -1;
-      const std::string mode = id(display_mode);
-      const int mode_index = (mode == "Saurons Auge") ? 0 :
-                             (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
-
-      if (!id(display_enabled)) {
-        it.fill(Color::BLACK);
-        previous_mode = -1;
-        return;
-      }
-
-      if (mode_index != 0) {
-        previous_mode = mode_index;
-        it.fill(Color::BLACK);
-
-        const auto t = id(homeassistant_time).now();
-        if (!t.is_valid()) {
-          it.printf(120, 112, id(font_large), Color(255, 255, 255), TextAlign::CENTER, "--:--");
-          it.printf(120, 145, id(font_small), Color(180, 180, 180), TextAlign::CENTER, "Warte auf Uhrzeit");
-        } else if (mode_index == 1) {
-          constexpr int CX = 120;
-          constexpr int CY = 112;
-          constexpr float PI = 3.14159265f;
-          it.circle(CX, CY, 88, Color(220, 220, 220));
-          for (int n = 0; n < 60; n++) {
-            const float a = (n * 6.0f - 90.0f) * PI / 180.0f;
-            const int r1 = (n % 5 == 0) ? 78 : 83;
-            it.line(CX + (int)(cosf(a) * r1), CY + (int)(sinf(a) * r1),
-                    CX + (int)(cosf(a) * 86), CY + (int)(sinf(a) * 86),
-                    Color(180, 180, 180));
-          }
-          const float hour_a = ((t.hour % 12) * 30.0f + t.minute * 0.5f - 90.0f) * PI / 180.0f;
-          const float min_a = (t.minute * 6.0f - 90.0f) * PI / 180.0f;
-          const float sec_a = (t.second * 6.0f - 90.0f) * PI / 180.0f;
-          it.line(CX, CY, CX + (int)(cosf(hour_a) * 43), CY + (int)(sinf(hour_a) * 43), Color(255, 255, 255));
-          it.line(CX, CY, CX + (int)(cosf(min_a) * 65), CY + (int)(sinf(min_a) * 65), Color(255, 180, 40));
-          it.line(CX, CY, CX + (int)(cosf(sec_a) * 72), CY + (int)(sinf(sec_a) * 72), Color(220, 60, 40));
-          it.filled_circle(CX, CY, 4, Color(255, 255, 255));
-          it.printf(120, 218, id(font_small), Color(255, 255, 255), TextAlign::CENTER,
-                    "%02d.%02d.%04d", t.day_of_month, t.month, t.year);
-        } else {
-          it.printf(120, 91, id(font_large), Color(255, 255, 255), TextAlign::CENTER,
-                    "%02d:%02d:%02d", t.hour, t.minute, t.second);
-          it.printf(120, 139, id(font_large), Color(210, 170, 80), TextAlign::CENTER,
-                    "%02d.%02d.%04d", t.day_of_month, t.month, t.year);
-        }
-
-        if (id(show_fps)) {
-          static uint32_t clock_last_frame_ms = 0;
-          const uint32_t clock_now = millis();
-          const float clock_fps = (clock_last_frame_ms && clock_now > clock_last_frame_ms)
-              ? 1000.0f / (clock_now - clock_last_frame_ms) : 0.0f;
-          clock_last_frame_ms = clock_now;
-          it.printf(120, 5, id(font_small), Color(130, 130, 130), TextAlign::CENTER, "FPS %.1f", clock_fps);
-        }
-        return;
-      }
-
       return id(display_enabled);
     turn_on_action:
       - lambda: id(display_enabled) = true;
     turn_off_action:
       - lambda: id(display_enabled) = false;
-
   - platform: template
     name: "FPS anzeigen"
     id: fps_switch
@@ -148,6 +89,62 @@ display:
     update_interval: 50ms
     auto_clear_enabled: false
     lambda: |-
+      static int previous_mode = -1;
+      const std::string mode = id(display_mode);
+      const int mode_index = (mode == "Saurons Auge") ? 0 :
+                             (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
+
+      if (!id(display_enabled)) {
+        it.fill(Color::BLACK);
+        previous_mode = -1;
+        return;
+      }
+
+      if (mode_index != 0) {
+        previous_mode = mode_index;
+        it.fill(Color::BLACK);
+        const auto t = id(homeassistant_time).now();
+        if (!t.is_valid()) {
+          it.printf(120, 112, id(font_large), Color(255, 255, 255), TextAlign::CENTER, "--:--");
+          it.printf(120, 145, id(font_small), Color(180, 180, 180), TextAlign::CENTER, "Warte auf Uhrzeit");
+        } else if (mode_index == 1) {
+          constexpr int CX = 120;
+          constexpr int CY = 112;
+          constexpr float PI = 3.14159265f;
+          it.circle(CX, CY, 88, Color(220, 220, 220));
+          for (int n = 0; n < 60; n++) {
+            const float a = (n * 6.0f - 90.0f) * PI / 180.0f;
+            const int r1 = (n % 5 == 0) ? 78 : 83;
+            it.line(CX + (int)(cosf(a) * r1), CY + (int)(sinf(a) * r1),
+                    CX + (int)(cosf(a) * 86), CY + (int)(sinf(a) * 86),
+                    Color(180, 180, 180));
+          }
+          const float hour_a = ((t.hour % 12) * 30.0f + t.minute * 0.5f - 90.0f) * PI / 180.0f;
+          const float min_a = (t.minute * 6.0f - 90.0f) * PI / 180.0f;
+          const float sec_a = (t.second * 6.0f - 90.0f) * PI / 180.0f;
+          it.line(CX, CY, CX + (int)(cosf(hour_a) * 43), CY + (int)(sinf(hour_a) * 43), Color(255, 255, 255));
+          it.line(CX, CY, CX + (int)(cosf(min_a) * 65), CY + (int)(sinf(min_a) * 65), Color(255, 180, 40));
+          it.line(CX, CY, CX + (int)(cosf(sec_a) * 72), CY + (int)(sinf(sec_a) * 72), Color(220, 60, 40));
+          it.filled_circle(CX, CY, 4, Color(255, 255, 255));
+          it.printf(120, 218, id(font_small), Color(255, 255, 255), TextAlign::CENTER,
+                    "%02d.%02d.%04d", t.day_of_month, t.month, t.year);
+        } else {
+          it.printf(120, 91, id(font_large), Color(255, 255, 255), TextAlign::CENTER,
+                    "%02d:%02d:%02d", t.hour, t.minute, t.second);
+          it.printf(120, 139, id(font_large), Color(210, 170, 80), TextAlign::CENTER,
+                    "%02d.%02d.%04d", t.day_of_month, t.month, t.year);
+        }
+        if (id(show_fps)) {
+          static uint32_t clock_last_frame_ms = 0;
+          const uint32_t clock_now = millis();
+          const float clock_fps = (clock_last_frame_ms && clock_now > clock_last_frame_ms)
+              ? 1000.0f / (clock_now - clock_last_frame_ms) : 0.0f;
+          clock_last_frame_ms = clock_now;
+          it.printf(120, 5, id(font_small), Color(130, 130, 130), TextAlign::CENTER, "FPS %.1f", clock_fps);
+        }
+        return;
+      }
+
       static bool first_paint = true;
       if (first_paint) {
         it.fill(Color::BLACK);
@@ -248,6 +245,11 @@ display:
       // 3. Feuer in einer waagerechten Ellipse zeichnen.
       // Die bestehende Flammensimulation und ihre Spiegelung bleiben unverändert.
       static uint8_t last_drawn[W * H] = {0};
+      if (previous_mode != 0) {
+        it.fill(Color::BLACK);
+        for (int i = 0; i < W * H; i++) last_drawn[i] = 255;
+        previous_mode = 0;
+      }
       // Beim Wechsel zurueck zum Auge den Bildcache einmalig invalidieren.
       if (previous_mode != 0) {
         it.fill(Color::BLACK);

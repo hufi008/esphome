@@ -74,7 +74,7 @@ display:
       static int previous_mode = -1;
       static bool draining = false;
       static uint32_t drain_started = 0;
-      const std::string mode = id(display_mode_select).state;
+      const auto mode = id(display_mode_select).current_option();
       const int mode_index = (mode == "Saurons Auge") ? 0 :
                              (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
       const bool eye_requested = id(display_power).state && mode_index == 0;

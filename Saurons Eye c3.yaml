@@ -1,0 +1,332 @@
+# supermini_1.yaml
+
+substitutions:
+  device_name: "esphome-web-d3bc3c"
+  friendly_name: "Saurons Eye c3"
+
+  # GC9A01
+  pin_display_reset: GPIO0
+  pin_display_cs:    GPIO1
+  pin_display_dc:    GPIO2
+  pin_spi_mosi:      GPIO3
+  pin_spi_clk:       GPIO4
+
+packages:
+  base: !include common/base-c3_supermini.yaml
+  display: !include common/GC9A01.yaml
+
+logger:
+  level: DEBUG
+
+esphome:
+
+
+# Das GC9A01A wird per Display-Lambda schwarz geschaltet.
+# Echtes Display-Off/Sleep benötigt einen Zugriff innerhalb des MIPI-Treibers.
+
+switch:
+  - platform: template
+    name: "Anzeige"
+    id: display_power
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+  - platform: template
+    name: "FPS anzeigen"
+    id: fps_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+select:
+  - platform: template
+    name: "Anzeigemodus"
+    id: display_mode_select
+    restore_value: true
+    initial_option: "Saurons Auge"
+    options:
+      - "Saurons Auge"
+      - "Uhrzeit/Datum (analog)"
+      - "Uhrzeit/Datum (digital)"
+    set_action:
+      - lambda: id(display_mode_select).publish_state(x);
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+
+button:
+  - platform: restart
+    name: "Restart"
+
+font:
+  - id: font_small
+    file: "gfonts://Roboto"
+    size: ${font_size_small}
+  - id: font_large
+    file: "gfonts://Roboto"
+    size: ${font_size_large}
+
+display:
+  - id: !extend my_display
+    update_interval: 100ms
+    auto_clear_enabled: false
+    lambda: |-
+      static int previous_mode = -1;
+      // Einheitliche FPS-Messung für alle Anzeigemodi.
+      static uint32_t last_frame_ms = 0;
+      const uint32_t now = millis();
+      float fps = 0.0f;
+      if (last_frame_ms != 0 && now > last_frame_ms) {
+        fps = 1000.0f / (now - last_frame_ms);
+      }
+      last_frame_ms = now;
+
+      auto draw_fps = [&]() {
+        it.filled_rectangle(88, 0, 64, 24, Color::BLACK);
+        if (id(fps_switch).state) {
+          it.printf(120, 5, id(font_small), Color(130, 130, 130),
+                    TextAlign::CENTER, "FPS %.1f", fps);
+        }
+      };
+
+      static bool draining = false;
+      static uint32_t drain_started = 0;
+      const auto mode = id(display_mode_select).current_option();
+      const int mode_index = (mode == "Saurons Auge") ? 0 :
+                             (mode == "Uhrzeit/Datum (analog)") ? 1 : 2;
+      const bool eye_requested = id(display_power).state && mode_index == 0;
+      bool clear_fire_source = false;
+
+      // Beim Verlassen des Augenmodus die Glutquelle stoppen und das Feuer auslaufen lassen.
+      if (eye_requested) {
+        draining = false;
+      } else if (previous_mode == 0 && !draining) {
+        draining = true;
+        drain_started = millis();
+        clear_fire_source = true;
+      }
+
+      if (draining && millis() - drain_started >= 8000) {
+        draining = false;
+        previous_mode = id(display_power).state ? mode_index : -1;
+      }
+
+      if (!eye_requested && !draining) {
+        if (!id(display_power).state) {
+          it.fill(Color::BLACK);
+          previous_mode = -1;
+          return;
+        }
+
+        previous_mode = mode_index;
+        it.fill(Color::BLACK);
+        const auto t = id(homeassistant_time).now();
+
+        if (!t.is_valid()) {
+          it.printf(120, 112, id(font_large), Color(255, 255, 255), TextAlign::CENTER, "--:--");
+          it.printf(120, 145, id(font_small), Color(180, 180, 180), TextAlign::CENTER, "Warte auf Uhrzeit");
+        } else {
+          switch (mode_index) {
+            case 1: {  // Analoge Uhr
+              constexpr int CX = 120;
+              constexpr int CY = 112;
+              constexpr float PI = 3.14159265f;
+              it.circle(CX, CY, 88, Color(220, 220, 220));
+              for (int n = 0; n < 60; n++) {
+                const float a = (n * 6.0f - 90.0f) * PI / 180.0f;
+                const int r1 = (n % 5 == 0) ? 78 : 83;
+                it.line(CX + (int)(cosf(a) * r1), CY + (int)(sinf(a) * r1),
+                        CX + (int)(cosf(a) * 86), CY + (int)(sinf(a) * 86),
+                        Color(180, 180, 180));
+              }
+              const float hour_a = ((t.hour % 12) * 30.0f + t.minute * 0.5f - 90.0f) * PI / 180.0f;
+              const float min_a = (t.minute * 6.0f - 90.0f) * PI / 180.0f;
+              const float sec_a = (t.second * 6.0f - 90.0f) * PI / 180.0f;
+              it.line(CX, CY, CX + (int)(cosf(hour_a) * 43), CY + (int)(sinf(hour_a) * 43), Color(255, 255, 255));
+              it.line(CX, CY, CX + (int)(cosf(min_a) * 65), CY + (int)(sinf(min_a) * 65), Color(255, 180, 40));
+              it.line(CX, CY, CX + (int)(cosf(sec_a) * 72), CY + (int)(sinf(sec_a) * 72), Color(220, 60, 40));
+              it.filled_circle(CX, CY, 4, Color(255, 255, 255));
+              it.printf(120, 218, id(font_small), Color(255, 255, 255), TextAlign::CENTER,
+                        "%02d.%02d.%04d", t.day_of_month, t.month, t.year);
+              break;
+            }
+
+            case 2: {  // Digitale Uhr
+              it.printf(120, 91, id(font_large), Color(255, 255, 255), TextAlign::CENTER,
+                        "%02d:%02d:%02d", t.hour, t.minute, t.second);
+              it.printf(120, 139, id(font_large), Color(210, 170, 80), TextAlign::CENTER,
+                        "%02d.%02d.%04d", t.day_of_month, t.month, t.year);
+              break;
+            }
+
+            case 0:  // Saurons Auge
+            default:
+              break;
+          }
+        }
+
+        draw_fps();
+        return;
+      }
+
+      static bool first_paint = true;
+      if (first_paint) {
+        it.fill(Color::BLACK);
+        first_paint = false;
+      }
+
+      constexpr int W = 160;
+      constexpr int H = 60;
+      constexpr int OFFSET_X = 120;
+      constexpr int OFFSET_Y = 40;
+
+      // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
+      static const std::array<Color, 37> PALETTE = {
+        Color(0, 0, 0),       Color(31, 7, 7),     Color(47, 15, 7),    Color(71, 15, 7),
+        Color(87, 23, 7),     Color(103, 31, 7),   Color(119, 31, 7),   Color(143, 39, 7),
+        Color(159, 47, 7),    Color(175, 63, 7),   Color(191, 71, 7),   Color(199, 71, 7),
+        Color(223, 79, 7),    Color(223, 87, 7),   Color(223, 87, 7),   Color(215, 95, 7),
+        Color(215, 95, 7),    Color(215, 103, 15), Color(207, 111, 15), Color(207, 119, 15),
+        Color(207, 127, 15),  Color(207, 135, 23), Color(199, 135, 23), Color(199, 143, 23),
+        Color(199, 151, 31),  Color(191, 159, 31), Color(191, 159, 31), Color(191, 167, 39),
+        Color(191, 167, 39),  Color(191, 175, 47), Color(183, 175, 47), Color(183, 183, 47),
+        Color(183, 183, 55),  Color(207, 207, 111),Color(223, 223, 159),Color(239, 239, 199),
+        Color(255, 255, 255)
+      };
+
+      // Hitze-Buffer im RAM.
+      static uint8_t fire[W * H] = {0};
+      if (clear_fire_source) {
+        // Letzte Glut an der Quelle entfernen, damit nichts mehr nachheizt.
+        for (int x = 0; x < W; x++) fire[(H - 1) * W + x] = 0;
+      }
+
+      // Schneller lokaler Zufallszahlengenerator statt esp_random()
+      // bei jedem einzelnen Simulationsschritt.
+      static uint32_t rng = 0xA341316Cu;
+      auto random32 = [&]() -> uint32_t {
+        rng ^= rng << 13;
+        rng ^= rng >> 17;
+        rng ^= rng << 5;
+        return rng;
+      };
+
+      // 1. Im normalen Augenmodus Glut nachlegen.
+      // Beim Verlassen des Modus bleibt die Quelle aus: Das Feuer läuft leer.
+      if (!draining) {
+        for (int x = 0; x < W; x++) {
+          uint32_t r = random32();
+          if ((r & 15) == 0) {
+            fire[(H - 1) * W + x] = 16;
+          } else {
+            fire[(H - 1) * W + x] = 30 + (r % 7);
+          }
+        }
+      }
+
+      // 2. Feuer-Ausbreitung mit stärkerem Lodern berechnen
+      for (int x = 0; x < W; x++) {
+        for (int y = 1; y < H; y++) {
+          int src = y * W + x;
+          uint8_t heat = fire[src];
+
+          if (heat == 0) {
+            fire[src - W] = 0;
+          } else {
+            uint32_t r = random32();
+            
+            // Stärkere seitliche Ablenkung (-2 bis +2 Pixel) für züngelnde Spitzen
+            int wind = (r % 5) - 2;
+
+            // Leichter Sog zur waagerechten Mittelachse des Auges.
+            // Je weiter die Flamme davon entfernt ist, desto wahrscheinlicher
+            // wird sie um einen Pixel zurück zur Mitte gelenkt.
+            const int center = W / 2;
+            if (x < center && (r & 3) == 0) wind += 1;
+            else if (x > center && (r & 3) == 0) wind -= 1;
+
+            int dstX = x + wind;
+            if (dstX < 0) dstX = 0;
+            if (dstX >= W) dstX = W - 1;
+
+            // Unregelmäßigere Abkühlung für unterschiedlich hohe Flammenzungen
+            int decay = (r >> 4) % 3;
+            if (y > 20 && decay == 2) decay = 1;
+
+            int newHeat = heat - decay;
+            fire[(y - 1) * W + dstX] = (newHeat > 0) ? newHeat : 0;
+          }
+        }
+      }
+
+      // 3. Feuer in einer waagerechten Ellipse zeichnen.
+      // Die bestehende Flammensimulation und ihre Spiegelung bleiben unverändert.
+      static uint8_t last_drawn[W * H] = {0};
+      if (previous_mode != 0) {
+        it.fill(Color::BLACK);
+        for (int i = 0; i < W * H; i++) last_drawn[i] = 255;
+        previous_mode = 0;
+      }
+      constexpr float EYE_CX = 119.5f;
+      constexpr float EYE_CY = 119.5f;
+      constexpr float EYE_RX = 119.0f;
+      constexpr float EYE_RY = 49.0f;
+
+      for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+          const int index = y * W + x;
+          const uint8_t heat = fire[index];
+
+          if (heat == last_drawn[index]) {
+            continue;
+          }
+          last_drawn[index] = heat;
+
+          const Color &color = PALETTE[heat];
+          const int screen_x_left = OFFSET_X - 2 * H + 2 * y + 1;
+          const int screen_x_right = OFFSET_X + 2 * H - 2 * y - 1;
+          const int screen_y = OFFSET_Y + x;
+
+          const float dy = (screen_y + 0.5f - EYE_CY) / EYE_RY;
+          const float dy2 = dy * dy;
+          if (dy2 > 1.0f) continue;
+
+          const float dx_left = (screen_x_left + 1.0f - EYE_CX) / EYE_RX;
+          if (dx_left * dx_left + dy2 <= 1.0f) {
+            it.filled_rectangle(screen_x_left, screen_y, 2, 1, color);
+          }
+
+          const float dx_right = (screen_x_right + 1.0f - EYE_CX) / EYE_RX;
+          if (dx_right * dx_right + dy2 <= 1.0f) {
+            it.filled_rectangle(screen_x_right, screen_y, 2, 1, color);
+          }
+        }
+      }
+
+      // 4. Pupille nur im aktiven Augenmodus zeichnen.
+      if (!draining) {
+      static int pupil_width = 6;
+      static uint32_t next_pupil_change = 0;
+      if (now >= next_pupil_change) {
+        pupil_width = 4 + (random32() % 5) * 2;  // 4, 6, 8, 10 oder 12 Pixel
+        next_pupil_change = now + 1200 + (random32() % 2200);
+      }
+
+      // Elliptische Pupille mit weich gerundeten Enden.
+      constexpr int PUPIL_TOP = 91;
+      constexpr int PUPIL_HEIGHT = 58;
+      constexpr float PUPIL_RADIUS_Y = (PUPIL_HEIGHT - 1) / 2.0f;
+      for (int row = 0; row < PUPIL_HEIGHT; row++) {
+        const float dy = (row - PUPIL_RADIUS_Y) / PUPIL_RADIUS_Y;
+        const float shape = 1.0f - dy * dy;
+        if (shape <= 0.0f) continue;
+
+        int row_width = (int)(pupil_width * sqrtf(shape));
+        if (row_width < 1) row_width = 1;
+
+        const int pupil_x = 120 - row_width / 2;
+        it.filled_rectangle(pupil_x, PUPIL_TOP + row, row_width, 1, Color::BLACK);
+      }
+      }
+
+      draw_fps();

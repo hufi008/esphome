@@ -1,8 +1,8 @@
-# supermini_1.yaml
+# Saurons Eye s3 2.yaml
 
 substitutions:
-  device_name: "esphome-web-675044"
-  friendly_name: "SuperMini 2"
+  device_name: "esphome-web-e8b9b0"
+  friendly_name: "Saurons Eye s3 2"
 
   # GC9A01
   pin_display_reset: GPIO09
@@ -175,10 +175,10 @@ display:
         first_paint = false;
       }
 
-      constexpr int W = 140;
+      constexpr int W = 200;
       constexpr int H = 60;
       constexpr int OFFSET_X = 120;
-      constexpr int OFFSET_Y = 50;
+      constexpr int OFFSET_Y = 20;
 
       // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {
@@ -269,8 +269,8 @@ display:
       }
       constexpr float EYE_CX = 119.5f;
       constexpr float EYE_CY = 119.5f;
-      constexpr float EYE_RX = 119.0f;
-      constexpr float EYE_RY = 49.0f;
+      constexpr float EYE_RX = 119.0f; // H * 2 - 1.0f
+      constexpr float EYE_RY = 59.0f;  // W / 2 - 1.0f
 
       for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
@@ -305,16 +305,16 @@ display:
 
       // 4. Pupille nur im aktiven Augenmodus zeichnen.
       if (!draining) {
-      static int pupil_width = 6;
+      static int pupil_width = 12;
       static uint32_t next_pupil_change = 0;
       if (now >= next_pupil_change) {
-        pupil_width = 4 + (random32() % 5) * 2;  // 4, 6, 8, 10 oder 12 Pixel
+        pupil_width = 8 + (random32() % 5) * 2;  // 4, 6, 8, 10 oder 12 Pixel
         next_pupil_change = now + 1200 + (random32() % 2200);
       }
 
       // Elliptische Pupille mit weich gerundeten Enden.
-      constexpr int PUPIL_TOP = 91;
-      constexpr int PUPIL_HEIGHT = 58;
+      constexpr int PUPIL_TOP = 81;
+      constexpr int PUPIL_HEIGHT = 78;
       constexpr float PUPIL_RADIUS_Y = (PUPIL_HEIGHT - 1) / 2.0f;
       for (int row = 0; row < PUPIL_HEIGHT; row++) {
         const float dy = (row - PUPIL_RADIUS_Y) / PUPIL_RADIUS_Y;

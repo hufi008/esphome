@@ -1,18 +1,18 @@
 # supermini_1.yaml
 
 substitutions:
-  device_name: "esphome-web-d3bc3c"
-  friendly_name: "SuperMini 1"
+  device_name: "esphome-web-675044"
+  friendly_name: "Saurons Eye s3"
 
   # GC9A01
-  pin_display_reset: GPIO0
-  pin_display_cs:    GPIO1
-  pin_display_dc:    GPIO2
-  pin_spi_mosi:      GPIO3
-  pin_spi_clk:       GPIO4
+  pin_display_reset: GPIO09
+  pin_display_cs:    GPIO10
+  pin_display_dc:    GPIO11
+  pin_spi_mosi:      GPIO12
+  pin_spi_clk:       GPIO13
 
 packages:
-  base: !include common/base-c3_supermini.yaml
+  base: !include common/base-s3_supermini.yaml
   display: !include common/GC9A01.yaml
 
 logger:
@@ -68,7 +68,7 @@ font:
 
 display:
   - id: !extend my_display
-    update_interval: 100ms
+    update_interval: 48ms
     auto_clear_enabled: false
     lambda: |-
       static int previous_mode = -1;
@@ -106,7 +106,7 @@ display:
         clear_fire_source = true;
       }
 
-      if (draining && millis() - drain_started >= 8000) {
+      if (draining && millis() - drain_started >= 3000) {
         draining = false;
         previous_mode = id(display_power).state ? mode_index : -1;
       }
@@ -175,10 +175,10 @@ display:
         first_paint = false;
       }
 
-      constexpr int W = 160;
+      constexpr int W = 140;
       constexpr int H = 60;
       constexpr int OFFSET_X = 120;
-      constexpr int OFFSET_Y = 40;
+      constexpr int OFFSET_Y = 50;
 
       // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {

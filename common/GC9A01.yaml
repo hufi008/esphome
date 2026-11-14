@@ -26,7 +26,7 @@ display:
     cs_pin: ${pin_display_cs}
     dc_pin: ${pin_display_dc}
     reset_pin: ${pin_display_reset}
-    data_rate: 40MHz
+    data_rate: 80MHz
     invert_colors: true
     auto_clear_enabled: true
     color_depth: 8

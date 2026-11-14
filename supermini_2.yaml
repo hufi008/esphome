@@ -68,7 +68,7 @@ font:
 
 display:
   - id: !extend my_display
-    update_interval: 50ms
+    update_interval: 48ms
     auto_clear_enabled: false
     lambda: |-
       static int previous_mode = -1;
@@ -82,7 +82,7 @@ display:
       last_frame_ms = now;
 
       auto draw_fps = [&]() {
-        it.filled_rectangle(88, 2, 64, 22, Color::BLACK);
+        it.filled_rectangle(88, 0, 64, 24, Color::BLACK);
         if (id(fps_switch).state) {
           it.printf(120, 5, id(font_small), Color(130, 130, 130),
                     TextAlign::CENTER, "FPS %.1f", fps);
@@ -175,10 +175,10 @@ display:
         first_paint = false;
       }
 
-      constexpr int W = 100;
+      constexpr int W = 140;
       constexpr int H = 60;
       constexpr int OFFSET_X = 120;
-      constexpr int OFFSET_Y = 70;
+      constexpr int OFFSET_Y = 50;
 
       // std::array statt C-Array (vermeidet Klammer-Fehler beim Kopieren)
       static const std::array<Color, 37> PALETTE = {

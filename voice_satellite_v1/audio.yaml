@@ -85,7 +85,10 @@ script:
   - id: my_play_ui_sound
     mode: parallel
     parameters:
-      sound_file: "audio::AudioFile*"
+      sound_file: "const audio::AudioFile*"
     then:
       - lambda: |-
-          id(my_va_player).play_file(sound_file, false, true);
+          // ESPHome 2026.10 liefert AudioFile-Referenzen const.
+          // Die bestehende Custom-Media-Player-API erwartet noch AudioFile*;
+          // play_file speichert die Datei nur zur Wiedergabe.
+          id(my_va_player).play_file(const_cast<audio::AudioFile *>(sound_file), false, true);

@@ -6,6 +6,7 @@
 
 audio:
   codecs:
+    mp3:
     wav:
 
 audio_file:

@@ -9,7 +9,7 @@ esp32:
   flash_size: 16MB
   cpu_frequency: 240mhz
   flash_mode: dio
-  partitions: partitions_16MB.csv
+  partitions: ../partitions_16MB.csv
   framework:
     type: esp-idf
     sdkconfig_options:

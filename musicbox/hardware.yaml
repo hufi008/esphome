@@ -52,7 +52,7 @@ sun:
 external_components:
   - source:
       type: local
-      path: my_components
+      path: ../my_components
     components: 
       - my_moon
       - sendspin

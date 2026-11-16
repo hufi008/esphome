@@ -85,10 +85,33 @@ script:
   - id: my_play_ui_sound
     mode: parallel
     parameters:
-      sound_file: "const audio::AudioFile*"
+      sound_id: int
     then:
       - lambda: |-
-          // ESPHome 2026.10 liefert AudioFile-Referenzen const.
-          // Die bestehende Custom-Media-Player-API erwartet noch AudioFile*;
-          // play_file speichert die Datei nur zur Wiedergabe.
-          id(my_va_player).play_file(const_cast<audio::AudioFile *>(sound_file), false, true);
+          // Script-Parameter sind auf die von ESPHome unterstützten
+          // Basistypen beschränkt. Die Sounddatei wird deshalb per ID gewählt.
+          switch (sound_id) {
+            case 0:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_click)), false, true);
+              break;
+            case 1:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_wake)), false, true);
+              break;
+            case 2:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_thinking)), false, true);
+              break;
+            case 3:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_error)), false, true);
+              break;
+            case 4:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_success)), false, true);
+              break;
+            case 5:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_connect)), false, true);
+              break;
+            case 6:
+              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_disconnect)), false, true);
+              break;
+            default:
+              break;
+          }

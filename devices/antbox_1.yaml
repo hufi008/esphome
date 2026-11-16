@@ -80,7 +80,7 @@ packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
   base: !include ../common/base-s3_devkitc_1.yaml
   illuminance: !include ../common/bh1750.yaml
-  display: !include ../common/ILI9341TSFT6336U.yaml
+  display: !include ../common/ILI9341_FT6336U.yaml
   sound: !include ../common/MediaPlayerSendspin.yaml
   light: !include ../common/LedStripOnboard.yaml
   hardware: !include ../musicbox/hardware.yaml

@@ -8,7 +8,6 @@ Die konkreten Geräte liegen im Verzeichnis `devices/`:
 
 - `Saurons Eye c3.yaml` – ESP32-C3 SuperMini
 - `Saurons Eye s3.yaml` – ESP32-S3 SuperMini
-- `Saurons Eye s3 2.yaml` – weiteres ESP32-S3-Gerät
 
 ## Gemeinsame Bausteine
 

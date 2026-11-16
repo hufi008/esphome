@@ -34,22 +34,22 @@ voice_assistant:
   conversation_timeout: 300s
 
   on_client_connected:
-    - lambda: id(play_ui_sound).execute(id(my_snd_connect));
+    - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_connect)));
     - delay: 300ms
     - micro_wake_word.start:
 
   on_client_disconnected:
     - micro_wake_word.stop:
-    - lambda: id(play_ui_sound).execute(id(my_snd_disconnect));
+    - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_disconnect)));
 
   on_listening:
-    - lambda: id(play_ui_sound).execute(id(my_snd_wake));
+    - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_wake)));
 
   on_stt_vad_end:
-    - lambda: id(play_ui_sound).execute(id(my_snd_thinking));
+    - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_thinking)));
 
   on_tts_start:
-    - lambda: id(play_ui_sound).execute(id(my_snd_success));
+    - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_success)));
 
   on_end:
     - if:
@@ -60,7 +60,7 @@ voice_assistant:
           - micro_wake_word.start:
 
   on_error:
-    - lambda: id(play_ui_sound).execute(id(my_snd_error));
+    - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_error)));
     - if:
         condition:
           not:

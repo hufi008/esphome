@@ -28,5 +28,3 @@ packages:
   assistant: !include ../voice_satellite_v1/assistant.yaml
   buttons: !include ../voice_satellite_v1/buttons.yaml
 
-logger:
-  level: DEBUG

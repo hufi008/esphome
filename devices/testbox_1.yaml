@@ -89,8 +89,8 @@ logger:
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-s3_devkitc_1.yaml
-  display: !include common/ST7796TSFT6336U.yaml
+  base: !include ../common/base-s3_devkitc_1.yaml
+  display: !include ../common/ST7796TSFT6336U.yaml
 
 button:
   - platform: restart

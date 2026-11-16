@@ -3,7 +3,7 @@ substitutions:
   friendly_name: "ESP32S3 Stresstest IB2"
 
 packages:
-  base: !include common/base-s3_devkitc_1.yaml
+  base: !include ../common/base-s3_devkitc_1.yaml
 
 esphome:
   build_path: "C:/Users/Ingo/AppData/Local/esphome/build/stresstest_IB2"

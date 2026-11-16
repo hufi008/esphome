@@ -11,7 +11,7 @@ esphome:
 external_components:
   - source:
       type: local
-      path: my_components
+      path: ../my_components
 
 api:
   id: api_id

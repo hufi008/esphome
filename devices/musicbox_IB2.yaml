@@ -13,9 +13,9 @@ logger:
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-s3_devkitc_1.yaml
-  hardware: !include musicbox/hardware.yaml
-  functions: !include musicbox/main.yaml
+  base: !include ../common/base-s3_devkitc_1.yaml
+  hardware: !include ../musicbox/hardware.yaml
+  functions: !include ../musicbox/main.yaml
 
 esphome:
    build_path: "C:/Users/Ingo/AppData/Local/esphome/build/musicbox_IB2"

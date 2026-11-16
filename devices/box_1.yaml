@@ -46,6 +46,6 @@ logger:
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-doit_devkit_v1.yaml
+  base: !include ../common/base-doit_devkit_v1.yaml
   # Holt die Funktionalität
-  main: !include musicbox/main.yaml
+  main: !include ../musicbox/main.yaml

@@ -1,12 +1,8 @@
 # speaker_5.yaml
 
 substitutions:
-  device_name: "musicbox-ib3"
-  display_width: "320"
-  display_height: "240"
-  spectrum_height: "200"
-  # device_name: "esphome-web-a2f8c0"
-  friendly_name: "MusicBox IB3"
+  device_name: "esphome-web-da6630"
+  friendly_name: "MusicBox IB1"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home
 
@@ -64,13 +60,13 @@ logger:
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-s3_devkitc_1.yaml
-  illuminance: !include common/bh1750_sim.yaml
-  display: !include common/ILI9341TSXPT2046.yaml
-  sound: !include common/MediaPlayerSendspin.yaml
-  light: !include common/LedStripOnboard.yaml
-  hardware: !include musicbox/hardware.yaml
-  functions: !include musicbox/main.yaml
+  base: !include ../common/base-s3_devkitc_1.yaml
+  illuminance: !include ../common/bh1750_sim.yaml
+  display: !include ../common/ILI9341TSXPT2046.yaml
+  sound: !include ../common/MediaPlayerSendspin.yaml
+  light: !include ../common/LedStripOnboard.yaml
+  hardware: !include ../musicbox/hardware.yaml
+  functions: !include ../musicbox/main.yaml
 
 esphome:
-   build_path: "C:/Users/Ingo/AppData/Local/esphome/build/musicbox_IB3"
+   build_path: "C:/Users/Ingo/AppData/Local/esphome/build/musicbox_IB1"

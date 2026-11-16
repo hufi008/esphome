@@ -1,8 +1,8 @@
-# musicbox_2.yaml
+# antbox_1.yaml
 
 substitutions:
-  device_name: "esphome-web-479ce4"
-  friendly_name: "MusicBox 2"
+  device_name: "esphome-web-bd4978"
+  friendly_name: "AntBox 1"
   media_player_entity_id: "media_player.${ friendly_name | lower | replace(' ', '_') }"
   weather_forecast_id: weather.forecast_home
 
@@ -18,7 +18,7 @@ substitutions:
   pin_spi_mosi:      GPIO7   # -> SDI(MOSI)
   pin_spi_clk:       GPIO15  # -> SCK
   pin_display_led:   GPIO16  # -> LED
-  pin_spi_miso:      GPIO17  # -> SDO(MISO)
+  pin_spi_miso:      GPIO17  # -> SDO(MISO) nicht verbinden
 
   pin_touch_irq:     GPIO18  # -> CTP_INT
   pin_touch_reset:   GPIO08  # -> CTP_RST
@@ -47,8 +47,6 @@ substitutions:
   pin_max98357_din:  GPIO39  # -> DIN
   # 100kOhm gegen GND        # -> GAIN
   # frei für stereo          # -> SD
-  # GAIN: 100kΩ GND = 15dB, GND = 12dB, nix = 9dB, VCC = 6dB, 100kΩ VCC = 3DB
-  # SD: nix = (L+R)/2, 370kΩ VCC = Rechts, 100kΩ = Links
   # GND                      # -> GND
   # 5V                       # -> VIN
 
@@ -58,8 +56,7 @@ esphome:
 logger:
   level: DEBUG
   logs:
-    ft63x6: DEBUG
-    mipi_spi: DEBUG
+    xpt2046: INFO
     esp-idf.httpd: ERROR
     sendspin.player: ERROR    
 
@@ -81,10 +78,27 @@ sensor:
 
 packages:
   # Holt die Grundfunktionen (WLAN, API, etc.)
-  base: !include common/base-s3_devkitc_1.yaml
-  illuminance: !include common/bh1750.yaml
-  display: !include common/ST7796TSFT6336U.yaml
-  sound: !include common/MediaPlayerSendspin.yaml
-  light: !include common/LedStripOnboard.yaml
-  hardware: !include musicbox/hardware.yaml
-  functions: !include musicbox/main.yaml
+  base: !include ../common/base-s3_devkitc_1.yaml
+  illuminance: !include ../common/bh1750.yaml
+  display: !include ../common/ILI9341TSFT6336U.yaml
+  sound: !include ../common/MediaPlayerSendspin.yaml
+  light: !include ../common/LedStripOnboard.yaml
+  hardware: !include ../musicbox/hardware.yaml
+  functions: !include ../musicbox/main.yaml
+
+# Falsch Herum eingebaut :-(
+
+display:
+  - id : !extend my_display
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: false
+
+touchscreen:
+  - id: !extend my_touch
+    display: my_display
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true

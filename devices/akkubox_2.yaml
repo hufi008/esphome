@@ -7,7 +7,7 @@ logger:
   level: DEBUG
 
 packages:
-  base: !include common/base-s3_supermini.yaml
-  hardware: !include akkubox/hardware.yaml
-  main: !include akkubox/main.yaml
+  base: !include ../common/base-s3_supermini.yaml
+  hardware: !include ../akkubox/hardware.yaml
+  main: !include ../akkubox/main.yaml
 

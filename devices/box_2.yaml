@@ -34,7 +34,7 @@ logger:
   level: DEBUG
 
 packages:
-  base: !include common/base-s3_supermini.yaml
+  base: !include ../common/base-s3_supermini.yaml
 
 esphome:
   project:

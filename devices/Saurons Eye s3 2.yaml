@@ -12,8 +12,8 @@ substitutions:
   pin_spi_clk:       GPIO13
 
 packages:
-  base: !include common/base-s3_supermini.yaml
-  display: !include common/GC9A01.yaml
+  base: !include ../common/base-s3_supermini.yaml
+  display: !include ../common/GC9A01.yaml
 
 logger:
   level: DEBUG

@@ -34,32 +34,22 @@ voice_assistant:
   conversation_timeout: 300s
 
   on_client_connected:
-    - script.execute:
-        id: play_ui_sound
-        sound_id: 5
+    - lambda: id(play_ui_sound).execute(id(my_snd_connect));
     - delay: 300ms
     - micro_wake_word.start:
 
   on_client_disconnected:
     - micro_wake_word.stop:
-    - script.execute:
-        id: play_ui_sound
-        sound_id: 6
+    - lambda: id(play_ui_sound).execute(id(my_snd_disconnect));
 
   on_listening:
-    - script.execute:
-        id: play_ui_sound
-        sound_id: 1
+    - lambda: id(play_ui_sound).execute(id(my_snd_wake));
 
   on_stt_vad_end:
-    - script.execute:
-        id: play_ui_sound
-        sound_id: 2
+    - lambda: id(play_ui_sound).execute(id(my_snd_thinking));
 
   on_tts_start:
-    - script.execute:
-        id: play_ui_sound
-        sound_id: 4
+    - lambda: id(play_ui_sound).execute(id(my_snd_success));
 
   on_end:
     - if:
@@ -70,9 +60,7 @@ voice_assistant:
           - micro_wake_word.start:
 
   on_error:
-    - script.execute:
-        id: play_ui_sound
-        sound_id: 3
+    - lambda: id(play_ui_sound).execute(id(my_snd_error));
     - if:
         condition:
           not:

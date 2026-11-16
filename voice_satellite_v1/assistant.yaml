@@ -1,0 +1,81 @@
+# Voice Satellite 1 – Home Assistant Voice Assistant
+#
+# Beide Mikrofonkanäle bleiben erhalten. ESPHome stellt sie dem
+# Voice Assistant als zwei getrennte 16-Bit-Mono-Quellen bereit.
+# Das Rohsignal des INMP441 bleibt 32-Bit-Stereo.
+
+micro_wake_word:
+  id: my_micro_wake_word
+  microphone:
+    microphone: my_microphone
+    bits_per_sample: 16
+    channels: [0]
+    gain_factor: 4
+  models:
+    - model: okay_nabu
+      id: my_wake_word_model
+  on_wake_word_detected:
+    - voice_assistant.start:
+        wake_word: !lambda return wake_word;
+
+voice_assistant:
+  id: my_voice_assistant
+  microphone:
+    - microphone: my_microphone
+      channels: 0
+    - microphone: my_microphone
+      channels: 1
+  media_player: my_va_player
+  micro_wake_word: my_micro_wake_word
+  use_wake_word: false
+  auto_gain: 16dBFS
+  noise_suppression_level: 1
+  volume_multiplier: 2.0
+  conversation_timeout: 300s
+
+  on_client_connected:
+    - script.execute:
+        id: my_play_ui_sound
+        sound_file: my_snd_connect
+    - delay: 300ms
+    - micro_wake_word.start:
+
+  on_client_disconnected:
+    - micro_wake_word.stop:
+    - script.execute:
+        id: my_play_ui_sound
+        sound_file: my_snd_disconnect
+
+  on_listening:
+    - script.execute:
+        id: my_play_ui_sound
+        sound_file: my_snd_wake
+
+  on_stt_vad_end:
+    - script.execute:
+        id: my_play_ui_sound
+        sound_file: my_snd_thinking
+
+  on_tts_start:
+    - script.execute:
+        id: my_play_ui_sound
+        sound_file: my_snd_success
+
+  on_end:
+    - if:
+        condition:
+          not:
+            micro_wake_word.is_running:
+        then:
+          - micro_wake_word.start:
+
+  on_error:
+    - script.execute:
+        id: my_play_ui_sound
+        sound_file: my_snd_error
+    - if:
+        condition:
+          not:
+            micro_wake_word.is_running:
+        then:
+          - micro_wake_word.start:

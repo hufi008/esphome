@@ -1,0 +1,35 @@
+# Voice Satellite 1 – Hardware
+#
+# Pinbelegung kommt aus devices/voice_satellite_1.yaml.
+# INMP441: 24 gültige Datenbits in 32-Bit-I2S-Slots.
+# Zwei Mikrofone teilen sich den I2S-Datenbus und liefern Links/Rechts.
+
+external_components:
+  - source:
+      type: local
+      path: ../my_components
+    components: [speaker]
+
+i2s_audio:
+  - id: my_i2s_microphone
+    i2s_lrclk_pin: ${mic_ws_pin}
+    i2s_bclk_pin: ${mic_sck_pin}
+
+  - id: my_i2s_speaker
+    i2s_lrclk_pin: ${spk_lrc_pin}
+    i2s_bclk_pin: ${spk_bclk_pin}
+
+microphone:
+  - platform: i2s_audio
+    id: my_microphone
+    i2s_audio_id: my_i2s_microphone
+    adc_type: external
+    i2s_din_pin: ${mic_sd_pin}
+    pdm: false
+    correct_dc_offset: true
+    bits_per_sample: 32bit
+    sample_rate: 16000
+    mclk_multiple: 256
+    channel: stereo
+    num_channels: 2
+    i2s_mode: primary

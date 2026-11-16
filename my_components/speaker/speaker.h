@@ -18,6 +18,9 @@
 
 namespace esphome::speaker {
 
+/// Volumes below this are treated as zero
+static constexpr float SILENT_VOLUME_THRESHOLD = 0.001f;
+
 enum State : uint8_t {
   STATE_STOPPED = 0,
   STATE_STARTING,
@@ -110,6 +113,10 @@ class Speaker {
   }
 
  protected:
+  /// Whether the output should be silent: muted, or the volume is effectively zero.
+  /// Volume steps from media players can leave a positive value near float epsilon.
+  bool is_silent_() const { return this->mute_state_ || this->volume_ < SILENT_VOLUME_THRESHOLD; }
+
   State state_{STATE_STOPPED};
   audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};

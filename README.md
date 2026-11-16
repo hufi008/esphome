@@ -24,8 +24,6 @@ Dieses Repository enthält mehrere ESPHome-Projekte, gemeinsam genutzte Konfigur
 - **Saurons Auge** – animiertes Auge auf GC9A01-Displays.
 - **RFID CFS Writer** – ESP32-Konfiguration zum Schreiben von CFS-Filament-Tags.
 
-Die Dateien mit dem Zusatz `IB` sowie `esp32s3_stresstest_IB2.yaml` gehören zu Ingos Geräten und sind entsprechend gekennzeichnet.
-
 ## Architektur
 
 Eine Geräte-Konfiguration unter `devices/` beschreibt das konkrete Board und Gerät: Name, Substitutionswerte, Pins, verwendete Packages und gerätespezifische Abweichungen.

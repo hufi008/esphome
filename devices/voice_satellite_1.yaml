@@ -1,0 +1,32 @@
+# Voice Satellite 1
+# Bestehende Hardware und Netzwerkidentität von speaker_2 bleiben erhalten.
+
+substitutions:
+  device_name: "esphome-web-f407a0"
+  friendly_name: "Voice Satellite 1"
+
+  # Zwei INMP441 als Stereo-Mikrofon
+  mic_ws_pin:   "GPIO06"
+  mic_sck_pin:  "GPIO05"
+  mic_sd_pin:   "GPIO04"
+
+  # Zwei MAX98357A als Stereo-Ausgang
+  spk_lrc_pin:  "GPIO40"
+  spk_bclk_pin: "GPIO39"
+  spk_din_pin:  "GPIO38"
+
+  # Vier TTP221-Tasten
+  btn_1_pin: "GPIO11"
+  btn_2_pin: "GPIO12"
+  btn_3_pin: "GPIO13"
+  btn_4_pin: "GPIO14"
+
+packages:
+  base: !include ../common/base-s3_devkitc_1.yaml
+  hardware: !include ../voice_satellite_v1/hardware.yaml
+  audio: !include ../voice_satellite_v1/audio.yaml
+  assistant: !include ../voice_satellite_v1/assistant.yaml
+  buttons: !include ../voice_satellite_v1/buttons.yaml
+
+logger:
+  level: DEBUG

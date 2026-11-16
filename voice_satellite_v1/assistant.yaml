@@ -9,7 +9,7 @@ micro_wake_word:
   microphone:
     microphone: my_microphone
     bits_per_sample: 16
-    channels: [0]
+    channels: 0
     gain_factor: 4
   models:
     - model: okay_nabu

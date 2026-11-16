@@ -618,7 +618,7 @@ text_sensor:
         return std::string("--.--.----");
       }
       const char* weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-      return str_sprintf("%s, %02d.%02d.%04d", weekdays[t.day_of_week % 7], t.day_of_month, t.month, t.year);
+      return str_sprintf("%s, %02d.%02d.%04d", weekdays[(t.day_of_week - 1) % 7], t.day_of_month, t.month, t.year);
     on_value:
       - lvgl.label.update:
           id: info_date

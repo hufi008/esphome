@@ -11,7 +11,7 @@ binary_sensor:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
-      - lambda: id(play_ui_sound).execute(id(my_snd_click));
+      - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_click)));
     on_click:
       - min_length: 50ms
         max_length: 500ms
@@ -33,7 +33,7 @@ binary_sensor:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
-      - lambda: id(play_ui_sound).execute(id(my_snd_click));
+      - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_click)));
 
   - platform: gpio
     id: my_button_3
@@ -42,7 +42,7 @@ binary_sensor:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
-      - lambda: id(play_ui_sound).execute(id(my_snd_click));
+      - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_click)));
 
   - platform: gpio
     id: my_button_4
@@ -51,4 +51,4 @@ binary_sensor:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
-      - lambda: id(play_ui_sound).execute(id(my_snd_click));
+      - lambda: id(play_ui_sound).execute(const_cast<esphome::audio::AudioFile *>(id(my_snd_click)));

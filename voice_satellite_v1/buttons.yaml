@@ -24,6 +24,8 @@ binary_sensor:
               then:
                 - voice_assistant.stop:
               else:
+                - micro_wake_word.stop:
+                - delay: 100ms
                 - voice_assistant.start:
 
   - platform: gpio

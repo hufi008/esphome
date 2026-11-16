@@ -13,7 +13,7 @@ binary_sensor:
     on_press:
       - script.execute:
           id: my_play_ui_sound
-          sound_file: my_snd_click
+          sound_id: 0
     on_click:
       - min_length: 50ms
         max_length: 500ms
@@ -37,7 +37,7 @@ binary_sensor:
     on_press:
       - script.execute:
           id: my_play_ui_sound
-          sound_file: my_snd_click
+          sound_id: 0
 
   - platform: gpio
     id: my_button_3
@@ -48,7 +48,7 @@ binary_sensor:
     on_press:
       - script.execute:
           id: my_play_ui_sound
-          sound_file: my_snd_click
+          sound_id: 0
 
   - platform: gpio
     id: my_button_4
@@ -59,4 +59,4 @@ binary_sensor:
     on_press:
       - script.execute:
           id: my_play_ui_sound
-          sound_file: my_snd_click
+          sound_id: 0

@@ -30,7 +30,7 @@ light:
     name: "Onboard RGB"
     pin: GPIO48
     num_leds: 1
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
     effects:
       - addressable_rainbow:

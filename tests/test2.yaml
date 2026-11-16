@@ -44,7 +44,7 @@ light:
     name: LED Status
     pin: ${led_din_pin}
     num_leds: ${led_count}
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
     effects:
       - addressable_scan:

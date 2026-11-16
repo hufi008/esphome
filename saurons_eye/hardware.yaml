@@ -1,0 +1,43 @@
+# saurons_eye/hardware.yaml
+
+switch:
+  - platform: template
+    name: "Anzeige"
+    id: display_power
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+  - platform: template
+    name: "FPS anzeigen"
+    id: fps_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+select:
+  - platform: template
+    name: "Anzeigemodus"
+    id: display_mode_select
+    restore_value: true
+    initial_option: "Saurons Auge"
+    options:
+      - "Saurons Auge"
+      - "Uhrzeit/Datum (analog)"
+      - "Uhrzeit/Datum (digital)"
+    set_action:
+      - lambda: id(display_mode_select).publish_state(x);
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+
+button:
+  - platform: restart
+    name: "Restart"
+
+font:
+  - id: font_small
+    file: "gfonts://Roboto"
+    size: ${font_size_small}
+  - id: font_large
+    file: "gfonts://Roboto"
+    size: ${font_size_large}

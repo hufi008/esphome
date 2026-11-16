@@ -1,14 +1,15 @@
-# common/ST7796TSFT6336U.yaml
+# common/ILI9341_XPT2046.yaml
 
 substitutions:
-  cover_image_dimension: 180x180
-  display_width: 480
-  display_height: 320
-  font_size_small: 18
-  font_size_medium: 22
-  font_size_large: 28
-  font_size_huge: 36
-  font_size_giant: 58
+  cover_image_dimension: 150x150
+  display_width: 320
+  display_height: 240
+  font_size_small: 16
+  font_size_medium: 20
+  font_size_large: 24
+  font_size_huge: 32
+  font_size_giant: 45
+
 
 # -------------------------------------------------------------------
 # Display und Touch
@@ -18,16 +19,9 @@ spi:
   mosi_pin: ${pin_spi_mosi}
   miso_pin: ${pin_spi_miso}
 
-i2c:
-  - id: my_i2c
-    sda: ${pin_i2c_sda}
-    scl: ${pin_i2c_scl}
-    scan: True
-    frequency: 100kHz
-
 display:
   - platform: mipi_spi
-    model: ST7796
+    model: ILI9341
     id: my_display
     spi_mode: MODE0
     data_rate: 40MHz
@@ -42,18 +36,22 @@ display:
       mirror_x: true
       mirror_y: true
     dimensions:
-      height: ${display_height}
-      width: ${display_width}
+      height: 240
+      width: 320
 
 touchscreen:
-  # adress: 0x38
-  - platform: ft63x6
+  - platform: xpt2046
     id: my_touch
-    i2c_id: my_i2c
+    cs_pin: ${pin_touch_cs}
     interrupt_pin: ${pin_touch_irq}
-    reset_pin: ${pin_touch_reset}
     update_interval: never
+    threshold: 400
     transform:
       swap_xy: true
-      mirror_x: true
+      mirror_x: false
       mirror_y: false
+    calibration:
+      x_min: 240
+      x_max: 3850
+      y_min: 350
+      y_max: 3900

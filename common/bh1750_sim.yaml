@@ -1,4 +1,5 @@
-# common/bh1750.yaml
+# common/bh1750_sim.yaml
+
 substitutions:
   # Illuminance bh1750 Simulator
 

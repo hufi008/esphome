@@ -1,4 +1,5 @@
-# common/bme280.yaml
+# common/htu21.yaml
+
 substitutions:
   # Climate HTU21
   bme_addr:      "0x76"

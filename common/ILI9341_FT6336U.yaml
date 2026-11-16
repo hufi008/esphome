@@ -1,3 +1,5 @@
+# common/ILI9341_FT6336U.yaml
+
 substitutions:
   cover_image_dimension: 150x150
   display_width: 320

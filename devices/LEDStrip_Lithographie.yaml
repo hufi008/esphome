@@ -1,53 +1,22 @@
 substitutions:
   device_name: "esphome-web-d383b4"
-  friendly_name: "SuperMini 0"
-  led_num: 6
-
+  friendly_name: "LED-Strip Lithographie"
+  pin_led: GPIO3
+  num_led: 6
 
 esphome:
-  name: ${device_name}
-  friendly_name: ${friendly_name}
-  name_add_mac_suffix: false
-
-esp32:
-  board: esp32-c3-devkitm-1
-  variant: ESP32C3
-  framework:
-    type: esp-idf
-
-captive_portal:
-
-api:
-  id: api_id
-  encryption:
-    key: !secret api_encryption_key
-
-ota:
-- platform: esphome
-  password: !secret ota_password
-
-wifi:
-  id: wifi_id
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  ap: 
-    ssid: "${friendly_name} Fallback"
-    password: !secret wifi_ap_password
 
 logger:
   level: DEBUG
 
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include ../common/base-c3_devkitm_1.yaml
+  light: !include ../common/ws2812.yaml
+
 # WS2812B LED-Streifen Konfiguration
 light:
-  - platform: esp32_rmt_led_strip
-    id: ws2812_strip
-    name: "WS2812B LED Stripe"
-    pin: GPIO3  # Freier, sicherer GPIO (alternativ GPIO0, GPIO1, GPIO4, GPIO5, GPIO7, GPIO10)
-    chipset: WS2812
-    num_leds: ${led_num}
-    channel_colors: GRB
-    default_transition_length: 0s
-    restore_mode: RESTORE_DEFAULT_ON
+  - id: !extend my_ledstrip
     effects:
       - addressable_lambda:
           name: "Kerzenschein Flackern"

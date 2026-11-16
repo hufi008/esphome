@@ -1,0 +1,15 @@
+# common/ws2812.yaml
+
+substitutions:
+
+# WS2812B LED-Streifen Konfiguration
+light:
+  - platform: esp32_rmt_led_strip
+    id: my_ledstrip
+    name: "Licht"
+    pin: ${pin_led}
+    chipset: WS2812
+    num_leds: ${num_led}
+    channel_colors: GRB
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_ON

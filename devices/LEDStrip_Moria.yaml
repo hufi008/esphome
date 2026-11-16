@@ -1,6 +1,6 @@
 substitutions:
   device_name: "esphome-web-0dc5df"
-  friendly_name: "Mini 1"
+  friendly_name: "LED-Strip Moria"
 
 
 esphome:
@@ -49,9 +49,9 @@ light:
     type: GRB
     variant: WS2812X
     pin: GPIO2
-    method: ESP8266_UART1      
+    method: ESP8266_UART1
     num_leds: 5
-    name: "Lichtstreifen"
+    name: "Licht"
     id: led_strip
     restore_mode: RESTORE_DEFAULT_ON
 

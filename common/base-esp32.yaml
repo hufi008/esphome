@@ -1,4 +1,5 @@
 # common/base-esp32.yaml
+
 esphome:
   name: ${device_name}
   friendly_name: ${friendly_name}
@@ -23,4 +24,3 @@ wifi:
     password: !secret wifi_ap_password
 
 captive_portal:
-  

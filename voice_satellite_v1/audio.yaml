@@ -74,23 +74,21 @@ media_player:
       speaker: my_va_sounds_resampler
       sample_rate: 16000
       num_channels: 1
-      format: WAV
+      format: NONE
 
     announcement_pipeline:
       speaker: my_va_announcement_resampler
       sample_rate: 16000
       num_channels: 1
-      format: WAV
+      format: NONE
 
 script:
-  - id: my_play_ui_sound
+  - id: play_ui_sound
     mode: parallel
     parameters:
       sound_id: int
     then:
       - lambda: |-
-          // Script-Parameter sind auf die von ESPHome unterstützten
-          // Basistypen beschränkt. Die Sounddatei wird deshalb per ID gewählt.
           switch (sound_id) {
             case 0:
               id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_click)), false, true);

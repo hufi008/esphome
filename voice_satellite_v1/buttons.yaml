@@ -12,7 +12,7 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       - script.execute:
-          id: my_play_ui_sound
+          id: play_ui_sound
           sound_id: 0
     on_click:
       - min_length: 50ms
@@ -36,7 +36,7 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       - script.execute:
-          id: my_play_ui_sound
+          id: play_ui_sound
           sound_id: 0
 
   - platform: gpio
@@ -47,7 +47,7 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       - script.execute:
-          id: my_play_ui_sound
+          id: play_ui_sound
           sound_id: 0
 
   - platform: gpio
@@ -58,5 +58,5 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       - script.execute:
-          id: my_play_ui_sound
+          id: play_ui_sound
           sound_id: 0

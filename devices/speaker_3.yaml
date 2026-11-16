@@ -55,6 +55,8 @@ packages:
   # Holt die Funktionalität
   # test: !include tests/test0.yaml
   hardware: !include ../voice_satellite/hardware.yaml
+  display: !include ../voice_satellite/display.yaml
+  info: !include ../voice_satellite/info.yaml
   functions: !include ../voice_satellite/main.yaml
   scripts: !include ../voice_satellite/scripts.yaml
   climate: !include ../common/bme280.yaml

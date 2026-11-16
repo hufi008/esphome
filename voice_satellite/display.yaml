@@ -1,0 +1,376 @@
+image:
+  - platform: file
+    file: https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg
+    id: logo_esphome
+    type: binary
+    resize: 46x46
+    invert_alpha: false
+  - platform: file
+    file: mdi:null
+    id: symbol_dummy
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-1
+    id: symbol_wifi_1
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-2
+    id: symbol_wifi_2
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-3
+    id: symbol_wifi_3
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-4
+    id: symbol_wifi_4
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:home-assistant
+    id: symbol_api
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:account-voice
+    id: symbol_va
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:speaker
+    id: symbol_mp_idle
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:play
+    id: symbol_mp_play
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:pause
+    id: symbol_mp_pause
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:bullhorn
+    id: symbol_mp_announce
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:speaker-off
+    id: symbol_mute
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:microphone-off
+    id: symbol_deaf
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:alert-box-outline
+    id: symbol_error
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:alarm
+    id: symbol_alarm
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:timer-outline
+    id: symbol_timer
+    type: binary
+    resize: 16x16
+####################################
+  - platform: file
+    file: https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg
+    id: icon_boot
+    type: binary
+    resize: 46x46
+    invert_alpha: false
+  - platform: file
+    file: mdi:null
+    id: icon_dummy
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:play
+    id: icon_play
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:pause
+    id: icon_pause
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:ear-hearing
+    id: icon_listen
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:thought-bubble-outline
+    id: icon_think
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:help
+    id: icon_unknown
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:timer
+    id: icon_timer
+    type: binary
+    resize: 32x32
+####################################
+  - platform: file
+    file: mdi:knob
+    id: icon_volume
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:alert-circle-outline
+    id: icon_error
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:alarm
+    id: icon_alarm
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:bullhorn
+    id: icon_announce
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:white-balance-sunny
+    id: icon_sun
+    type: binary
+    resize: 32x32
+
+font:
+  - id: font_medium
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 14
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: font_large
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 21
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: font_huge
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 28
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    id: display_id
+    address: 0x3c
+    update_interval: 50ms
+    lambda: |-
+      // -------------------------------------------------------
+      // 1a. GELBER HEADER-BEREICH (Pixel 0–15)
+      // -------------------------------------------------------
+      
+      // Symbole rechts (jeweils 16x16)
+      for (int i = 0; i < 4; i++) {
+        auto* img = id(status_symbols)[i];
+        
+        // Prüft penibel, ob der Zeiger existiert UND nicht die Standard-Leeradresse 0x0 ist
+        if (img != nullptr && img != 0) {
+          it.image(112 - (i * 16), 0, img);
+        }
+      }
+
+      // -------------------------------------------------------
+      // 1b. BLAUER CONTENT-BEREICH (Pixel 16–63)
+      // -------------------------------------------------------
+      // Trennlinie zwischen GELB (oben) und BLAU (unten)
+      it.line(0,15,127,15);
+      //it.rectangle(0, 16, 128, 48);
+
+      int cx = 64;
+      int cy = 40;
+      int width = 128;
+      
+      // Titel links
+      it.print(0, 0, id(font_medium), id(title_text).c_str());
+      
+      if (id(image_icon) != nullptr) {
+        it.image(1, 21, id(image_icon));
+        cx+=16;
+        width-=32;
+      }
+
+      auto scroll_marquee = [&](int cx, int cy, int width, display::BaseFont *font, const std::string &text) {
+        // Textbreite messen
+        int tx, ty, tw, th;
+        it.get_text_bounds(cx, cy, text.c_str(), font, TextAlign::CENTER, &tx, &ty, &tw, &th);
+      
+        int tw2 = tw / 2;
+        int w2 = width / 2;
+        tx = cx - w2;   
+        tw = width;
+      
+        // Clipping-Bereich setzen
+        it.start_clipping(tx, ty, tx + tw, ty + th);
+      
+        if (tw2 > w2) {
+            float max_amplitude = tw2 - w2; 
+            
+            // OPTISCHE FEINEINSTELLUNG:
+            const float DURATION_MOVE_MS = 3000.0f; // Zeit für eine Richtung (3 Sek. = sehr entspannt)
+            const float DURATION_PAUSE_MS = 1200.0f; // Standzeit am Rand in Millisekunden
+            
+            // Ein kompletter Zyklus (Hinweg + Pause + Rückweg + Pause)
+            float total_cycle_ms = (DURATION_MOVE_MS * 2.0f) + (DURATION_PAUSE_MS * 2.0f);
+            float current_time = fmodf(millis(), total_cycle_ms);
+            
+            float offset = 0.0f;
+            
+            if (current_time < DURATION_PAUSE_MS) {
+                // 1. Pause am linken Rand
+                offset = -max_amplitude;
+            } 
+            else if (current_time < DURATION_PAUSE_MS + DURATION_MOVE_MS) {
+                // 2. Weiche Bewegung von links nach rechts (Ease-In-Out)
+                float t = (current_time - DURATION_PAUSE_MS) / DURATION_MOVE_MS; // Fortschritt 0.0 bis 1.0
+                
+                // Offizielle Smoothstep-Formel: Erzeugt perfekte Beschleunigung und Bremsung
+                float smooth_t = t * t * (3.0f - 2.0f * t); 
+                
+                offset = -max_amplitude + (smooth_t * max_amplitude * 2.0f);
+            } 
+            else if (current_time < (DURATION_PAUSE_MS * 2.0f) + DURATION_MOVE_MS) {
+                // 3. Pause am rechten Rand
+                offset = max_amplitude;
+            } 
+            else {
+                // 4. Weiche Bewegung von rechts nach links (Ease-In-Out)
+                float t = (current_time - (DURATION_PAUSE_MS * 2.0f) - DURATION_MOVE_MS) / DURATION_MOVE_MS;
+                float smooth_t = t * t * (3.0f - 2.0f * t);
+                
+                offset = max_amplitude - (smooth_t * max_amplitude * 2.0f);
+            }
+            
+            // Zeichnet den Text perfekt ausbalanciert
+            it.print(cx - offset, cy, font, TextAlign::CENTER, text.c_str());
+        } else {
+            it.print(cx, cy, font, TextAlign::CENTER, text.c_str());
+        }
+      
+        // Clipping beenden
+        it.end_clipping();
+      };
+
+
+      if (id(idle_message3).empty() && id(idle_message2).empty()) {
+        // --- FALL 1: Nur die erste Zeile ist befüllt -> Maximal groß ---
+        scroll_marquee(cx, cy, width, id(font_huge), id(idle_message1));
+
+      } else if (id(idle_message3).empty()) {
+        // --- FALL 2: Zeile 1 und 2 sind befüllt -> Große Schrift ---
+        scroll_marquee(cx, cy - 10, width, id(font_large), id(idle_message1));
+        scroll_marquee(cx, cy + 10, width, id(font_large), id(idle_message2));
+
+      } else {
+        // --- FALL 3: Alle 3 Zeilen sind befüllt -> Mittlere Schrift ---
+        scroll_marquee(cx, cy - 13, width, id(font_medium), id(idle_message1));
+        scroll_marquee(cx, cy,      width, id(font_medium), id(idle_message2));
+        scroll_marquee(cx, cy + 13, width, id(font_medium), id(idle_message3));
+      }
+
+      if (id(page_info_start_time) > 0) {
+        uint32_t duration_ms = id(page_info_duration).state * 1000;
+        uint32_t progress_ms = millis() - id(page_info_start_time);
+        it.line(0, 63, (progress_ms * 127) / duration_ms, 63);
+      }
+
+      if (id(show_buffer_level)) {
+        float buffer_level = id(media_player_id).get_media_fill_level();
+        it.line(127, 63, (1.0f - buffer_level)*127, 63);
+      }
+
+      
+
+
+
+######################################################################################
+      
+# interval für page messages
+
+interval:
+  - id: update_timer
+    interval: 5s
+    then:
+      - lambda: |-
+          if (millis() > id(page_info_start_time) + (id(page_info_duration).state * 1000)) {
+            id(page_info_start_time) = millis();
+            id(update_data).execute();
+          }
+
+          id(sensor_mic_left_peak).publish_state(id(mic_peak_left));
+          id(sensor_mic_right_peak).publish_state(id(mic_peak_right));
+          
+          //ESP_LOGD("mic_test", "5s-Peak-Report. Left: %d | Right: %d", id(mic_peak_left), id(mic_peak_right));
+          
+          // Werte sofort nullen, um neu zu sammeln
+          id(mic_peak_left) = 0;
+          id(mic_peak_right) = 0;
+
+          
+
+# I2S Audio Bus
+
+globals:
+  - id: status_symbols
+    type: 'image::Image*[4]'
+    initial_value: '{nullptr, nullptr, nullptr, nullptr}'
+  - id: title_text
+    type: std::string
+    initial_value: "\"title\""
+  - id: page_info_start_time
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: show_buffer_level
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: image_icon
+    type: 'image::Image*'
+    initial_value: '&id(icon_think)'
+  - id: idle_message1
+    type: std::string
+    initial_value: "\"Hallo\""
+  - id: idle_message2
+    type: std::string
+    initial_value: "\"Welt\""
+  - id: idle_message3
+    type: std::string
+    initial_value: "\"Again\""

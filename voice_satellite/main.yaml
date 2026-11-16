@@ -563,6 +563,19 @@ media_player:
 
 
 voice_assistant:
+  id: va
+  micro_wake_word:
+  use_wake_word: false
+  microphone:
+    - channels: ["0"]
+      microphone: hw_microphone
+    - channels: ["1"]
+      microphone: hw_microphone
+  media_player: va_player_id
+  auto_gain: 16dBFS
+  conversation_timeout: 300s
+  noise_suppression_level: 1
+  volume_multiplier: 2
   on_wake_word_detected:                         # wird im local-mode nie aufgerufen
     - lambda: |-
         ESP_LOGI(__FILE__, "on_voice_assistant_wake_word_detected");
@@ -801,6 +814,22 @@ voice_assistant:
         id(update_data).execute();
     
 micro_wake_word:
+  id: mww
+  stop_after_detection: true
+  task_stack_in_psram: true
+  vad:
+    model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json
+    probability_cutoff: 75%
+    sliding_window_size: 5
+  models:
+    - model: github://esphome/micro-wake-word-models/models/v2/okay_nabu.json
+      probability_cutoff: 75%
+    - model: github://esphome/micro-wake-word-models/models/v2/hey_jarvis.json
+      probability_cutoff: 75%
+    - model: github://esphome/micro-wake-word-models/models/v2/alexa.json
+      probability_cutoff: 75%
+    - model: github://esphome/micro-wake-word-models/models/v2/hey_mycroft.json
+      probability_cutoff: 75%
   on_wake_word_detected:
     then:
       - lambda: |-

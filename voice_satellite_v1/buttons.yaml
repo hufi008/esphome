@@ -1,0 +1,60 @@
+# Voice Satellite 1 – Tasten
+#
+# Die akustische Rückmeldung bleibt erhalten, da die TTP221-LEDs
+# im Gehäuse nicht sichtbar sind. Taste 1 startet/stoppt Assist.
+
+binary_sensor:
+  - platform: gpio
+    id: my_button_1
+    pin: ${btn_1_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    on_press:
+      - script.execute:
+          id: my_play_ui_sound
+          sound_file: my_snd_click
+    on_click:
+      - min_length: 50ms
+        max_length: 500ms
+        then:
+          - if:
+              condition:
+                voice_assistant.is_running:
+              then:
+                - voice_assistant.stop:
+              else:
+                - voice_assistant.start:
+
+  - platform: gpio
+    id: my_button_2
+    pin: ${btn_2_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    on_press:
+      - script.execute:
+          id: my_play_ui_sound
+          sound_file: my_snd_click
+
+  - platform: gpio
+    id: my_button_3
+    pin: ${btn_3_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    on_press:
+      - script.execute:
+          id: my_play_ui_sound
+          sound_file: my_snd_click
+
+  - platform: gpio
+    id: my_button_4
+    pin: ${btn_4_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    on_press:
+      - script.execute:
+          id: my_play_ui_sound
+          sound_file: my_snd_click

@@ -86,31 +86,15 @@ script:
   - id: play_ui_sound
     mode: parallel
     parameters:
-      sound_id: int
+      sound_file: "esphome::audio::AudioFile*"
     then:
       - lambda: |-
-          switch (sound_id) {
-            case 0:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_click)), false, true);
+          std::string file_name = "Unbekannt";
+          for (const auto &nf : esphome::audio_file::get_named_audio_files()) {
+            if (nf.file == sound_file) {
+              file_name = nf.file_id;
               break;
-            case 1:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_wake)), false, true);
-              break;
-            case 2:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_thinking)), false, true);
-              break;
-            case 3:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_error)), false, true);
-              break;
-            case 4:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_success)), false, true);
-              break;
-            case 5:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_connect)), false, true);
-              break;
-            case 6:
-              id(my_va_player).play_file(const_cast<audio::AudioFile *>(id(my_snd_disconnect)), false, true);
-              break;
-            default:
-              break;
+            }
           }
+          ESP_LOGD("UI-Sound", "play '%s'", file_name.c_str());
+          id(my_va_player).play_file(sound_file, false, true);

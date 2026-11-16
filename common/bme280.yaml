@@ -1,4 +1,5 @@
 # common/bme280.yaml
+
 substitutions:
   # climate BME280
   bme_addr:      "0x76"

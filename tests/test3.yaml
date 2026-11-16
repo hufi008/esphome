@@ -85,7 +85,7 @@ light:
     pin: ${led_din_pin}
     chipset: WS2812
     num_leds: ${led_count}
-    rgb_order: GRB
+    channel_colors: GRB
     restore_mode: RESTORE_AND_ON
     icon: "mdi:led-strip"
     max_refresh_rate: 30ms

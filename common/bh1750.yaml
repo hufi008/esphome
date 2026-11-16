@@ -1,4 +1,5 @@
 # common/bh1750.yaml
+
 substitutions:
   # Illuminance bh1750
   bh_addr:      "0x23"

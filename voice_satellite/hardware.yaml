@@ -3,7 +3,7 @@
 external_components:
   - source:
       type: local
-      path: my_components
+      path: ../my_components
     components: [ speaker ]
 
 
@@ -245,7 +245,7 @@ light:
     chipset: WS2812
     pin: ${led_din_pin}
     num_leds: ${led_count}
-    rgb_order: GRB
+    channel_colors: GRB
     restore_mode: RESTORE_AND_ON
     icon: "mdi:led-strip"
     use_dma: true
@@ -802,33 +802,33 @@ microphone:
 
 audio_file:
   - id: snd_boot
-    file: "sounds/boot.wav"
+    file: "../sounds/boot.wav"
   - id: snd_chime_up
-    file: "sounds/chime_up.wav"
+    file: "../sounds/chime_up.wav"
   - id: snd_chime_down
-    file: "sounds/chime_down.wav"
+    file: "../sounds/chime_down.wav"
   - id: snd_error
-    file: "sounds/error.wav"
+    file: "../sounds/error.wav"
   - id: snd_success
-    file: "sounds/success.wav"
+    file: "../sounds/success.wav"
   - id: snd_wake
-    file: "sounds/wake.wav"
+    file: "../sounds/wake.wav"
   - id: snd_thinking
-    file: "sounds/thinking.wav"
+    file: "../sounds/thinking.wav"
   - id: snd_click
-    file: "sounds/click.wav"
+    file: "../sounds/click.wav"
   - id: snd_single_click
-    file: "sounds/single_click.wav"
+    file: "../sounds/single_click.wav"
   - id: snd_double_click
-    file: "sounds/double_click.wav"
+    file: "../sounds/double_click.wav"
   - id: snd_long_click
-    file: "sounds/long_click.wav"
+    file: "../sounds/long_click.wav"
   - id: snd_timer_alarm
-    file: "sounds/timer_alarm.wav"
+    file: "../sounds/timer_alarm.wav"
   - id: snd_connect
-    file: "sounds/api_connect.wav"
+    file: "../sounds/api_connect.wav"
   - id: snd_disconnect
-    file: "sounds/api_disconnect.wav"
+    file: "../sounds/api_disconnect.wav"
 
 audio:
   codecs:

@@ -1,0 +1,55 @@
+# common/ILI9341_FT6336U.yaml
+
+substitutions:
+  cover_image_dimension: 150x150
+  display_width: 320
+  display_height: 240
+  font_size_small: 16
+  font_size_medium: 20
+  font_size_large: 24
+  font_size_huge: 32
+  font_size_giant: 45
+
+# -------------------------------------------------------------------
+# Display und Touch
+# -------------------------------------------------------------------
+spi:
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+  miso_pin: ${pin_spi_miso}
+
+i2c:
+  - id: my_i2c
+    sda: ${pin_i2c_sda}
+    scl: ${pin_i2c_scl}
+
+display:
+  - platform: mipi_spi
+    model: ILI9341
+    id: my_display
+    spi_mode: MODE0
+    data_rate: 40MHz
+    cs_pin: ${pin_display_cs}
+    dc_pin: ${pin_display_dc}
+    reset_pin: ${pin_display_reset}
+    invert_colors: true
+    auto_clear_enabled: false
+    update_interval: never
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    dimensions:
+      height: ${display_height}
+      width: ${display_width}
+
+touchscreen:
+  - platform: ft63x6
+    id: my_touch
+    display: my_display
+    interrupt_pin: ${pin_touch_irq}
+    reset_pin: ${pin_touch_reset}
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false

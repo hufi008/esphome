@@ -1,0 +1,100 @@
+substitutions:
+  device_name: "esphome-web-d383b4"
+  friendly_name: "LED-Strip Lithographie"
+  pin_led: GPIO3
+  num_led: 6
+
+esphome:
+
+logger:
+  level: DEBUG
+
+packages:
+  # Holt die Grundfunktionen (WLAN, API, etc.)
+  base: !include ../common/base-c3_devkitm_1.yaml
+  light: !include ../common/ws2812.yaml
+
+# WS2812B LED-Streifen Konfiguration
+light:
+  - id: !extend my_ledstrip
+    effects:
+      - addressable_lambda:
+          name: "Kerzenschein Flackern"
+          update_interval: 40ms # Schnelles Update für flüssiges Flackern und Bewegen
+          lambda: |-
+            // Statische Variablen behalten ihren Wert zwischen den Durchläufen
+            static float wave_position = 0.0;
+
+            // 1. Basis-Helligkeit der Kerze mit zufälligem Flackern (Noise)
+            float base_brightness = esphome::random_float() * 0.4 + 0.6; // Wert zwischen 0.6 und 1.0
+
+            // 2. Bewegung der Flamme steuern (Geschwindigkeit der Links-Rechts-Wellen)
+            wave_position += 0.15;
+            if (wave_position > 6.28) wave_position = 0.0; // Reset nach vollem Sinus-Kreis
+
+            // 'current_color' ist ein fertiges esphome::Color Objekt.
+            // Die Kanäle werden direkt per .r, .g, .b als Werte von 0 bis 255 ausgelesen.
+            uint8_t base_r = current_color.r;
+            uint8_t base_g = current_color.g;
+            uint8_t base_b = current_color.b;
+            uint8_t base_w = current_color.w; // Falls ein Weiß-Kanal vorhanden ist
+
+            // 3. Jede der LEDs individuell berechnen
+            for (int i = 0; i < it.size(); i++) {
+              // Sinus-Welle sorgt für das Wandern von links nach rechts
+              // Die Verschiebung (+ i * 0.5) erzeugt den räumlichen Versatz auf dem Streifen
+              float wave = sinf(wave_position + (i * 0.5));
+
+              // Kombination aus Flackern und Bewegung (Wert zwischen ca. 0.4 und 1.0)
+              float intensity_multiplier = base_brightness * (0.7 + 0.3 * wave);
+
+              // Base-Farbe mit dem berechneten Flacker-Faktor multiplizieren
+              uint8_t r = (uint8_t)(base_r * intensity_multiplier);
+              uint8_t g = (uint8_t)(base_g * intensity_multiplier);
+              uint8_t b = (uint8_t)(base_b * intensity_multiplier);
+              uint8_t w = (uint8_t)(base_w * intensity_multiplier);
+
+              // Farbe an die jeweilige LED übergeben
+              it[i] = esphome::Color(r, g, b, w);
+            }
+
+      - addressable_lambda:
+          name: "Kerzenschein ruhig"
+          update_interval: 40ms # Beibehalten für flüssige Bewegungen, das Flackern selbst wird aber weicher
+          lambda: |-
+            // Statische Variablen behalten ihren Wert zwischen den Durchläufen
+            static float wave_position = 0.0;
+            static float smooth_brightness = 0.8; // Startwert für die geglättete Helligkeit
+
+            // 1. Sanfteres Basis-Flackern durch "Trägheit" (Exponential Smoothing)
+            float target_brightness = esphome::random_float() * 0.3 + 0.7; // Zielbereich: 0.7 bis 1.0 (weniger tiefes Absacken)
+            // 0.2 bestimmt das Tempo der Änderung. Kleinere Werte = träger/ruhiger, größere Werte = hektischer
+            smooth_brightness = smooth_brightness + 0.15 * (target_brightness - smooth_brightness);
+
+            // 2. Bewegung der Flamme verlangsamen (von 0.15 auf 0.08 reduziert)
+            wave_position += 0.08;
+            if (wave_position > 6.28) wave_position = 0.0;
+
+            // 'current_color' auslesen
+            uint8_t base_r = current_color.r;
+            uint8_t base_g = current_color.g;
+            uint8_t base_b = current_color.b;
+            uint8_t base_w = current_color.w;
+
+            // 3. Jede der LEDs individuell berechnen
+            for (int i = 0; i < it.size(); i++) {
+              // Sinus-Welle für das sanfte Wandern
+              float wave = sinf(wave_position + (i * 0.5));
+
+              // Kombination aus geglättetem Flackern und Bewegung (Einfluss der Welle leicht reduziert von 0.3 auf 0.2)
+              float intensity_multiplier = smooth_brightness * (0.8 + 0.2 * wave);
+
+              // Base-Farbe multiplizieren
+              uint8_t r = (uint8_t)(base_r * intensity_multiplier);
+              uint8_t g = (uint8_t)(base_g * intensity_multiplier);
+              uint8_t b = (uint8_t)(base_b * intensity_multiplier);
+              uint8_t w = (uint8_t)(base_w * intensity_multiplier);
+
+              // Farbe an die jeweilige LED übergeben
+              it[i] = esphome::Color(r, g, b, w);
+            }

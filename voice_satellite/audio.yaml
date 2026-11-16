@@ -22,7 +22,7 @@ microphone:
     adc_type: external
     i2s_din_pin: ${mic_sd_pin}
     pdm: false
-    channel: left
+    channel: stereo
     bits_per_sample: 32bit
     sample_rate: 16000
     mclk_multiple: 256
@@ -60,11 +60,15 @@ speaker:
   - platform: resampler
     id: va_sounds_speaker
     output_speaker: va_sounds_resampler
+    sample_rate: 48000
+    bits_per_sample: 32
 
   # Home Assistant speech: 16 kHz mono -> output format.
   - platform: resampler
     id: va_announcement_speaker
     output_speaker: va_announcement_resampler
+    sample_rate: 48000
+    bits_per_sample: 32
 
 audio_file:
   - id: snd_boot

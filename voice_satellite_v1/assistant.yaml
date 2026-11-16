@@ -36,7 +36,7 @@ voice_assistant:
   on_client_connected:
     - script.execute:
         id: my_play_ui_sound
-        sound_file: my_snd_connect
+        sound_id: 5
     - delay: 300ms
     - micro_wake_word.start:
 
@@ -44,22 +44,22 @@ voice_assistant:
     - micro_wake_word.stop:
     - script.execute:
         id: my_play_ui_sound
-        sound_file: my_snd_disconnect
+        sound_id: 6
 
   on_listening:
     - script.execute:
         id: my_play_ui_sound
-        sound_file: my_snd_wake
+        sound_id: 1
 
   on_stt_vad_end:
     - script.execute:
         id: my_play_ui_sound
-        sound_file: my_snd_thinking
+        sound_id: 2
 
   on_tts_start:
     - script.execute:
         id: my_play_ui_sound
-        sound_file: my_snd_success
+        sound_id: 4
 
   on_end:
     - if:
@@ -72,7 +72,7 @@ voice_assistant:
   on_error:
     - script.execute:
         id: my_play_ui_sound
-        sound_file: my_snd_error
+        sound_id: 3
     - if:
         condition:
           not:

@@ -1,6 +1,10 @@
 # Voice Satellite 1
 # Bestehende Hardware und Netzwerkidentität von speaker_2 bleiben erhalten.
 
+esphome:
+  includes:
+    - ../voice_satellite_v1/modes.h
+
 substitutions:
   device_name: "esphome-web-f407a0"
   friendly_name: "Voice Satellite 1"
@@ -33,4 +37,4 @@ packages:
   assistant: !include ../voice_satellite_v1/assistant.yaml
   buttons: !include ../voice_satellite_v1/buttons.yaml
   info_screen: !include ../voice_satellite_v1/info_screen.yaml
-
+  modes: !include ../voice_satellite_v1/modes.yaml

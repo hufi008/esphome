@@ -115,7 +115,9 @@ script:
           id(set_overlay_mode).execute(mode);
       - delay: 5s
       - lambda: |-
-          id(set_overlay_mode).execute(static_cast<int>(OverlayMode::NONE));
+          if (id(my_overlay_mode) == static_cast<OverlayMode>(mode)) {
+            id(set_overlay_mode).execute(static_cast<int>(OverlayMode::NONE));
+          }
 
   - id: show_error
     mode: restart
@@ -134,4 +136,6 @@ script:
           id(play_ui_sound).execute(id(my_snd_timer_alarm));
       - delay: 3s
       - lambda: |-
-          id(set_overlay_mode).execute(static_cast<int>(OverlayMode::NONE));
+          if (id(my_overlay_mode) == OverlayMode::ALARM) {
+            id(set_overlay_mode).execute(static_cast<int>(OverlayMode::NONE));
+          }

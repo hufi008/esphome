@@ -5,6 +5,11 @@ substitutions:
   device_name: "esphome-web-f407a0"
   friendly_name: "Voice Satellite 1"
 
+  # OLED SSD1306 am I2C-Bus
+  i2c_sda_pin: "GPIO17"
+  i2c_scl_pin: "GPIO18"
+  ssd_addr: "0x3C"
+
   # Zwei INMP441 als Stereo-Mikrofon
   mic_ws_pin:   "GPIO06"
   mic_sck_pin:  "GPIO05"
@@ -27,4 +32,5 @@ packages:
   audio: !include ../voice_satellite_v1/audio.yaml
   assistant: !include ../voice_satellite_v1/assistant.yaml
   buttons: !include ../voice_satellite_v1/buttons.yaml
+  info_screen: !include ../voice_satellite_v1/info_screen.yaml
 

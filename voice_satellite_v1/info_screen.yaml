@@ -1,0 +1,254 @@
+# Voice Satellite 1 – Info Screen
+#
+# Übernahme der bisherigen SSD1306-Infoanzeige:
+# Statusleiste, zentrierte Textdarstellung und wechselnde Zeit-/Datumsseiten.
+# Bewusst ohne die alten Media-Player-, LED- und Overlay-Abhängigkeiten.
+
+i2c:
+  - id: my_i2c_display
+    sda: ${i2c_sda_pin}
+    scl: ${i2c_scl_pin}
+    scan: true
+    frequency: 400kHz
+
+time:
+  - platform: homeassistant
+    id: my_esptime
+    on_time_sync:
+      - script.execute: update_info_screen
+
+sensor:
+  - platform: wifi_signal
+    id: my_wifi_rssi
+    name: "WiFi Signal dB"
+    update_interval: 30s
+    on_value:
+      - script.execute: update_info_screen
+
+image:
+  - platform: file
+    file: mdi:wifi-strength-1
+    id: my_symbol_wifi_1
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-2
+    id: my_symbol_wifi_2
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-3
+    id: my_symbol_wifi_3
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-4
+    id: my_symbol_wifi_4
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:home-assistant
+    id: my_symbol_api
+    type: binary
+    resize: 16x16
+
+font:
+  - id: my_font_medium
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 14
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: my_font_large
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 21
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+  - id: my_font_huge
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 28
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    id: my_display
+    address: ${ssd_addr}
+    update_interval: 50ms
+    lambda: |-
+      // Statussymbole in der Kopfzeile (jeweils 16x16 Pixel)
+      for (int i = 0; i < 4; i++) {
+        auto *img = id(my_status_symbols)[i];
+        if (img != nullptr) {
+          it.image(112 - (i * 16), 0, img);
+        }
+      }
+
+      // Trennlinie zwischen Statusleiste und Informationsbereich
+      it.line(0, 15, 127, 15);
+      it.print(0, 0, id(my_font_medium), id(my_title_text).c_str());
+
+      const int cx = 64;
+      const int cy = 40;
+      const int width = 128;
+
+      auto scroll_marquee = [&](int center_x, int center_y, int text_width,
+                                display::BaseFont *font, const std::string &value) {
+        int tx, ty, tw, th;
+        it.get_text_bounds(center_x, center_y, value.c_str(), font,
+                           TextAlign::CENTER, &tx, &ty, &tw, &th);
+
+        const int half_text = tw / 2;
+        const int half_area = text_width / 2;
+        tx = center_x - half_area;
+        tw = text_width;
+        it.start_clipping(tx, ty, tx + tw, ty + th);
+
+        if (half_text > half_area) {
+          const float max_amplitude = half_text - half_area;
+          const float move_ms = 3000.0f;
+          const float pause_ms = 1200.0f;
+          const float cycle_ms = (move_ms * 2.0f) + (pause_ms * 2.0f);
+          const float current_time = fmodf(millis(), cycle_ms);
+          float offset = 0.0f;
+
+          if (current_time < pause_ms) {
+            offset = -max_amplitude;
+          } else if (current_time < pause_ms + move_ms) {
+            float t = (current_time - pause_ms) / move_ms;
+            float smooth_t = t * t * (3.0f - 2.0f * t);
+            offset = -max_amplitude + (smooth_t * max_amplitude * 2.0f);
+          } else if (current_time < (pause_ms * 2.0f) + move_ms) {
+            offset = max_amplitude;
+          } else {
+            float t = (current_time - (pause_ms * 2.0f) - move_ms) / move_ms;
+            float smooth_t = t * t * (3.0f - 2.0f * t);
+            offset = max_amplitude - (smooth_t * max_amplitude * 2.0f);
+          }
+          it.print(center_x - offset, center_y, font, TextAlign::CENTER, value.c_str());
+        } else {
+          it.print(center_x, center_y, font, TextAlign::CENTER, value.c_str());
+        }
+        it.end_clipping();
+      };
+
+      if (id(my_idle_message2).empty()) {
+        scroll_marquee(cx, cy, width, id(my_font_huge), id(my_idle_message1));
+      } else {
+        scroll_marquee(cx, cy - 10, width, id(my_font_large), id(my_idle_message1));
+        scroll_marquee(cx, cy + 10, width, id(my_font_large), id(my_idle_message2));
+      }
+
+globals:
+  - id: my_status_symbols
+    type: 'image::Image*[4]'
+    initial_value: '{nullptr, nullptr, nullptr, nullptr}'
+  - id: my_title_text
+    type: std::string
+    initial_value: '"INFO"'
+  - id: my_idle_message1
+    type: std::string
+    initial_value: '"--:--"'
+  - id: my_idle_message2
+    type: std::string
+    initial_value: '""'
+  - id: my_page_info_start_time
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: my_idle_updater_scripts
+    type: 'std::vector<std::function<void()>>'
+    initial_value: 'std::vector<std::function<void()>>()'
+
+number:
+  - platform: template
+    id: my_page_info_duration
+    name: "Info Speed"
+    entity_category: config
+    min_value: 5
+    max_value: 300
+    step: 15
+    initial_value: 60
+    optimistic: true
+    restore_value: true
+
+script:
+  - id: update_time
+    then:
+      - lambda: |-
+          auto now = id(my_esptime).now();
+          if (!now.is_valid()) return;
+          id(my_idle_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute);
+          id(my_idle_message2).clear();
+
+  - id: update_date
+    then:
+      - lambda: |-
+          auto now = id(my_esptime).now();
+          if (!now.is_valid()) return;
+          id(my_idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+          id(my_idle_message2).clear();
+
+  - id: update_weekday
+    then:
+      - lambda: |-
+          auto now = id(my_esptime).now();
+          if (!now.is_valid()) return;
+          static const char *weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+          id(my_idle_message1) = weekdays[now.day_of_week - 1];
+          id(my_idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+
+  - id: update_info_screen
+    mode: restart
+    then:
+      - lambda: |-
+          id(my_status_symbols)[0] =
+            !id(wifi_id).is_connected() ? nullptr :
+            id(my_wifi_rssi).state > -55 ? id(my_symbol_wifi_4) :
+            id(my_wifi_rssi).state > -65 ? id(my_symbol_wifi_3) :
+            id(my_wifi_rssi).state > -75 ? id(my_symbol_wifi_2) :
+                                           id(my_symbol_wifi_1);
+          id(my_status_symbols)[1] = id(api_id).is_connected() ? id(my_symbol_api) : nullptr;
+          id(my_status_symbols)[2] = nullptr;
+          id(my_status_symbols)[3] = nullptr;
+          id(my_title_text) = "INFO";
+
+          if (id(my_idle_updater_scripts).empty()) return;
+          const uint32_t duration_ms = (uint32_t) (id(my_page_info_duration).state * 1000);
+          if (id(my_page_info_start_time) == 0 ||
+              millis() - id(my_page_info_start_time) >= duration_ms) {
+            id(my_page_info_start_time) = millis();
+            const size_t index = (millis() / duration_ms) % id(my_idle_updater_scripts).size();
+            id(my_idle_updater_scripts)[index]();
+          }
+      - component.update: my_display
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            id(my_idle_updater_scripts).push_back([]() { id(update_time).execute(); });
+            id(my_idle_updater_scripts).push_back([]() { id(update_date).execute(); });
+            id(my_idle_updater_scripts).push_back([]() { id(update_weekday).execute(); });
+        - script.execute: update_info_screen
+
+interval:
+  - interval: 5s
+    then:
+      - script.execute: update_info_screen

@@ -15,7 +15,8 @@ time:
   - platform: homeassistant
     id: my_esptime
     on_time_sync:
-      - script.execute: update_info_screen
+      - script.execute: update_time
+      - component.update: my_display
 
 sensor:
   - platform: wifi_signal
@@ -88,6 +89,7 @@ display:
   - platform: ssd1306_i2c
     model: SSD1306_128X64
     id: my_display
+    i2c_id: my_i2c_display
     address: ${ssd_addr}
     update_interval: 50ms
     lambda: |-

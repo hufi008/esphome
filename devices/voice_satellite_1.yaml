@@ -3,7 +3,7 @@
 
 esphome:
   includes:
-    - ../voice_satellite_v1/modes.h
+    - ../voice_satellite/modes.h
 
 substitutions:
   device_name: "esphome-web-f407a0"
@@ -32,9 +32,9 @@ substitutions:
 
 packages:
   base: !include ../common/base-s3_devkitc_1.yaml
-  hardware: !include ../voice_satellite_v1/hardware.yaml
-  audio: !include ../voice_satellite_v1/audio.yaml
-  assistant: !include ../voice_satellite_v1/assistant.yaml
-  buttons: !include ../voice_satellite_v1/buttons.yaml
-  info_screen: !include ../voice_satellite_v1/info_screen.yaml
-  modes: !include ../voice_satellite_v1/modes.yaml
+  hardware: !include ../voice_satellite/hardware.yaml
+  audio: !include ../voice_satellite/audio.yaml
+  assistant: !include ../voice_satellite/assistant.yaml
+  buttons: !include ../voice_satellite/buttons.yaml
+  info_screen: !include ../voice_satellite/info_screen.yaml
+  modes: !include ../voice_satellite/modes.yaml

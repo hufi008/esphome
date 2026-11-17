@@ -1,8 +1,7 @@
-# Voice Satellite 1 – Info Screen
+# Voice Satellite 1 – Info Screen und Display-Ausgabe
 #
-# Übernahme der bisherigen SSD1306-Infoanzeige:
-# Statusleiste, zentrierte Textdarstellung und wechselnde Zeit-/Datumsseiten.
-# Bewusst ohne die alten Media-Player-, LED- und Overlay-Abhängigkeiten.
+# Die Info-Seiten bilden den Content-Untergrund. Die Darstellung wird zentral
+# über Overlay -> Assistant -> Content aufgelöst.
 
 i2c:
   - id: my_i2c_display
@@ -16,7 +15,9 @@ time:
     id: my_esptime
     on_time_sync:
       - script.execute: update_time
-      - component.update: my_display
+      - lambda: |-
+          id(set_content_mode).execute(static_cast<int>(ContentMode::IDLE));
+      - script.execute: update_info_screen
 
 sensor:
   - platform: wifi_signal
@@ -91,7 +92,7 @@ display:
     id: my_display
     i2c_id: my_i2c_display
     address: ${ssd_addr}
-    update_interval: 50ms
+    update_interval: never
     lambda: |-
       // Statussymbole in der Kopfzeile (jeweils 16x16 Pixel)
       for (int i = 0; i < 4; i++) {
@@ -101,9 +102,8 @@ display:
         }
       }
 
-      // Trennlinie zwischen Statusleiste und Informationsbereich
       it.line(0, 15, 127, 15);
-      it.print(0, 0, id(my_font_medium), id(my_title_text).c_str());
+      it.print(0, 0, id(my_font_medium), id(my_display_title).c_str());
 
       const int cx = 64;
       const int cy = 40;
@@ -111,6 +111,8 @@ display:
 
       auto scroll_marquee = [&](int center_x, int center_y, int text_width,
                                 display::BaseFont *font, const std::string &value) {
+        if (value.empty()) return;
+
         int tx, ty, tw, th;
         it.get_text_bounds(center_x, center_y, value.c_str(), font,
                            TextAlign::CENTER, &tx, &ty, &tw, &th);
@@ -149,26 +151,37 @@ display:
         it.end_clipping();
       };
 
-      if (id(my_idle_message2).empty()) {
-        scroll_marquee(cx, cy, width, id(my_font_huge), id(my_idle_message1));
+      if (id(my_display_message2).empty()) {
+        scroll_marquee(cx, cy, width, id(my_font_huge), id(my_display_message1));
       } else {
-        scroll_marquee(cx, cy - 10, width, id(my_font_large), id(my_idle_message1));
-        scroll_marquee(cx, cy + 10, width, id(my_font_large), id(my_idle_message2));
+        scroll_marquee(cx, cy - 10, width, id(my_font_large), id(my_display_message1));
+        scroll_marquee(cx, cy + 10, width, id(my_font_large), id(my_display_message2));
       }
 
 globals:
   - id: my_status_symbols
     type: 'image::Image*[4]'
     initial_value: '{nullptr, nullptr, nullptr, nullptr}'
-  - id: my_title_text
-    type: std::string
-    initial_value: '"INFO"'
+
+  # Content-Daten: werden auch dann aktualisiert, wenn Assistant/Overlay sichtbar ist.
   - id: my_idle_message1
     type: std::string
     initial_value: '"--:--"'
   - id: my_idle_message2
     type: std::string
     initial_value: '""'
+
+  # Tatsächlich gerenderte Display-Daten.
+  - id: my_display_title
+    type: std::string
+    initial_value: '"BOOT"'
+  - id: my_display_message1
+    type: std::string
+    initial_value: '"Voice Satellite 1"'
+  - id: my_display_message2
+    type: std::string
+    initial_value: '""'
+
   - id: my_page_info_start_time
     type: uint32_t
     restore_value: no
@@ -215,6 +228,7 @@ script:
           id(my_idle_message1) = weekdays[now.day_of_week - 1];
           id(my_idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
 
+  # Aktualisiert die Statussymbole und den Content-Untergrund.
   - id: update_info_screen
     mode: restart
     then:
@@ -228,16 +242,100 @@ script:
           id(my_status_symbols)[1] = id(api_id).is_connected() ? id(my_symbol_api) : nullptr;
           id(my_status_symbols)[2] = nullptr;
           id(my_status_symbols)[3] = nullptr;
-          id(my_title_text) = "INFO";
 
-          if (id(my_idle_updater_scripts).empty()) return;
-          const uint32_t duration_ms = (uint32_t) (id(my_page_info_duration).state * 1000);
-          if (id(my_page_info_start_time) == 0 ||
-              millis() - id(my_page_info_start_time) >= duration_ms) {
-            id(my_page_info_start_time) = millis();
-            const size_t index = (millis() / duration_ms) % id(my_idle_updater_scripts).size();
-            id(my_idle_updater_scripts)[index]();
+          if (!id(my_idle_updater_scripts).empty()) {
+            const uint32_t duration_ms = (uint32_t) (id(my_page_info_duration).state * 1000);
+            if (id(my_page_info_start_time) == 0 ||
+                millis() - id(my_page_info_start_time) >= duration_ms) {
+              id(my_page_info_start_time) = millis();
+              const size_t index = (millis() / duration_ms) % id(my_idle_updater_scripts).size();
+              id(my_idle_updater_scripts)[index]();
+            }
           }
+      - script.execute: update_display
+
+  # Zentrale Prioritätsauflösung: Overlay -> Assistant -> Content.
+  - id: update_display
+    mode: restart
+    then:
+      - lambda: |-
+          id(my_display_title).clear();
+          id(my_display_message1).clear();
+          id(my_display_message2).clear();
+
+          switch (id(my_overlay_mode)) {
+            case OverlayMode::VOLUME:
+              id(my_display_title) = "VOLUME";
+              id(my_display_message1) = "Lautstaerke";
+              break;
+
+            case OverlayMode::ERROR:
+              id(my_display_title) = "ERROR";
+              id(my_display_message1) = "Voice Assistant";
+              id(my_display_message2) = "Fehler";
+              break;
+
+            case OverlayMode::ALARM:
+              id(my_display_title) = "ALARM";
+              id(my_display_message1) = "Timer beendet";
+              break;
+
+            case OverlayMode::NONE:
+              switch (id(my_assist_mode)) {
+                case AssistMode::LISTEN:
+                  id(my_display_title) = "ASSIST";
+                  id(my_display_message1) = "Ja bitte";
+                  break;
+
+                case AssistMode::THINK:
+                  id(my_display_title) = "ASSIST";
+                  id(my_display_message1) = "Einen Moment...";
+                  break;
+
+                case AssistMode::ANNOUNCE:
+                  id(my_display_title) = "ASSIST";
+                  id(my_display_message1) = "Antwort wird";
+                  id(my_display_message2) = "gesprochen";
+                  break;
+
+                case AssistMode::IDLE:
+                  switch (id(my_content_mode)) {
+                    case ContentMode::BOOT:
+                      id(my_display_title) = "BOOT";
+                      id(my_display_message1) = "Voice Satellite 1";
+                      id(my_display_message2) = "Initialisierung";
+                      break;
+
+                    case ContentMode::IDLE:
+                      id(my_display_title) = "INFO";
+                      id(my_display_message1) = id(my_idle_message1);
+                      id(my_display_message2) = id(my_idle_message2);
+                      break;
+
+                    case ContentMode::PLAY:
+                      id(my_display_title) = "PLAYER";
+                      id(my_display_message1) = "Wiedergabe";
+                      break;
+
+                    case ContentMode::PAUSE:
+                      id(my_display_title) = "PLAYER";
+                      id(my_display_message1) = "Pausiert";
+                      break;
+
+                    case ContentMode::SHUTDOWN:
+                      id(my_display_title) = "SYSTEM";
+                      id(my_display_message1) = "Abschaltung";
+                      break;
+                  }
+                  break;
+              }
+              break;
+          }
+
+          ESP_LOGD("display", "render: %s | %s | %s",
+                   id(my_display_title).c_str(),
+                   id(my_display_message1).c_str(),
+                   id(my_display_message2).c_str());
       - component.update: my_display
 
 esphome:

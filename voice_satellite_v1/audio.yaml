@@ -23,6 +23,8 @@ audio_file:
     file: "../sounds/api_connect.wav"
   - id: my_snd_disconnect
     file: "../sounds/api_disconnect.wav"
+  - id: my_snd_timer_alarm
+    file: "../sounds/timer_alarm.wav"
 
 speaker:
   # Physischer Stereo-Ausgang

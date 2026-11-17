@@ -4,6 +4,7 @@
 esphome:
   includes:
     - ../voice_satellite/modes.h
+    - "<modes.h>"
 
 substitutions:
   device_name: "esphome-web-f407a0"

@@ -1,8 +1,5 @@
 # Voice Satellite 1 – Audio
 #
-# Ausgang unverändert zum funktionierenden speaker_2:
-# 48 kHz / 32 Bit / Stereo auf zwei MAX98357A.
-# Zwei getrennte Quellen: UI-Signaltöne und Voice-Assistant-Ausgabe.
 
 audio:
   codecs:
@@ -86,7 +83,7 @@ script:
   - id: play_ui_sound
     mode: parallel
     parameters:
-      sound_file: "esphome::audio::AudioFile*"
+      sound_file: "std::add_const_t<esphome::audio::AudioFile>*"
     then:
       - lambda: |-
           std::string file_name = "Unbekannt";

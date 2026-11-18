@@ -115,6 +115,14 @@ globals:
     type: std::string
     initial_value: '""'
 
+  # Letzte erkannte Spracheingabe und Assistant-Antwort.
+  - id: my_va_command_text
+    type: std::string
+    initial_value: '""'
+  - id: my_va_response_text
+    type: std::string
+    initial_value: '""'
+
   # Tatsächlich gerenderte Display-Daten.
   - id: my_display_title
     type: std::string
@@ -233,13 +241,13 @@ script:
 
                 case AssistMode::THINK:
                   id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Einen Moment...";
+                  id(my_display_message1) = id(my_va_command_text).empty() ? "Einen Moment..." : id(my_va_command_text);
                   break;
 
                 case AssistMode::ANNOUNCE:
                   id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Antwort wird";
-                  id(my_display_message2) = "gesprochen";
+                  id(my_display_message1) = id(my_va_command_text);
+                  id(my_display_message2) = id(my_va_response_text);
                   break;
 
                 case AssistMode::IDLE:

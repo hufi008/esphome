@@ -62,90 +62,74 @@ number:
 script:
   - id: set_content_mode
     parameters:
-      mode: int
+      mode: float
     then:
       - lambda: |-
-          switch (mode) {
-            case CONTENT_BOOT:
-              id(my_content_mode) = CONTENT_BOOT;
-              break;
-            case CONTENT_IDLE:
-              id(my_content_mode) = CONTENT_IDLE;
-              break;
-            case CONTENT_PLAY:
-              id(my_content_mode) = CONTENT_PLAY;
-              break;
-            case CONTENT_PAUSE:
-              id(my_content_mode) = CONTENT_PAUSE;
-              break;
-            case CONTENT_SHUTDOWN:
-              id(my_content_mode) = CONTENT_SHUTDOWN;
-              break;
-            default:
-              ESP_LOGW("modes", "Invalid content mode: %d", mode);
-              return;
+          if (mode == CONTENT_BOOT) {
+            id(my_content_mode) = CONTENT_BOOT;
+          } else if (mode == CONTENT_IDLE) {
+            id(my_content_mode) = CONTENT_IDLE;
+          } else if (mode == CONTENT_PLAY) {
+            id(my_content_mode) = CONTENT_PLAY;
+          } else if (mode == CONTENT_PAUSE) {
+            id(my_content_mode) = CONTENT_PAUSE;
+          } else if (mode == CONTENT_SHUTDOWN) {
+            id(my_content_mode) = CONTENT_SHUTDOWN;
+          } else {
+            ESP_LOGW("modes", "Invalid content mode: %.2f", mode);
+            return;
           }
           id(my_content_mode_select).publish_state(mode);
-          ESP_LOGD("modes", "content_mode=%d", mode);
+          ESP_LOGD("modes", "content_mode=%.0f", mode);
       - script.execute: update_display
 
   - id: set_assist_mode
     parameters:
-      mode: int
+      mode: float
     then:
       - lambda: |-
-          switch (mode) {
-            case ASSIST_IDLE:
-              id(my_assist_mode) = ASSIST_IDLE;
-              break;
-            case ASSIST_LISTEN:
-              id(my_assist_mode) = ASSIST_LISTEN;
-              break;
-            case ASSIST_THINK:
-              id(my_assist_mode) = ASSIST_THINK;
-              break;
-            case ASSIST_ANNOUNCE:
-              id(my_assist_mode) = ASSIST_ANNOUNCE;
-              break;
-            default:
-              ESP_LOGW("modes", "Invalid assist mode: %d", mode);
-              return;
+          if (mode == ASSIST_IDLE) {
+            id(my_assist_mode) = ASSIST_IDLE;
+          } else if (mode == ASSIST_LISTEN) {
+            id(my_assist_mode) = ASSIST_LISTEN;
+          } else if (mode == ASSIST_THINK) {
+            id(my_assist_mode) = ASSIST_THINK;
+          } else if (mode == ASSIST_ANNOUNCE) {
+            id(my_assist_mode) = ASSIST_ANNOUNCE;
+          } else {
+            ESP_LOGW("modes", "Invalid assist mode: %.2f", mode);
+            return;
           }
           id(my_assist_mode_select).publish_state(mode);
-          ESP_LOGD("modes", "assist_mode=%d", mode);
+          ESP_LOGD("modes", "assist_mode=%.0f", mode);
       - script.execute: update_display
 
   - id: set_overlay_mode
     parameters:
-      mode: int
+      mode: float
     then:
       - lambda: |-
-          switch (mode) {
-            case OVERLAY_NONE:
-              id(my_overlay_mode) = OVERLAY_NONE;
-              break;
-            case OVERLAY_VOLUME:
-              id(my_overlay_mode) = OVERLAY_VOLUME;
-              break;
-            case OVERLAY_ERROR:
-              id(my_overlay_mode) = OVERLAY_ERROR;
-              break;
-            case OVERLAY_ALARM:
-              id(my_overlay_mode) = OVERLAY_ALARM;
-              break;
-            default:
-              ESP_LOGW("modes", "Invalid overlay mode: %d", mode);
-              return;
+          if (mode == OVERLAY_NONE) {
+            id(my_overlay_mode) = OVERLAY_NONE;
+          } else if (mode == OVERLAY_VOLUME) {
+            id(my_overlay_mode) = OVERLAY_VOLUME;
+          } else if (mode == OVERLAY_ERROR) {
+            id(my_overlay_mode) = OVERLAY_ERROR;
+          } else if (mode == OVERLAY_ALARM) {
+            id(my_overlay_mode) = OVERLAY_ALARM;
+          } else {
+            ESP_LOGW("modes", "Invalid overlay mode: %.2f", mode);
+            return;
           }
           id(my_overlay_mode_select).publish_state(mode);
-          ESP_LOGD("modes", "overlay_mode=%d", mode);
+          ESP_LOGD("modes", "overlay_mode=%.0f", mode);
       - script.execute: update_display
 
   # Generisches, zeitlich begrenztes Overlay (z. B. Lautstärke).
   - id: show_overlay
     mode: restart
     parameters:
-      mode: int
+      mode: float
     then:
       - lambda: |-
           id(set_overlay_mode).execute(mode);

@@ -31,11 +31,12 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          if (x == 0) id(set_content_mode).execute(ContentMode::BOOT);
-          else if (x == 1) id(set_content_mode).execute(ContentMode::IDLE);
-          else if (x == 2) id(set_content_mode).execute(ContentMode::PLAY);
-          else if (x == 3) id(set_content_mode).execute(ContentMode::PAUSE);
-          else if (x == 4) id(set_content_mode).execute(ContentMode::SHUTDOWN);
+          ContentMode mode;
+          if (content_mode_from_number(x, mode)) {
+            id(set_content_mode).execute(mode);
+          } else {
+            ESP_LOGW("modes", "Invalid content mode number: %.1f", x);
+          }
 
   - platform: template
     id: my_assist_mode_select
@@ -48,10 +49,12 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          if (x == 0) id(set_assist_mode).execute(AssistMode::IDLE);
-          else if (x == 1) id(set_assist_mode).execute(AssistMode::LISTEN);
-          else if (x == 2) id(set_assist_mode).execute(AssistMode::THINK);
-          else if (x == 3) id(set_assist_mode).execute(AssistMode::ANNOUNCE);
+          AssistMode mode;
+          if (assist_mode_from_number(x, mode)) {
+            id(set_assist_mode).execute(mode);
+          } else {
+            ESP_LOGW("modes", "Invalid assist mode number: %.1f", x);
+          }
 
   - platform: template
     id: my_overlay_mode_select
@@ -64,10 +67,12 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          if (x == 0) id(set_overlay_mode).execute(OverlayMode::NONE);
-          else if (x == 1) id(set_overlay_mode).execute(OverlayMode::VOLUME);
-          else if (x == 2) id(set_overlay_mode).execute(OverlayMode::ERROR);
-          else if (x == 3) id(set_overlay_mode).execute(OverlayMode::ALARM);
+          OverlayMode mode;
+          if (overlay_mode_from_number(x, mode)) {
+            id(set_overlay_mode).execute(mode);
+          } else {
+            ESP_LOGW("modes", "Invalid overlay mode number: %.1f", x);
+          }
 
 script:
   - id: set_content_mode
@@ -76,15 +81,9 @@ script:
     then:
       - lambda: |-
           int mode_value;
-          switch (mode) {
-            case ContentMode::BOOT: mode_value = 0; break;
-            case ContentMode::IDLE: mode_value = 1; break;
-            case ContentMode::PLAY: mode_value = 2; break;
-            case ContentMode::PAUSE: mode_value = 3; break;
-            case ContentMode::SHUTDOWN: mode_value = 4; break;
-            default:
-              ESP_LOGW("modes", "Invalid content mode");
-              return;
+          if (!content_mode_to_number(mode, mode_value)) {
+            ESP_LOGW("modes", "Invalid content mode");
+            return;
           }
           id(my_content_mode) = mode;
           id(my_content_mode_select).publish_state(mode_value);
@@ -98,14 +97,9 @@ script:
     then:
       - lambda: |-
           int mode_value;
-          switch (mode) {
-            case AssistMode::IDLE: mode_value = 0; break;
-            case AssistMode::LISTEN: mode_value = 1; break;
-            case AssistMode::THINK: mode_value = 2; break;
-            case AssistMode::ANNOUNCE: mode_value = 3; break;
-            default:
-              ESP_LOGW("modes", "Invalid assist mode");
-              return;
+          if (!assist_mode_to_number(mode, mode_value)) {
+            ESP_LOGW("modes", "Invalid assist mode");
+            return;
           }
           id(my_assist_mode) = mode;
           id(my_assist_mode_select).publish_state(mode_value);
@@ -119,14 +113,9 @@ script:
     then:
       - lambda: |-
           int mode_value;
-          switch (mode) {
-            case OverlayMode::NONE: mode_value = 0; break;
-            case OverlayMode::VOLUME: mode_value = 1; break;
-            case OverlayMode::ERROR: mode_value = 2; break;
-            case OverlayMode::ALARM: mode_value = 3; break;
-            default:
-              ESP_LOGW("modes", "Invalid overlay mode");
-              return;
+          if (!overlay_mode_to_number(mode, mode_value)) {
+            ESP_LOGW("modes", "Invalid overlay mode");
+            return;
           }
           id(my_overlay_mode) = mode;
           id(my_overlay_mode_select).publish_state(mode_value);

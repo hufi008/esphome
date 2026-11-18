@@ -9,6 +9,9 @@ esphome:
       then:
         - script.execute: update_ledstrip
 
+globals:
+  - id: my_idle_color
+    type: esphome::Color
     initial_value: 'Color(127, 0, 255)'
 
 text:

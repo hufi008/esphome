@@ -1,6 +1,59 @@
 # Voice Satellite 1 – Hardware
 #
+# Sämtliche Hardware- und Infrastruktur-Komponenten werden hier deklariert.
+# Funktionspakete ergänzen diese Komponenten bei Bedarf mit !extend.
 
+# I²C-Bus und daran angeschlossene Hardware
+i2c:
+  - id: my_i2c_display
+    sda: ${i2c_sda_pin}
+    scl: ${i2c_scl_pin}
+    scan: true
+    frequency: 400kHz
+
+# Zeitquelle als virtuelle Infrastruktur-Komponente
+time:
+  - platform: homeassistant
+    id: my_esptime
+
+# WLAN-Messwert als Infrastruktur-Sensor
+sensor:
+  - platform: wifi_signal
+    id: my_wifi_rssi
+    name: "WiFi Signal dB"
+    update_interval: 30s
+
+# Vier physische TTP221-Tasten
+binary_sensor:
+  - platform: gpio
+    id: my_button_1
+    pin: ${btn_1_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+
+  - platform: gpio
+    id: my_button_2
+    pin: ${btn_2_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+
+  - platform: gpio
+    id: my_button_3
+    pin: ${btn_3_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+
+  - platform: gpio
+    id: my_button_4
+    pin: ${btn_4_pin}
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+
+# I²S-Busse
 i2s_audio:
   - id: my_i2s_microphone
     i2s_lrclk_pin: ${mic_ws_pin}
@@ -10,6 +63,7 @@ i2s_audio:
     i2s_lrclk_pin: ${spk_lrc_pin}
     i2s_bclk_pin: ${spk_bclk_pin}
 
+# INMP441 Stereo-Mikrofon
 microphone:
   - platform: i2s_audio
     id: my_microphone
@@ -24,3 +78,152 @@ microphone:
     channel: stereo
     num_channels: 2
     i2s_mode: primary
+
+# MAX98357A-Ausgang, Mixer und Resampler
+speaker:
+  - platform: i2s_audio
+    id: my_hw_speaker
+    i2s_audio_id: my_i2s_speaker
+    dac_type: external
+    i2s_dout_pin: ${spk_din_pin}
+    bits_per_sample: 32bit
+    sample_rate: 48000
+    mclk_multiple: 256
+    channel: stereo
+    num_channels: 2
+    buffer_duration: 200ms
+    i2s_mode: primary
+
+  - platform: mixer
+    id: my_audio_mixer
+    output_speaker: my_hw_speaker
+    num_channels: 2
+    source_speakers:
+      - id: my_va_sounds_mixer_input
+        timeout: never
+      - id: my_va_announcement_mixer_input
+        timeout: never
+
+  - platform: resampler
+    id: my_va_sounds_resampler
+    output_speaker: my_va_sounds_mixer_input
+
+  - platform: resampler
+    id: my_va_announcement_resampler
+    output_speaker: my_va_announcement_mixer_input
+
+# Virtueller Voice-Assistant-Audioplayer
+media_player:
+  - platform: speaker
+    id: my_va_player
+    internal: true
+    buffer_size: 25000
+    task_stack_in_psram: true
+    media_pipeline:
+      speaker: my_va_sounds_resampler
+      sample_rate: 16000
+      num_channels: 1
+      format: NONE
+    announcement_pipeline:
+      speaker: my_va_announcement_resampler
+      sample_rate: 16000
+      num_channels: 1
+      format: NONE
+
+# Unterstützte Audioformate und fest eingebundene Sounddateien
+audio:
+  codecs:
+    mp3:
+    wav:
+
+audio_file:
+  - id: my_snd_boot
+    file: "../sounds/boot.wav"
+  - id: my_snd_click
+    file: "../sounds/click.wav"
+  - id: my_snd_wake
+    file: "../sounds/wake.wav"
+  - id: my_snd_thinking
+    file: "../sounds/thinking.wav"
+  - id: my_snd_error
+    file: "../sounds/error.wav"
+  - id: my_snd_success
+    file: "../sounds/success.wav"
+  - id: my_snd_connect
+    file: "../sounds/api_connect.wav"
+  - id: my_snd_disconnect
+    file: "../sounds/api_disconnect.wav"
+  - id: my_snd_timer_alarm
+    file: "../sounds/timer_alarm.wav"
+
+# Bildressourcen für Statuszeile und Anzeige
+image:
+  - platform: file
+    file: mdi:wifi-strength-1
+    id: my_symbol_wifi_1
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-2
+    id: my_symbol_wifi_2
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-3
+    id: my_symbol_wifi_3
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:wifi-strength-4
+    id: my_symbol_wifi_4
+    type: binary
+    resize: 16x16
+  - platform: file
+    file: mdi:home-assistant
+    id: my_symbol_api
+    type: binary
+    resize: 16x16
+
+# Display-Schriften
+font:
+  - id: my_font_medium
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 14
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+  - id: my_font_large
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 21
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+  - id: my_font_huge
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: 28
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+# SSD1306 – die eigentliche Zeichenfunktion wird in info_screen.yaml ergänzt
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    id: my_display
+    i2c_id: my_i2c_display
+    address: ${ssd_addr}
+    update_interval: never

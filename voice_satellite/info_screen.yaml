@@ -1,14 +1,21 @@
 # API-Verbindungsstatus: Symbol und Connect-/Disconnect-Sounds aktualisieren.
+# api_id ist bereits in der gemeinsamen Basis-Konfiguration deklariert.
 api:
-  - id: !extend api_id
-    on_client_connected:
-      - lambda: |-
-          id(play_ui_sound).execute(id(my_snd_connect));
-      - script.execute: update_info_screen
-    on_client_disconnected:
-      - lambda: |-
-          id(play_ui_sound).execute(id(my_snd_disconnect));
-      - script.execute: update_info_screen
+  on_client_connected:
+    - lambda: |-
+        id(play_ui_sound).execute(id(my_snd_connect));
+    - script.execute: update_info_screen
+  on_client_disconnected:
+    - lambda: |-
+        id(play_ui_sound).execute(id(my_snd_disconnect));
+    - script.execute: update_info_screen
+
+# WLAN-Verbindungsstatus: Symbol bei Connect und Disconnect neu bewerten.
+wifi:
+  on_connect:
+    - script.execute: update_info_screen
+  on_disconnect:
+    - script.execute: update_info_screen
 
 # Voice Satellite 1 – Info Screen und Display-Ausgabe
 #

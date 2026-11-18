@@ -16,7 +16,7 @@ time:
     on_time_sync:
       - script.execute: update_time
       - lambda: |-
-          id(set_content_mode).execute(CONTENT_IDLE);
+          id(set_content_mode).execute(ContentMode::IDLE);
       - script.execute: update_info_screen
 
 sensor:
@@ -264,65 +264,65 @@ script:
           id(my_display_message2).clear();
 
           switch (id(my_overlay_mode)) {
-            case OVERLAY_VOLUME:
+            case OverlayMode::VOLUME:
               id(my_display_title) = "VOLUME";
               id(my_display_message1) = "Lautstaerke";
               break;
 
-            case OVERLAY_ERROR:
+            case OverlayMode::ERROR:
               id(my_display_title) = "ERROR";
               id(my_display_message1) = "Voice Assistant";
               id(my_display_message2) = "Fehler";
               break;
 
-            case OVERLAY_ALARM:
+            case OverlayMode::ALARM:
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
               break;
 
-            case OVERLAY_NONE:
+            case OverlayMode::NONE:
               switch (id(my_assist_mode)) {
-                case ASSIST_LISTEN:
+                case AssistMode::LISTEN:
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ja bitte";
                   break;
 
-                case ASSIST_THINK:
+                case AssistMode::THINK:
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Einen Moment...";
                   break;
 
-                case ASSIST_ANNOUNCE:
+                case AssistMode::ANNOUNCE:
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Antwort wird";
                   id(my_display_message2) = "gesprochen";
                   break;
 
-                case ASSIST_IDLE:
+                case AssistMode::IDLE:
                   switch (id(my_content_mode)) {
-                    case CONTENT_BOOT:
+                    case ContentMode::BOOT:
                       id(my_display_title) = "BOOT";
                       id(my_display_message1) = "Voice Satellite 1";
                       id(my_display_message2) = "Initialisierung";
                       break;
 
-                    case CONTENT_IDLE:
+                    case ContentMode::IDLE:
                       id(my_display_title) = "INFO";
                       id(my_display_message1) = id(my_idle_message1);
                       id(my_display_message2) = id(my_idle_message2);
                       break;
 
-                    case CONTENT_PLAY:
+                    case ContentMode::PLAY:
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
 
-                    case CONTENT_PAUSE:
+                    case ContentMode::PAUSE:
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
 
-                    case CONTENT_SHUTDOWN:
+                    case ContentMode::SHUTDOWN:
                       id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";
                       break;

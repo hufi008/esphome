@@ -7,17 +7,17 @@ globals:
   - id: my_content_mode
     type: ContentMode
     restore_value: no
-    initial_value: 'ContentMode::BOOT'
+    initial_value: 'CONTENT_BOOT'
 
   - id: my_assist_mode
     type: AssistMode
     restore_value: no
-    initial_value: 'AssistMode::IDLE'
+    initial_value: 'ASSIST_IDLE'
 
   - id: my_overlay_mode
     type: OverlayMode
     restore_value: no
-    initial_value: 'OverlayMode::NONE'
+    initial_value: 'OVERLAY_NONE'
 
 number:
   - platform: template
@@ -31,7 +31,7 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          id(set_content_mode).execute(static_cast<int>(x));
+          id(set_content_mode).execute(x);
 
   - platform: template
     id: my_assist_mode_select
@@ -44,7 +44,7 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          id(set_assist_mode).execute(static_cast<int>(x));
+          id(set_assist_mode).execute(x);
 
   - platform: template
     id: my_overlay_mode_select
@@ -57,7 +57,7 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          id(set_overlay_mode).execute(static_cast<int>(x));
+          id(set_overlay_mode).execute(x);
 
 script:
   - id: set_content_mode
@@ -65,12 +65,26 @@ script:
       mode: int
     then:
       - lambda: |-
-          if (mode < static_cast<int>(ContentMode::BOOT) ||
-              mode > static_cast<int>(ContentMode::SHUTDOWN)) {
-            ESP_LOGW("modes", "Invalid content mode: %d", mode);
-            return;
+          switch (mode) {
+            case CONTENT_BOOT:
+              id(my_content_mode) = CONTENT_BOOT;
+              break;
+            case CONTENT_IDLE:
+              id(my_content_mode) = CONTENT_IDLE;
+              break;
+            case CONTENT_PLAY:
+              id(my_content_mode) = CONTENT_PLAY;
+              break;
+            case CONTENT_PAUSE:
+              id(my_content_mode) = CONTENT_PAUSE;
+              break;
+            case CONTENT_SHUTDOWN:
+              id(my_content_mode) = CONTENT_SHUTDOWN;
+              break;
+            default:
+              ESP_LOGW("modes", "Invalid content mode: %d", mode);
+              return;
           }
-          id(my_content_mode) = static_cast<ContentMode>(mode);
           id(my_content_mode_select).publish_state(mode);
           ESP_LOGD("modes", "content_mode=%d", mode);
       - script.execute: update_display
@@ -80,12 +94,23 @@ script:
       mode: int
     then:
       - lambda: |-
-          if (mode < static_cast<int>(AssistMode::IDLE) ||
-              mode > static_cast<int>(AssistMode::ANNOUNCE)) {
-            ESP_LOGW("modes", "Invalid assist mode: %d", mode);
-            return;
+          switch (mode) {
+            case ASSIST_IDLE:
+              id(my_assist_mode) = ASSIST_IDLE;
+              break;
+            case ASSIST_LISTEN:
+              id(my_assist_mode) = ASSIST_LISTEN;
+              break;
+            case ASSIST_THINK:
+              id(my_assist_mode) = ASSIST_THINK;
+              break;
+            case ASSIST_ANNOUNCE:
+              id(my_assist_mode) = ASSIST_ANNOUNCE;
+              break;
+            default:
+              ESP_LOGW("modes", "Invalid assist mode: %d", mode);
+              return;
           }
-          id(my_assist_mode) = static_cast<AssistMode>(mode);
           id(my_assist_mode_select).publish_state(mode);
           ESP_LOGD("modes", "assist_mode=%d", mode);
       - script.execute: update_display
@@ -95,12 +120,23 @@ script:
       mode: int
     then:
       - lambda: |-
-          if (mode < static_cast<int>(OverlayMode::NONE) ||
-              mode > static_cast<int>(OverlayMode::ALARM)) {
-            ESP_LOGW("modes", "Invalid overlay mode: %d", mode);
-            return;
+          switch (mode) {
+            case OVERLAY_NONE:
+              id(my_overlay_mode) = OVERLAY_NONE;
+              break;
+            case OVERLAY_VOLUME:
+              id(my_overlay_mode) = OVERLAY_VOLUME;
+              break;
+            case OVERLAY_ERROR:
+              id(my_overlay_mode) = OVERLAY_ERROR;
+              break;
+            case OVERLAY_ALARM:
+              id(my_overlay_mode) = OVERLAY_ALARM;
+              break;
+            default:
+              ESP_LOGW("modes", "Invalid overlay mode: %d", mode);
+              return;
           }
-          id(my_overlay_mode) = static_cast<OverlayMode>(mode);
           id(my_overlay_mode_select).publish_state(mode);
           ESP_LOGD("modes", "overlay_mode=%d", mode);
       - script.execute: update_display
@@ -115,27 +151,27 @@ script:
           id(set_overlay_mode).execute(mode);
       - delay: 5s
       - lambda: |-
-          if (id(my_overlay_mode) == static_cast<OverlayMode>(mode)) {
-            id(set_overlay_mode).execute(static_cast<int>(OverlayMode::NONE));
+          if (id(my_overlay_mode) == mode) {
+            id(set_overlay_mode).execute(OVERLAY_NONE);
           }
 
   - id: show_error
     mode: restart
     then:
       - lambda: |-
-          id(show_overlay).execute(static_cast<int>(OverlayMode::ERROR));
+          id(show_overlay).execute(OVERLAY_ERROR);
 
   - id: show_alarm
     mode: restart
     then:
       - lambda: |-
-          id(set_overlay_mode).execute(static_cast<int>(OverlayMode::ALARM));
+          id(set_overlay_mode).execute(OVERLAY_ALARM);
           id(play_ui_sound).execute(id(my_snd_timer_alarm));
       - delay: 3s
       - lambda: |-
           id(play_ui_sound).execute(id(my_snd_timer_alarm));
       - delay: 3s
       - lambda: |-
-          if (id(my_overlay_mode) == OverlayMode::ALARM) {
-            id(set_overlay_mode).execute(static_cast<int>(OverlayMode::NONE));
+          if (id(my_overlay_mode) == OVERLAY_ALARM) {
+            id(set_overlay_mode).execute(OVERLAY_NONE);
           }

@@ -53,6 +53,21 @@ binary_sensor:
       - delayed_on: 50ms
       - delayed_off: 50ms
 
+# WS2812-LED-Strip
+light:
+  - platform: esp32_rmt_led_strip
+    id: my_ledstrip
+    name: "LED Status"
+    chipset: WS2812
+    pin: ${led_din_pin}
+    num_leds: ${led_count}
+    channel_colors: GRB
+    restore_mode: RESTORE_AND_ON
+    icon: "mdi:led-strip"
+    use_dma: true
+    rmt_symbols: 192
+    use_psram: true
+
 # I²S-Busse
 i2s_audio:
   - id: my_i2s_microphone

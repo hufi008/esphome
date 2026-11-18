@@ -41,6 +41,6 @@ packages:
   audio: !include ../voice_satellite/audio.yaml
   assistant: !include ../voice_satellite/assistant.yaml
   buttons: !include ../voice_satellite/buttons.yaml
-  info_screen: !include ../voice_satellite/info_screen.yaml
+  display: !include ../voice_satellite/display.yaml
   ledstrip: !include ../voice_satellite/ledstrip.yaml
   modes: !include ../voice_satellite/modes.yaml

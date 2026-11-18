@@ -1,18 +1,10 @@
 # Voice Satellite 1 – Info Screen und Display-Ausgabe
 #
-# Die Info-Seiten bilden den Content-Untergrund. Die Darstellung wird zentral
-# über Overlay -> Assistant -> Content aufgelöst.
-
-i2c:
-  - id: my_i2c_display
-    sda: ${i2c_sda_pin}
-    scl: ${i2c_scl_pin}
-    scan: true
-    frequency: 400kHz
+# Die Hardware-Komponenten werden in hardware.yaml deklariert und hier
+# ausschließlich um ihr funktionsbezogenes Verhalten erweitert.
 
 time:
-  - platform: homeassistant
-    id: my_esptime
+  - id: !extend my_esptime
     on_time_sync:
       - script.execute: update_time
       - lambda: |-
@@ -20,79 +12,12 @@ time:
       - script.execute: update_info_screen
 
 sensor:
-  - platform: wifi_signal
-    id: my_wifi_rssi
-    name: "WiFi Signal dB"
-    update_interval: 30s
+  - id: !extend my_wifi_rssi
     on_value:
       - script.execute: update_info_screen
 
-image:
-  - platform: file
-    file: mdi:wifi-strength-1
-    id: my_symbol_wifi_1
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-2
-    id: my_symbol_wifi_2
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-3
-    id: my_symbol_wifi_3
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:wifi-strength-4
-    id: my_symbol_wifi_4
-    type: binary
-    resize: 16x16
-  - platform: file
-    file: mdi:home-assistant
-    id: my_symbol_api
-    type: binary
-    resize: 16x16
-
-font:
-  - id: my_font_medium
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 14
-    glyphs:
-      - äöüÄÖÜß°»«
-    glyphsets:
-      - GF_Latin_Kernel
-  - id: my_font_large
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 21
-    glyphs:
-      - äöüÄÖÜß°»«
-    glyphsets:
-      - GF_Latin_Kernel
-  - id: my_font_huge
-    file:
-      type: gfonts
-      family: Roboto Condensed
-      weight: 300
-    size: 28
-    glyphs:
-      - äöüÄÖÜß°»«
-    glyphsets:
-      - GF_Latin_Kernel
-
 display:
-  - platform: ssd1306_i2c
-    model: SSD1306_128X64
-    id: my_display
-    i2c_id: my_i2c_display
-    address: ${ssd_addr}
-    update_interval: never
+  - id: !extend my_display
     lambda: |-
       // Statussymbole in der Kopfzeile (jeweils 16x16 Pixel)
       for (int i = 0; i < 4; i++) {

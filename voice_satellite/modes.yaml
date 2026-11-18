@@ -7,17 +7,17 @@ globals:
   - id: my_content_mode
     type: ContentMode
     restore_value: no
-    initial_value: 'CONTENT_BOOT'
+    initial_value: 'ContentMode::BOOT'
 
   - id: my_assist_mode
     type: AssistMode
     restore_value: no
-    initial_value: 'ASSIST_IDLE'
+    initial_value: 'AssistMode::IDLE'
 
   - id: my_overlay_mode
     type: OverlayMode
     restore_value: no
-    initial_value: 'OVERLAY_NONE'
+    initial_value: 'OverlayMode::NONE'
 
 number:
   - platform: template
@@ -31,7 +31,11 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          id(set_content_mode).execute(x);
+          if (x == 0) id(set_content_mode).execute(ContentMode::BOOT);
+          else if (x == 1) id(set_content_mode).execute(ContentMode::IDLE);
+          else if (x == 2) id(set_content_mode).execute(ContentMode::PLAY);
+          else if (x == 3) id(set_content_mode).execute(ContentMode::PAUSE);
+          else if (x == 4) id(set_content_mode).execute(ContentMode::SHUTDOWN);
 
   - platform: template
     id: my_assist_mode_select
@@ -44,7 +48,10 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          id(set_assist_mode).execute(x);
+          if (x == 0) id(set_assist_mode).execute(AssistMode::IDLE);
+          else if (x == 1) id(set_assist_mode).execute(AssistMode::LISTEN);
+          else if (x == 2) id(set_assist_mode).execute(AssistMode::THINK);
+          else if (x == 3) id(set_assist_mode).execute(AssistMode::ANNOUNCE);
 
   - platform: template
     id: my_overlay_mode_select
@@ -57,105 +64,104 @@ number:
     optimistic: true
     set_action:
       - lambda: |-
-          id(set_overlay_mode).execute(x);
+          if (x == 0) id(set_overlay_mode).execute(OverlayMode::NONE);
+          else if (x == 1) id(set_overlay_mode).execute(OverlayMode::VOLUME);
+          else if (x == 2) id(set_overlay_mode).execute(OverlayMode::ERROR);
+          else if (x == 3) id(set_overlay_mode).execute(OverlayMode::ALARM);
 
 script:
   - id: set_content_mode
     parameters:
-      mode: float
+      mode: ContentMode
     then:
       - lambda: |-
-          if (mode == CONTENT_BOOT) {
-            id(my_content_mode) = CONTENT_BOOT;
-          } else if (mode == CONTENT_IDLE) {
-            id(my_content_mode) = CONTENT_IDLE;
-          } else if (mode == CONTENT_PLAY) {
-            id(my_content_mode) = CONTENT_PLAY;
-          } else if (mode == CONTENT_PAUSE) {
-            id(my_content_mode) = CONTENT_PAUSE;
-          } else if (mode == CONTENT_SHUTDOWN) {
-            id(my_content_mode) = CONTENT_SHUTDOWN;
-          } else {
-            ESP_LOGW("modes", "Invalid content mode: %.2f", mode);
-            return;
+          int mode_value;
+          switch (mode) {
+            case ContentMode::BOOT: mode_value = 0; break;
+            case ContentMode::IDLE: mode_value = 1; break;
+            case ContentMode::PLAY: mode_value = 2; break;
+            case ContentMode::PAUSE: mode_value = 3; break;
+            case ContentMode::SHUTDOWN: mode_value = 4; break;
+            default:
+              ESP_LOGW("modes", "Invalid content mode");
+              return;
           }
-          id(my_content_mode_select).publish_state(mode);
-          ESP_LOGD("modes", "content_mode=%.0f", mode);
+          id(my_content_mode) = mode;
+          id(my_content_mode_select).publish_state(mode_value);
+          ESP_LOGD("modes", "content_mode=%d", mode_value);
       - script.execute: update_display
 
   - id: set_assist_mode
     parameters:
-      mode: float
+      mode: AssistMode
     then:
       - lambda: |-
-          if (mode == ASSIST_IDLE) {
-            id(my_assist_mode) = ASSIST_IDLE;
-          } else if (mode == ASSIST_LISTEN) {
-            id(my_assist_mode) = ASSIST_LISTEN;
-          } else if (mode == ASSIST_THINK) {
-            id(my_assist_mode) = ASSIST_THINK;
-          } else if (mode == ASSIST_ANNOUNCE) {
-            id(my_assist_mode) = ASSIST_ANNOUNCE;
-          } else {
-            ESP_LOGW("modes", "Invalid assist mode: %.2f", mode);
-            return;
+          int mode_value;
+          switch (mode) {
+            case AssistMode::IDLE: mode_value = 0; break;
+            case AssistMode::LISTEN: mode_value = 1; break;
+            case AssistMode::THINK: mode_value = 2; break;
+            case AssistMode::ANNOUNCE: mode_value = 3; break;
+            default:
+              ESP_LOGW("modes", "Invalid assist mode");
+              return;
           }
-          id(my_assist_mode_select).publish_state(mode);
-          ESP_LOGD("modes", "assist_mode=%.0f", mode);
+          id(my_assist_mode) = mode;
+          id(my_assist_mode_select).publish_state(mode_value);
+          ESP_LOGD("modes", "assist_mode=%d", mode_value);
       - script.execute: update_display
 
   - id: set_overlay_mode
     parameters:
-      mode: float
+      mode: OverlayMode
     then:
       - lambda: |-
-          if (mode == OVERLAY_NONE) {
-            id(my_overlay_mode) = OVERLAY_NONE;
-          } else if (mode == OVERLAY_VOLUME) {
-            id(my_overlay_mode) = OVERLAY_VOLUME;
-          } else if (mode == OVERLAY_ERROR) {
-            id(my_overlay_mode) = OVERLAY_ERROR;
-          } else if (mode == OVERLAY_ALARM) {
-            id(my_overlay_mode) = OVERLAY_ALARM;
-          } else {
-            ESP_LOGW("modes", "Invalid overlay mode: %.2f", mode);
-            return;
+          int mode_value;
+          switch (mode) {
+            case OverlayMode::NONE: mode_value = 0; break;
+            case OverlayMode::VOLUME: mode_value = 1; break;
+            case OverlayMode::ERROR: mode_value = 2; break;
+            case OverlayMode::ALARM: mode_value = 3; break;
+            default:
+              ESP_LOGW("modes", "Invalid overlay mode");
+              return;
           }
-          id(my_overlay_mode_select).publish_state(mode);
-          ESP_LOGD("modes", "overlay_mode=%.0f", mode);
+          id(my_overlay_mode) = mode;
+          id(my_overlay_mode_select).publish_state(mode_value);
+          ESP_LOGD("modes", "overlay_mode=%d", mode_value);
       - script.execute: update_display
 
   # Generisches, zeitlich begrenztes Overlay (z. B. Lautstärke).
   - id: show_overlay
     mode: restart
     parameters:
-      mode: float
+      mode: OverlayMode
     then:
       - lambda: |-
           id(set_overlay_mode).execute(mode);
       - delay: 5s
       - lambda: |-
           if (id(my_overlay_mode) == mode) {
-            id(set_overlay_mode).execute(OVERLAY_NONE);
+            id(set_overlay_mode).execute(OverlayMode::NONE);
           }
 
   - id: show_error
     mode: restart
     then:
       - lambda: |-
-          id(show_overlay).execute(OVERLAY_ERROR);
+          id(show_overlay).execute(OverlayMode::ERROR);
 
   - id: show_alarm
     mode: restart
     then:
       - lambda: |-
-          id(set_overlay_mode).execute(OVERLAY_ALARM);
+          id(set_overlay_mode).execute(OverlayMode::ALARM);
           id(play_ui_sound).execute(id(my_snd_timer_alarm));
       - delay: 3s
       - lambda: |-
           id(play_ui_sound).execute(id(my_snd_timer_alarm));
       - delay: 3s
       - lambda: |-
-          if (id(my_overlay_mode) == OVERLAY_ALARM) {
-            id(set_overlay_mode).execute(OVERLAY_NONE);
+          if (id(my_overlay_mode) == OverlayMode::ALARM) {
+            id(set_overlay_mode).execute(OverlayMode::NONE);
           }

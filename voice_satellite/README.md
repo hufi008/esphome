@@ -4,11 +4,12 @@ ESPHome-basiertes Smart-Speaker-/Voice-Assistant-Satellite-Projekt für ein ESP3
 
 ## Projektstruktur
 
-- `hardware.yaml` – zentrale Deklaration aller Hardware- und Infrastruktur-Komponenten, einschließlich virtueller Komponenten wie Zeit und WLAN-Sensorik
+- `hardware.yaml` – zentrale Deklaration aller Hardware- und Infrastruktur-Komponenten, einschließlich LED-Strip, Zeit und WLAN-Sensorik
 - `audio.yaml` – Audiofunktionen und Wiedergabe von UI-Sounds
 - `assistant.yaml` – Home-Assistant Voice Assistant und Wake-Word-Ablauf
 - `buttons.yaml` – Tastenfunktionen; GPIO-Binary-Sensoren werden aus `hardware.yaml` erweitert
 - `info_screen.yaml` – Displaydarstellung und Informationsseiten; Display, Zeit und WLAN-Sensor werden aus `hardware.yaml` erweitert
+- `ledstrip.yaml` – LED-Effekte und Prioritätsauflösung; die WS2812-Hardware wird aus `hardware.yaml` erweitert
 - `modes.yaml` – typsichere Zustandsautomaten für Content, Assistant und Overlay
 - `../my_components/` – eigene ESPHome-Komponenten
 - `../sounds/` – Audio-Dateien

@@ -95,7 +95,7 @@ script:
           id(my_content_mode) = mode;
           id(my_content_mode_select).publish_state(mode_name);
           ESP_LOGD("modes", "content_mode=%s", mode_name);
-      - script.execute: update_display
+      - script.execute: update_content
       - script.execute: update_ledstrip
 
   - id: set_assist_mode
@@ -111,7 +111,7 @@ script:
           id(my_assist_mode) = mode;
           id(my_assist_mode_select).publish_state(mode_name);
           ESP_LOGD("modes", "assist_mode=%s", mode_name);
-      - script.execute: update_display
+      - script.execute: update_content
       - script.execute: update_ledstrip
 
   - id: set_overlay_mode
@@ -127,7 +127,7 @@ script:
           id(my_overlay_mode) = mode;
           id(my_overlay_mode_select).publish_state(mode_name);
           ESP_LOGD("modes", "overlay_mode=%s", mode_name);
-      - script.execute: update_display
+      - script.execute: update_content
       - script.execute: update_ledstrip
 
   # Generisches, zeitlich begrenztes Overlay (z. B. Lautstärke).

@@ -16,7 +16,7 @@ time:
     on_time_sync:
       - script.execute: update_time
       - lambda: |-
-          id(set_content_mode).execute(static_cast<int>(ContentMode::IDLE));
+          id(set_content_mode).execute(CONTENT_IDLE);
       - script.execute: update_info_screen
 
 sensor:

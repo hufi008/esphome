@@ -3,26 +3,26 @@
 #include <cstdint>
 
 // Zustände der untersten Darstellungsebene: Information und Media Player.
-enum class ContentMode : uint8_t {
-  BOOT = 0,
-  IDLE = 1,
-  PLAY = 2,
-  PAUSE = 3,
-  SHUTDOWN = 4,
+enum ContentMode : uint8_t {
+  CONTENT_BOOT = 0,
+  CONTENT_IDLE = 1,
+  CONTENT_PLAY = 2,
+  CONTENT_PAUSE = 3,
+  CONTENT_SHUTDOWN = 4,
 };
 
 // Zustände der Assistant-Ebene.
-enum class AssistMode : uint8_t {
-  IDLE = 0,
-  LISTEN = 1,
-  THINK = 2,
-  ANNOUNCE = 3,
+enum AssistMode : uint8_t {
+  ASSIST_IDLE = 0,
+  ASSIST_LISTEN = 1,
+  ASSIST_THINK = 2,
+  ASSIST_ANNOUNCE = 3,
 };
 
 // Zustände der obersten Darstellungsebene.
-enum class OverlayMode : uint8_t {
-  NONE = 0,
-  VOLUME = 1,
-  ERROR = 2,
-  ALARM = 3,
+enum OverlayMode : uint8_t {
+  OVERLAY_NONE = 0,
+  OVERLAY_VOLUME = 1,
+  OVERLAY_ERROR = 2,
+  OVERLAY_ALARM = 3,
 };

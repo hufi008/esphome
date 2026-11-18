@@ -1,0 +1,210 @@
+# Voice Satellite 1 – LED-Strip und Status-Effekte
+#
+# Die WS2812-Hardware wird in hardware.yaml deklariert.
+# Dieses Paket ergänzt ausschließlich Effekte und deren Mode-Auswahl.
+
+globals:
+  - id: my_idle_color
+    type: esphome::Color
+    initial_value: 'Color(127, 0, 255)'
+
+text:
+  - platform: template
+    id: my_idle_color_hex
+    name: "Idle Farbe HEX"
+    optimistic: false
+    min_length: 6
+    max_length: 7
+    initial_value: "000000"
+    restore_value: true
+    mode: text
+    on_value:
+      then:
+        - lambda: |-
+            const unsigned long hex_value = std::strtoul(x.c_str(), nullptr, 16);
+            const uint8_t r = (hex_value >> 16) & 0xFF;
+            const uint8_t g = (hex_value >> 8) & 0xFF;
+            const uint8_t b = hex_value & 0xFF;
+            id(my_idle_color) = esphome::Color(r, g, b);
+            ESP_LOGD("ledstrip", "idle_color RGB: (%u, %u, %u)", r, g, b);
+    set_action:
+      then:
+        - lambda: |-
+            std::string hex = x;
+            if (!hex.empty() && hex[0] == '#') hex = hex.substr(1);
+            if (hex.length() != 6) {
+              id(my_idle_color_hex).status_set_error(LOG_STR("Use XXXXXX for HEX-Color"));
+              return;
+            }
+            for (char c : hex) {
+              if (!isxdigit(static_cast<unsigned char>(c))) {
+                id(my_idle_color_hex).status_set_error(LOG_STR("Use XXXXXX for HEX-Color"));
+                return;
+              }
+            }
+            id(my_idle_color_hex).status_clear_error();
+            id(my_idle_color_hex).publish_state(hex);
+
+light:
+  - id: !extend my_ledstrip
+    effects:
+      # Content-Effekte
+      - addressable_lambda:
+          name: "Effect CONTENT_BOOT"
+          update_interval: 50ms
+          lambda: |-
+            const int wave_time = (millis() / 12) % 256;
+            for (int i = 0; i < it.size(); i++) {
+              int v = (wave_time + abs(i - it.size() / 2.0f) * 16) % 256;
+              it[i] = Color(0, 0, v);
+            }
+
+      - addressable_lambda:
+          name: "Effect CONTENT_IDLE"
+          update_interval: 16ms
+          lambda: |-
+            const auto color = id(my_idle_color);
+            for (int i = 0; i < it.size(); i++) it[i] = color;
+
+      - addressable_rainbow:
+          name: "Effect CONTENT_PLAY"
+          speed: 16
+          width: 12
+
+      - addressable_lambda:
+          name: "Effect CONTENT_PAUSE"
+          update_interval: 50ms
+          lambda: |-
+            const float t = (sin(millis() / 500.0f) + 1.0f) / 2.0f;
+            const uint8_t y = 60 + static_cast<uint8_t>(t * 120);
+            for (int i = 0; i < it.size(); i++) it[i] = Color(y, y, 0);
+
+      # Assistant-Effekte
+      - addressable_lambda:
+          name: "Effect ASSIST_LISTEN"
+          update_interval: 20ms
+          lambda: |-
+            const int count = it.size();
+            const float pulse = (sin(millis() / 250.0f) + 1.0f) * 0.5f;
+            const float center = (count - 1) / 2.0f;
+            for (int i = 0; i < count; i++) {
+              const float d = fabsf(i - center);
+              float falloff = 1.0f - (d / center);
+              if (falloff < 0.0f) falloff = 0.0f;
+              const int brightness = static_cast<int>(falloff * pulse * 255);
+              it[i] = Color(0, 64, brightness);
+            }
+
+      - addressable_lambda:
+          name: "Effect ASSIST_THINK"
+          update_interval: 20ms
+          lambda: |-
+            int pos = (millis() / 40) % it.size();
+            pos = it.size() - pos;
+            for (int i = 0; i < it.size(); i++) {
+              const int d = abs(i - pos);
+              const int b = max(0, 150 - d * 40);
+              it[i] = Color(b, 0, b);
+            }
+
+      - addressable_lambda:
+          name: "Effect ASSIST_ANNOUNCE"
+          update_interval: 20ms
+          lambda: |-
+            const int count = it.size();
+            const int pos = (millis() / 40) % count;
+            for (int i = 0; i < count; i++) {
+              const int d = abs(i - pos);
+              const int b = max(0, 120 - d * 40);
+              it[i] = Color(b + 75, b, b + 75);
+            }
+
+      # Overlay-Effekte
+      - addressable_lambda:
+          name: "Effect OVERLAY_VOLUME"
+          update_interval: 20ms
+          lambda: |-
+            if (id(my_va_player).is_muted()) {
+              const float t = (millis() % 800) / 800.0f;
+              const float fade = (sin(t * 2.0f * 3.14159f) + 1.0f) / 2.0f;
+              for (int i = 0; i < it.size(); i++) {
+                it[i] = Color(0, 0, static_cast<int>(128 * fade));
+              }
+              return;
+            }
+
+            const float index = id(my_va_player).volume * it.size();
+            for (int i = 0; i < it.size(); i++) {
+              const float fade = std::clamp(index - i, 0.2f, 1.0f);
+              // Strip ist physisch andersherum montiert.
+              it[i] = Color(0, static_cast<int>(127 * fade), static_cast<int>(255 * fade));
+            }
+
+      - addressable_lambda:
+          name: "Effect OVERLAY_ERROR"
+          update_interval: 40ms
+          lambda: |-
+            const float t = (millis() % 800) / 800.0f;
+            const float b = (sin(t * 2.0f * 3.14159f) + 1.0f) / 2.0f;
+            for (int i = 0; i < it.size(); i++) {
+              it[i] = Color(static_cast<int>(200 * b), 0, 0);
+            }
+
+      - addressable_lambda:
+          name: "Effect OVERLAY_ALARM"
+          update_interval: 50ms
+          lambda: |-
+            const float t = (sin(millis() / 250.0f) + 1.0f) / 2.0f;
+            const uint8_t y = 60 + static_cast<uint8_t>(t * 120);
+            for (int i = 0; i < it.size(); i++) it[i] = Color(0, y, 0);
+
+script:
+  # Zentrale Prioritätsauflösung: Overlay -> Assistant -> Content.
+  - id: update_ledstrip
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(my_overlay_mode) == OverlayMode::VOLUME) {
+            id(my_ledstrip).turn_on().set_effect("Effect OVERLAY_VOLUME").perform();
+            return;
+          }
+          if (id(my_overlay_mode) == OverlayMode::ERROR) {
+            id(my_ledstrip).turn_on().set_effect("Effect OVERLAY_ERROR").perform();
+            return;
+          }
+          if (id(my_overlay_mode) == OverlayMode::ALARM) {
+            id(my_ledstrip).turn_on().set_effect("Effect OVERLAY_ALARM").perform();
+            return;
+          }
+
+          switch (id(my_assist_mode)) {
+            case AssistMode::LISTEN:
+              id(my_ledstrip).turn_on().set_effect("Effect ASSIST_LISTEN").perform();
+              return;
+            case AssistMode::THINK:
+              id(my_ledstrip).turn_on().set_effect("Effect ASSIST_THINK").perform();
+              return;
+            case AssistMode::ANNOUNCE:
+              id(my_ledstrip).turn_on().set_effect("Effect ASSIST_ANNOUNCE").perform();
+              return;
+            case AssistMode::IDLE:
+              break;
+          }
+
+          switch (id(my_content_mode)) {
+            case ContentMode::BOOT:
+              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_BOOT").perform();
+              break;
+            case ContentMode::IDLE:
+              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_IDLE").perform();
+              break;
+            case ContentMode::PLAY:
+              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_PLAY").perform();
+              break;
+            case ContentMode::PAUSE:
+              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_PAUSE").perform();
+              break;
+            case ContentMode::SHUTDOWN:
+              id(my_ledstrip).turn_off().perform();
+              break;
+          }

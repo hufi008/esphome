@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 // Zustände der untersten Darstellungsebene: Information und Media Player.
 enum class ContentMode : uint8_t {
@@ -27,44 +29,73 @@ enum class OverlayMode : uint8_t {
   ALARM = 3,
 };
 
-// Numeric HA debug controls are the only boundary between numbers and enums.
-// All enum/integer conversions are kept here; the rest of the project stays typed.
-#include <cmath>
-
+// Home-Assistant-Debug-Selects verwenden dieselben Namen wie die Enum-Werte.
+// Die Zuordnung liegt zentral hier; im YAML gibt es keine Integer-Konvertierung.
 template<typename Enum>
-inline bool mode_from_number(float value, uint8_t max_value, Enum &mode) {
-  if (!std::isfinite(value) || value < 0.0f || value > max_value ||
-      std::floor(value) != value) {
-    return false;
+struct ModeOption {
+  const char *name;
+  Enum value;
+};
+
+template<typename Enum, size_t N>
+inline bool mode_from_string(const char *name, const ModeOption<Enum> (&options)[N], Enum &mode) {
+  if (name == nullptr) return false;
+  for (const auto &option : options) {
+    if (std::strcmp(name, option.name) == 0) {
+      mode = option.value;
+      return true;
+    }
   }
-  mode = static_cast<Enum>(static_cast<uint8_t>(value));
-  return true;
+  return false;
 }
 
-template<typename Enum>
-inline bool mode_to_number(Enum mode, uint8_t max_value, int &value) {
-  const uint8_t raw = static_cast<uint8_t>(mode);
-  if (raw > max_value) return false;
-  value = static_cast<int>(raw);
-  return true;
+template<typename Enum, size_t N>
+inline const char *mode_to_string(Enum mode, const ModeOption<Enum> (&options)[N]) {
+  for (const auto &option : options) {
+    if (mode == option.value) return option.name;
+  }
+  return nullptr;
 }
 
-inline bool content_mode_from_number(float value, ContentMode &mode) {
-  return mode_from_number(value, 4, mode);
+inline constexpr ModeOption<ContentMode> CONTENT_MODE_OPTIONS[] = {
+    {"BOOT", ContentMode::BOOT},
+    {"IDLE", ContentMode::IDLE},
+    {"PLAY", ContentMode::PLAY},
+    {"PAUSE", ContentMode::PAUSE},
+    {"SHUTDOWN", ContentMode::SHUTDOWN},
+};
+
+inline constexpr ModeOption<AssistMode> ASSIST_MODE_OPTIONS[] = {
+    {"IDLE", AssistMode::IDLE},
+    {"LISTEN", AssistMode::LISTEN},
+    {"THINK", AssistMode::THINK},
+    {"ANNOUNCE", AssistMode::ANNOUNCE},
+};
+
+inline constexpr ModeOption<OverlayMode> OVERLAY_MODE_OPTIONS[] = {
+    {"NONE", OverlayMode::NONE},
+    {"VOLUME", OverlayMode::VOLUME},
+    {"ERROR", OverlayMode::ERROR},
+    {"ALARM", OverlayMode::ALARM},
+};
+
+inline bool content_mode_from_string(const char *name, ContentMode &mode) {
+  return mode_from_string(name, CONTENT_MODE_OPTIONS, mode);
 }
-inline bool assist_mode_from_number(float value, AssistMode &mode) {
-  return mode_from_number(value, 3, mode);
-}
-inline bool overlay_mode_from_number(float value, OverlayMode &mode) {
-  return mode_from_number(value, 3, mode);
+inline const char *content_mode_to_string(ContentMode mode) {
+  return mode_to_string(mode, CONTENT_MODE_OPTIONS);
 }
 
-inline bool content_mode_to_number(ContentMode mode, int &value) {
-  return mode_to_number(mode, 4, value);
+inline bool assist_mode_from_string(const char *name, AssistMode &mode) {
+  return mode_from_string(name, ASSIST_MODE_OPTIONS, mode);
 }
-inline bool assist_mode_to_number(AssistMode mode, int &value) {
-  return mode_to_number(mode, 3, value);
+inline const char *assist_mode_to_string(AssistMode mode) {
+  return mode_to_string(mode, ASSIST_MODE_OPTIONS);
 }
-inline bool overlay_mode_to_number(OverlayMode mode, int &value) {
-  return mode_to_number(mode, 3, value);
+
+inline bool overlay_mode_from_string(const char *name, OverlayMode &mode) {
+  return mode_from_string(name, OVERLAY_MODE_OPTIONS, mode);
+}
+inline const char *overlay_mode_to_string(OverlayMode mode) {
+  return mode_to_string(mode, OVERLAY_MODE_OPTIONS);
 }

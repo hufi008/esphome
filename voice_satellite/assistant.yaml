@@ -49,8 +49,17 @@ voice_assistant:
         id(play_ui_sound).execute(id(my_snd_thinking));
         id(set_assist_mode).execute(AssistMode::THINK);
 
+  on_stt_end:
+    - lambda: |-
+        ESP_LOGI("voice_assistant", "STT: %s", x.c_str());
+        id(my_va_command_text) = x;
+        id(my_va_response_text).clear();
+        id(update_content).execute();
+
   on_tts_start:
     - lambda: |-
+        ESP_LOGI("voice_assistant", "TTS: %s", x.c_str());
+        id(my_va_response_text) = x;
         id(play_ui_sound).execute(id(my_snd_success));
         id(set_assist_mode).execute(AssistMode::ANNOUNCE);
 

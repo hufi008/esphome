@@ -60,8 +60,10 @@ light:
           update_interval: 50ms
           lambda: |-
             const int wave_time = (millis() / 12) % 256;
+            const int center = it.size() / 2;
             for (int i = 0; i < it.size(); i++) {
-              int v = (wave_time + abs(i - it.size() / 2.0f) * 16) % 256;
+              const int distance = abs(i - center);
+              const int v = (wave_time + distance * 16) % 256;
               it[i] = Color(0, 0, v);
             }
 

@@ -1,3 +1,15 @@
+# API-Verbindungsstatus: Symbol und Connect-/Disconnect-Sounds aktualisieren.
+api:
+  - id: !extend api_id
+    on_client_connected:
+      - lambda: |-
+          id(play_ui_sound).execute(id(my_snd_connect));
+      - script.execute: update_info_screen
+    on_client_disconnected:
+      - lambda: |-
+          id(play_ui_sound).execute(id(my_snd_disconnect));
+      - script.execute: update_info_screen
+
 # Voice Satellite 1 – Info Screen und Display-Ausgabe
 #
 # Die Hardware-Komponenten werden in hardware.yaml deklariert und hier

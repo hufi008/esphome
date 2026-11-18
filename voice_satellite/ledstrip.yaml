@@ -204,7 +204,7 @@ script:
               id(my_ledstrip).turn_on().set_effect("Effect CONTENT_BOOT").perform();
               break;
             case ContentMode::IDLE:
-              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_IDLE").perform();
+              id(my_ledstrip).turn_off().perform();
               break;
             case ContentMode::PLAY:
               id(my_ledstrip).turn_on().set_effect("Effect CONTENT_PLAY").perform();

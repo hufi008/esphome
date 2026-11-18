@@ -1,7 +1,7 @@
 # Voice Satellite 1 – Mode-Steuerung
 #
 # Die drei Modi werden ausschließlich über ihre Setter-Scripte geändert.
-# Die Setter synchronisieren die HA-Debug-Number und aktualisieren die Anzeige.
+# Die Setter synchronisieren die HA-Debug-Number und aktualisieren Display und LEDs.
 
 globals:
   - id: my_content_mode
@@ -90,6 +90,7 @@ script:
           id(my_content_mode_select).publish_state(mode_value);
           ESP_LOGD("modes", "content_mode=%d", mode_value);
       - script.execute: update_display
+      - script.execute: update_ledstrip
 
   - id: set_assist_mode
     parameters:
@@ -110,6 +111,7 @@ script:
           id(my_assist_mode_select).publish_state(mode_value);
           ESP_LOGD("modes", "assist_mode=%d", mode_value);
       - script.execute: update_display
+      - script.execute: update_ledstrip
 
   - id: set_overlay_mode
     parameters:
@@ -130,6 +132,7 @@ script:
           id(my_overlay_mode_select).publish_state(mode_value);
           ESP_LOGD("modes", "overlay_mode=%d", mode_value);
       - script.execute: update_display
+      - script.execute: update_ledstrip
 
   # Generisches, zeitlich begrenztes Overlay (z. B. Lautstärke).
   - id: show_overlay

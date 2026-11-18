@@ -42,17 +42,17 @@ voice_assistant:
   on_listening:
     - lambda: |-
         id(play_ui_sound).execute(id(my_snd_wake));
-        id(set_assist_mode).execute(ASSIST_LISTEN);
+        id(set_assist_mode).execute(AssistMode::LISTEN);
 
   on_stt_vad_end:
     - lambda: |-
         id(play_ui_sound).execute(id(my_snd_thinking));
-        id(set_assist_mode).execute(ASSIST_THINK);
+        id(set_assist_mode).execute(AssistMode::THINK);
 
   on_tts_start:
     - lambda: |-
         id(play_ui_sound).execute(id(my_snd_success));
-        id(set_assist_mode).execute(ASSIST_ANNOUNCE);
+        id(set_assist_mode).execute(AssistMode::ANNOUNCE);
 
   on_end:
     - if:
@@ -64,12 +64,12 @@ voice_assistant:
     # Die kurze Nachlaufzeit lässt die letzte Assistant-Anzeige lesbar.
     - delay: 3s
     - lambda: |-
-        id(set_assist_mode).execute(ASSIST_IDLE);
+        id(set_assist_mode).execute(AssistMode::IDLE);
 
   on_error:
     - lambda: |-
         id(play_ui_sound).execute(id(my_snd_error));
-        id(set_assist_mode).execute(ASSIST_IDLE);
+        id(set_assist_mode).execute(AssistMode::IDLE);
         id(show_error).execute();
     - if:
         condition:

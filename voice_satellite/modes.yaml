@@ -1,7 +1,7 @@
 # Voice Satellite 1 – Mode-Steuerung
 #
 # Die drei Modi werden ausschließlich über ihre Setter-Scripte geändert.
-# Die Setter synchronisieren die HA-Debug-Number und aktualisieren Display und LEDs.
+# Die Setter synchronisieren die HA-Debug-Selects und aktualisieren Display und LEDs.
 
 globals:
   - id: my_content_mode
@@ -19,59 +19,66 @@ globals:
     restore_value: no
     initial_value: 'OverlayMode::NONE'
 
-number:
+select:
   - platform: template
     id: my_content_mode_select
     name: "Content Mode"
     entity_category: diagnostic
-    min_value: 0
-    max_value: 4
-    step: 1
-    initial_value: 0
+    options:
+      - BOOT
+      - IDLE
+      - PLAY
+      - PAUSE
+      - SHUTDOWN
+    initial_option: BOOT
     optimistic: true
     set_action:
       - lambda: |-
           ContentMode mode;
-          if (content_mode_from_number(x, mode)) {
+          if (content_mode_from_string(x.c_str(), mode)) {
             id(set_content_mode).execute(mode);
           } else {
-            ESP_LOGW("modes", "Invalid content mode number: %.1f", x);
+            ESP_LOGW("modes", "Invalid content mode: %s", x.c_str());
           }
 
   - platform: template
     id: my_assist_mode_select
     name: "Assist Mode"
     entity_category: diagnostic
-    min_value: 0
-    max_value: 3
-    step: 1
-    initial_value: 0
+    options:
+      - IDLE
+      - LISTEN
+      - THINK
+      - ANNOUNCE
+    initial_option: IDLE
     optimistic: true
     set_action:
       - lambda: |-
           AssistMode mode;
-          if (assist_mode_from_number(x, mode)) {
+          if (assist_mode_from_string(x.c_str(), mode)) {
             id(set_assist_mode).execute(mode);
           } else {
-            ESP_LOGW("modes", "Invalid assist mode number: %.1f", x);
+            ESP_LOGW("modes", "Invalid assist mode: %s", x.c_str());
           }
 
   - platform: template
     id: my_overlay_mode_select
     name: "Overlay Mode"
     entity_category: diagnostic
-    min_value: 0
-    max_value: 3
-    step: 1
-    initial_value: 0
+    options:
+      - NONE
+      - VOLUME
+      - ERROR
+      - ALARM
+    initial_option: NONE
     optimistic: true
     set_action:
       - lambda: |-
           OverlayMode mode;
-          if (overlay_mode_from_number(x, mode)) {
+          if (overlay_mode_from_string(x.c_str(), mode)) {
             id(set_overlay_mode).execute(mode);
           } else {
-            ESP_LOGW("modes", "Invalid overlay mode number: %.1f", x);
+            ESP_LOGW("modes", "Invalid overlay mode: %s", x.c_str());
           }
 
 script:
@@ -80,14 +87,14 @@ script:
       mode: ContentMode
     then:
       - lambda: |-
-          int mode_value;
-          if (!content_mode_to_number(mode, mode_value)) {
+          const char *mode_name = content_mode_to_string(mode);
+          if (mode_name == nullptr) {
             ESP_LOGW("modes", "Invalid content mode");
             return;
           }
           id(my_content_mode) = mode;
-          id(my_content_mode_select).publish_state(mode_value);
-          ESP_LOGD("modes", "content_mode=%d", mode_value);
+          id(my_content_mode_select).publish_state(mode_name);
+          ESP_LOGD("modes", "content_mode=%s", mode_name);
       - script.execute: update_display
       - script.execute: update_ledstrip
 
@@ -96,14 +103,14 @@ script:
       mode: AssistMode
     then:
       - lambda: |-
-          int mode_value;
-          if (!assist_mode_to_number(mode, mode_value)) {
+          const char *mode_name = assist_mode_to_string(mode);
+          if (mode_name == nullptr) {
             ESP_LOGW("modes", "Invalid assist mode");
             return;
           }
           id(my_assist_mode) = mode;
-          id(my_assist_mode_select).publish_state(mode_value);
-          ESP_LOGD("modes", "assist_mode=%d", mode_value);
+          id(my_assist_mode_select).publish_state(mode_name);
+          ESP_LOGD("modes", "assist_mode=%s", mode_name);
       - script.execute: update_display
       - script.execute: update_ledstrip
 
@@ -112,14 +119,14 @@ script:
       mode: OverlayMode
     then:
       - lambda: |-
-          int mode_value;
-          if (!overlay_mode_to_number(mode, mode_value)) {
+          const char *mode_name = overlay_mode_to_string(mode);
+          if (mode_name == nullptr) {
             ESP_LOGW("modes", "Invalid overlay mode");
             return;
           }
           id(my_overlay_mode) = mode;
-          id(my_overlay_mode_select).publish_state(mode_value);
-          ESP_LOGD("modes", "overlay_mode=%d", mode_value);
+          id(my_overlay_mode_select).publish_state(mode_name);
+          ESP_LOGD("modes", "overlay_mode=%s", mode_name);
       - script.execute: update_display
       - script.execute: update_ledstrip
 

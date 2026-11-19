@@ -53,55 +53,23 @@ display:
       int cy = 40;
       int width = 128;
 
-      // Text-Scrolling mit weichen Richtungswechseln und Clipping.
-      auto scroll_marquee = [&](int center_x, int center_y, int text_width,
-                                display::BaseFont *font, const std::string &value) {
-        int tx, ty, tw, th;
-        it.get_text_bounds(center_x, center_y, value.c_str(), font,
-                           TextAlign::CENTER, &tx, &ty, &tw, &th);
-        const int text_half_width = tw / 2;
-        const int area_half_width = text_width / 2;
-        tx = center_x - area_half_width;
-        tw = text_width;
-        it.start_clipping(tx, ty, tx + tw, ty + th);
 
-        if (text_half_width > area_half_width) {
-          const float max_amplitude = text_half_width - area_half_width;
-          const float duration_move_ms = 3000.0f;
-          const float duration_pause_ms = 1200.0f;
-          const float total_cycle_ms = duration_move_ms * 2.0f + duration_pause_ms * 2.0f;
-          const float current_time = fmodf(millis(), total_cycle_ms);
-          float offset = 0.0f;
-
-          if (current_time < duration_pause_ms) {
-            offset = -max_amplitude;
-          } else if (current_time < duration_pause_ms + duration_move_ms) {
-            const float t = (current_time - duration_pause_ms) / duration_move_ms;
-            const float smooth_t = t * t * (3.0f - 2.0f * t);
-            offset = -max_amplitude + smooth_t * max_amplitude * 2.0f;
-          } else if (current_time < duration_pause_ms * 2.0f + duration_move_ms) {
-            offset = max_amplitude;
-          } else {
-            const float t = (current_time - duration_pause_ms * 2.0f - duration_move_ms) / duration_move_ms;
-            const float smooth_t = t * t * (3.0f - 2.0f * t);
-            offset = max_amplitude - smooth_t * max_amplitude * 2.0f;
-          }
-          it.print(center_x - offset, center_y, font, TextAlign::CENTER, value.c_str());
-        } else {
-          it.print(center_x, center_y, font, TextAlign::CENTER, value.c_str());
-        }
-        it.end_clipping();
-      };
-
+      const uint32_t now_ms = millis();
       if (id(my_display_message3).empty() && id(my_display_message2).empty()) {
-        scroll_marquee(cx, cy, width, id(my_font_huge), id(my_display_message1));
+        voice_satellite::scroll_marquee(it, cx, cy, width, id(my_font_huge),
+                                        id(my_display_message1), TextAlign::CENTER, now_ms);
       } else if (id(my_display_message3).empty()) {
-        scroll_marquee(cx, cy - 10, width, id(my_font_large), id(my_display_message1));
-        scroll_marquee(cx, cy + 10, width, id(my_font_large), id(my_display_message2));
+        voice_satellite::scroll_marquee(it, cx, cy - 10, width, id(my_font_large),
+                                        id(my_display_message1), TextAlign::CENTER, now_ms);
+        voice_satellite::scroll_marquee(it, cx, cy + 10, width, id(my_font_large),
+                                        id(my_display_message2), TextAlign::CENTER, now_ms);
       } else {
-        scroll_marquee(cx, cy - 13, width, id(my_font_medium), id(my_display_message1));
-        scroll_marquee(cx, cy, width, id(my_font_medium), id(my_display_message2));
-        scroll_marquee(cx, cy + 13, width, id(my_font_medium), id(my_display_message3));
+        voice_satellite::scroll_marquee(it, cx, cy - 13, width, id(my_font_medium),
+                                        id(my_display_message1), TextAlign::CENTER, now_ms);
+        voice_satellite::scroll_marquee(it, cx, cy, width, id(my_font_medium),
+                                        id(my_display_message2), TextAlign::CENTER, now_ms);
+        voice_satellite::scroll_marquee(it, cx, cy + 13, width, id(my_font_medium),
+                                        id(my_display_message3), TextAlign::CENTER, now_ms);
       }
 
 globals:
@@ -325,15 +293,13 @@ esphome:
     - priority: 250
       then:
         - lambda: |-
-            // Einheitlicher Registrierungspunkt für Script-Wrapper und direkte Lambdas.
-            auto register_info_screen = [](std::function<void()> updater) {
-              id(my_idle_updater_scripts).push_back(updater);
-            };
-
-            // ESPHome-Scripts werden als aufrufbare Lambdas registriert.
-            register_info_screen([]() { id(update_time).execute(); });
-            register_info_screen([]() { id(update_date).execute(); });
-            register_info_screen([]() { id(update_weekday).execute(); });
+            // ESPHome-Script-Aufrufe bleiben hier im YAML-Kontext.
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(update_time).execute(); });
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(update_date).execute(); });
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(update_weekday).execute(); });
         - script.execute: update_symbols
         - script.execute: update_content
 

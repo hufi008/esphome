@@ -80,3 +80,20 @@ voice_assistant:
             micro_wake_word.is_running:
         then:
           - micro_wake_word.start:
+
+  # Timer-Ereignisse halten die Anzeige der aktiven Timer aktuell.
+  on_timer_started:
+    - script.execute: update_content
+
+  on_timer_updated:
+    - script.execute: update_content
+
+  on_timer_cancelled:
+    - script.execute: update_content
+
+  on_timer_finished:
+    - script.execute: update_content
+    - script.execute: show_alarm
+
+  on_timer_tick:
+    - script.execute: update_content

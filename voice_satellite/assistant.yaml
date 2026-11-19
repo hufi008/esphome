@@ -77,7 +77,7 @@ voice_assistant:
         then:
           - micro_wake_word.start:
     # Letzte Assistant-Anzeige bleibt für einen vollständigen Scroll-Zyklus lesbar.
-    - delay: 10s
+    - delay: 4s
     - lambda: |-
         id(set_assist_mode).execute(AssistMode::IDLE);
 

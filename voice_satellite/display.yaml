@@ -90,6 +90,10 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
+  - id: my_active_timer_count
+    type: size_t
+    restore_value: no
+    initial_value: '0'
   - id: my_idle_updater_scripts
     type: 'std::vector<std::function<void()>>'
     initial_value: 'std::vector<std::function<void()>>()'
@@ -153,7 +157,44 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (!id(my_idle_updater_scripts).empty()) {
+          // Aktive Timer haben Vorrang vor den normalen Info-Seiten.
+          // Es werden die zwei Timer mit der kürzesten Restzeit angezeigt.
+          const auto &timers = id(my_voice_assistant).get_timers();
+          const esphome::voice_assistant::Timer *active_timers[2] = {nullptr, nullptr};
+          size_t active_timer_count = 0;
+
+          for (const auto &timer : timers) {
+            if (!timer.is_active) continue;
+            active_timer_count++;
+
+            if (active_timers[0] == nullptr || timer.seconds_left < active_timers[0]->seconds_left) {
+              active_timers[1] = active_timers[0];
+              active_timers[0] = &timer;
+            } else if (active_timers[1] == nullptr || timer.seconds_left < active_timers[1]->seconds_left) {
+              active_timers[1] = &timer;
+            }
+          }
+
+          id(my_active_timer_count) = active_timer_count;
+
+          if (active_timer_count > 0) {
+            // Bei laufenden Timern die normale Seitenrotation anhalten.
+            id(my_page_info_start_time) = 0;
+
+            const std::string name1 = active_timers[0]->name.empty() ? "Timer" : active_timers[0]->name;
+            id(my_idle_message1) = name1 + ": " + std::to_string(active_timers[0]->seconds_left) + " s";
+
+            if (active_timer_count >= 2 && active_timers[1] != nullptr) {
+              if (active_timer_count == 2) {
+                const std::string name2 = active_timers[1]->name.empty() ? "Timer" : active_timers[1]->name;
+                id(my_idle_message2) = name2 + ": " + std::to_string(active_timers[1]->seconds_left) + " s";
+              } else {
+                id(my_idle_message2) = "+" + std::to_string(active_timer_count - 1) + " weitere Timer";
+              }
+            } else {
+              id(my_idle_message2).clear();
+            }
+          } else if (!id(my_idle_updater_scripts).empty()) {
             const uint32_t duration_ms = (uint32_t) (id(my_page_info_duration).state * 1000);
             if (id(my_page_info_start_time) == 0 ||
                 millis() - id(my_page_info_start_time) >= duration_ms) {
@@ -210,7 +251,7 @@ script:
                       break;
 
                     case ContentMode::IDLE:
-                      id(my_display_title) = "INFO";
+                      id(my_display_title) = id(my_active_timer_count) > 0 ? "TIMER" : "INFO";
                       id(my_display_message1) = id(my_idle_message1);
                       id(my_display_message2) = id(my_idle_message2);
                       break;

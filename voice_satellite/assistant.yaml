@@ -12,6 +12,10 @@ micro_wake_word:
     - model: okay_nabu
       id: my_wake_word_model
   on_wake_word_detected:
+    - lambda: |-
+        id(my_va_command_text).clear();
+        id(my_va_response_text).clear();
+        id(update_content).execute();
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
 

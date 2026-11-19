@@ -185,11 +185,10 @@ script:
             id(my_idle_message1) = name1 + ": " + std::to_string(active_timers[0]->seconds_left) + " s";
 
             if (active_timer_count >= 2 && active_timers[1] != nullptr) {
-              if (active_timer_count == 2) {
-                const std::string name2 = active_timers[1]->name.empty() ? "Timer" : active_timers[1]->name;
-                id(my_idle_message2) = name2 + ": " + std::to_string(active_timers[1]->seconds_left) + " s";
-              } else {
-                id(my_idle_message2) = "+" + std::to_string(active_timer_count - 1) + " weitere Timer";
+              const std::string name2 = active_timers[1]->name.empty() ? "Timer" : active_timers[1]->name;
+              id(my_idle_message2) = name2 + ": " + std::to_string(active_timers[1]->seconds_left) + " s";
+              if (active_timer_count > 2) {
+                id(my_idle_message2) += " (+" + std::to_string(active_timer_count - 2) + ")";
               }
             } else {
               id(my_idle_message2).clear();

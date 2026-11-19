@@ -49,17 +49,59 @@ display:
       it.line(0, 15, 127, 15);
       it.print(0, 0, id(my_font_medium), id(my_display_title).c_str());
 
-      const int cx = 64;
-      const int cy = 40;
+      int cx = 64;
+      int cy = 40;
+      int width = 128;
 
-      if (id(my_display_message2).empty()) {
-        it.print(cx, cy, id(my_font_large), TextAlign::CENTER,
-                 id(my_display_message1).c_str());
+      // Text-Scrolling mit weichen Richtungswechseln und Clipping.
+      auto scroll_marquee = [&](int center_x, int center_y, int text_width,
+                                display::BaseFont *font, const std::string &value) {
+        int tx, ty, tw, th;
+        it.get_text_bounds(center_x, center_y, value.c_str(), font,
+                           TextAlign::CENTER, &tx, &ty, &tw, &th);
+        const int text_half_width = tw / 2;
+        const int area_half_width = text_width / 2;
+        tx = center_x - area_half_width;
+        tw = text_width;
+        it.start_clipping(tx, ty, tx + tw, ty + th);
+
+        if (text_half_width > area_half_width) {
+          const float max_amplitude = text_half_width - area_half_width;
+          const float duration_move_ms = 3000.0f;
+          const float duration_pause_ms = 1200.0f;
+          const float total_cycle_ms = duration_move_ms * 2.0f + duration_pause_ms * 2.0f;
+          const float current_time = fmodf(millis(), total_cycle_ms);
+          float offset = 0.0f;
+
+          if (current_time < duration_pause_ms) {
+            offset = -max_amplitude;
+          } else if (current_time < duration_pause_ms + duration_move_ms) {
+            const float t = (current_time - duration_pause_ms) / duration_move_ms;
+            const float smooth_t = t * t * (3.0f - 2.0f * t);
+            offset = -max_amplitude + smooth_t * max_amplitude * 2.0f;
+          } else if (current_time < duration_pause_ms * 2.0f + duration_move_ms) {
+            offset = max_amplitude;
+          } else {
+            const float t = (current_time - duration_pause_ms * 2.0f - duration_move_ms) / duration_move_ms;
+            const float smooth_t = t * t * (3.0f - 2.0f * t);
+            offset = max_amplitude - smooth_t * max_amplitude * 2.0f;
+          }
+          it.print(center_x - offset, center_y, font, TextAlign::CENTER, value.c_str());
+        } else {
+          it.print(center_x, center_y, font, TextAlign::CENTER, value.c_str());
+        }
+        it.end_clipping();
+      };
+
+      if (id(my_display_message3).empty() && id(my_display_message2).empty()) {
+        scroll_marquee(cx, cy, width, id(my_font_huge), id(my_display_message1));
+      } else if (id(my_display_message3).empty()) {
+        scroll_marquee(cx, cy - 10, width, id(my_font_large), id(my_display_message1));
+        scroll_marquee(cx, cy + 10, width, id(my_font_large), id(my_display_message2));
       } else {
-        it.print(cx, cy - 10, id(my_font_large), TextAlign::CENTER,
-                 id(my_display_message1).c_str());
-        it.print(cx, cy + 10, id(my_font_large), TextAlign::CENTER,
-                 id(my_display_message2).c_str());
+        scroll_marquee(cx, cy - 13, width, id(my_font_medium), id(my_display_message1));
+        scroll_marquee(cx, cy, width, id(my_font_medium), id(my_display_message2));
+        scroll_marquee(cx, cy + 13, width, id(my_font_medium), id(my_display_message3));
       }
 
 globals:
@@ -67,15 +109,7 @@ globals:
     type: 'image::Image*[4]'
     initial_value: '{nullptr, nullptr, nullptr, nullptr}'
 
-  # Content-Daten: werden auch dann aktualisiert, wenn Assistant/Overlay sichtbar ist.
-  - id: my_idle_message1
-    type: std::string
-    initial_value: '"--:--"'
-  - id: my_idle_message2
-    type: std::string
-    initial_value: '""'
-
-  # Tatsächlich gerenderte Display-Daten.
+  # Gemeinsamer Textpuffer für alle drei Display-Zeilen.
   - id: my_display_title
     type: std::string
     initial_value: '"BOOT"'
@@ -83,6 +117,9 @@ globals:
     type: std::string
     initial_value: '"Voice Satellite 1"'
   - id: my_display_message2
+    type: std::string
+    initial_value: '"Initialisierung"'
+  - id: my_display_message3
     type: std::string
     initial_value: '""'
 
@@ -116,16 +153,18 @@ script:
       - lambda: |-
           auto now = id(my_esptime).now();
           if (!now.is_valid()) return;
-          id(my_idle_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute);
-          id(my_idle_message2).clear();
+          id(my_display_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute);
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
 
   - id: update_date
     then:
       - lambda: |-
           auto now = id(my_esptime).now();
           if (!now.is_valid()) return;
-          id(my_idle_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
-          id(my_idle_message2).clear();
+          id(my_display_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
 
   - id: update_weekday
     then:
@@ -133,8 +172,9 @@ script:
           auto now = id(my_esptime).now();
           if (!now.is_valid()) return;
           static const char *weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-          id(my_idle_message1) = weekdays[now.day_of_week - 1];
-          id(my_idle_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+          id(my_display_message1) = weekdays[now.day_of_week - 1];
+          id(my_display_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+          id(my_display_message3).clear();
 
   # Aktualisiert ausschließlich die Statussymbole (gelber Bereich).
   - id: update_symbols
@@ -158,7 +198,6 @@ script:
     then:
       - lambda: |-
           // Aktive Timer haben Vorrang vor den normalen Info-Seiten.
-          // Es werden die zwei Timer mit der kürzesten Restzeit angezeigt.
           const auto &timers = id(my_voice_assistant).get_timers();
           const esphome::voice_assistant::Timer *active_timers[2] = {nullptr, nullptr};
           size_t active_timer_count = 0;
@@ -166,7 +205,6 @@ script:
           for (const auto &timer : timers) {
             if (!timer.is_active) continue;
             active_timer_count++;
-
             if (active_timers[0] == nullptr || timer.seconds_left < active_timers[0]->seconds_left) {
               active_timers[1] = active_timers[0];
               active_timers[0] = &timer;
@@ -174,24 +212,29 @@ script:
               active_timers[1] = &timer;
             }
           }
-
           id(my_active_timer_count) = active_timer_count;
 
-          if (active_timer_count > 0) {
-            // Bei laufenden Timern die normale Seitenrotation anhalten.
-            id(my_page_info_start_time) = 0;
+          const bool idle_visible =
+              id(my_overlay_mode) == OverlayMode::NONE &&
+              id(my_assist_mode) == AssistMode::IDLE &&
+              id(my_content_mode) == ContentMode::IDLE;
 
+          if (!idle_visible) {
+            // Beim Rückfall nach IDLE wird die Info-Seite neu befüllt.
+            id(my_page_info_start_time) = 0;
+          } else if (active_timer_count > 0) {
+            id(my_page_info_start_time) = 0;
             const std::string name1 = active_timers[0]->name.empty() ? "Timer" : active_timers[0]->name;
-            id(my_idle_message1) = name1 + ": " + std::to_string(active_timers[0]->seconds_left) + " s";
+            id(my_display_message1) = name1 + ": " + std::to_string(active_timers[0]->seconds_left) + " s";
+            id(my_display_message2).clear();
+            id(my_display_message3).clear();
 
             if (active_timer_count >= 2 && active_timers[1] != nullptr) {
               const std::string name2 = active_timers[1]->name.empty() ? "Timer" : active_timers[1]->name;
-              id(my_idle_message2) = name2 + ": " + std::to_string(active_timers[1]->seconds_left) + " s";
+              id(my_display_message2) = name2 + ": " + std::to_string(active_timers[1]->seconds_left) + " s";
               if (active_timer_count > 2) {
-                id(my_idle_message2) += " (+" + std::to_string(active_timer_count - 2) + ")";
+                id(my_display_message2) += " (+" + std::to_string(active_timer_count - 2) + ")";
               }
-            } else {
-              id(my_idle_message2).clear();
             }
           } else if (!id(my_idle_updater_scripts).empty()) {
             const uint32_t duration_ms = (uint32_t) (id(my_page_info_duration).state * 1000);
@@ -204,43 +247,44 @@ script:
           }
       - lambda: |-
           id(my_display_title).clear();
-          id(my_display_message1).clear();
-          id(my_display_message2).clear();
+
+          // IDLE verwendet direkt den von update_* befüllten Textpuffer.
+          if (id(my_overlay_mode) != OverlayMode::NONE ||
+              id(my_assist_mode) != AssistMode::IDLE ||
+              id(my_content_mode) != ContentMode::IDLE) {
+            id(my_display_message1).clear();
+            id(my_display_message2).clear();
+            id(my_display_message3).clear();
+          }
 
           switch (id(my_overlay_mode)) {
             case OverlayMode::VOLUME:
               id(my_display_title) = "VOLUME";
               id(my_display_message1) = "Lautstaerke";
               break;
-
             case OverlayMode::ERROR:
               id(my_display_title) = "ERROR";
               id(my_display_message1) = "Voice Assistant";
               id(my_display_message2) = "Fehler";
               break;
-
             case OverlayMode::ALARM:
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
               break;
-
             case OverlayMode::NONE:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich höre zu";
                   break;
-
                 case AssistMode::THINK:
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Einen Moment...";
                   break;
-
                 case AssistMode::ANNOUNCE:
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich antworte";
                   break;
-
                 case AssistMode::IDLE:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
@@ -248,23 +292,17 @@ script:
                       id(my_display_message1) = "Voice Satellite 1";
                       id(my_display_message2) = "Initialisierung";
                       break;
-
                     case ContentMode::IDLE:
                       id(my_display_title) = id(my_active_timer_count) > 0 ? "TIMER" : "INFO";
-                      id(my_display_message1) = id(my_idle_message1);
-                      id(my_display_message2) = id(my_idle_message2);
                       break;
-
                     case ContentMode::PLAY:
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
-
                     case ContentMode::PAUSE:
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
-
                     case ContentMode::SHUTDOWN:
                       id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";
@@ -275,10 +313,11 @@ script:
               break;
           }
 
-          ESP_LOGD("display", "render: %s | %s | %s",
+          ESP_LOGD("display", "render: %s | %s | %s | %s",
                    id(my_display_title).c_str(),
                    id(my_display_message1).c_str(),
-                   id(my_display_message2).c_str());
+                   id(my_display_message2).c_str(),
+                   id(my_display_message3).c_str());
       - component.update: my_display
 
 esphome:

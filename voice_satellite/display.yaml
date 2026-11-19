@@ -51,7 +51,7 @@ display:
 
       const int cx = 64;
       const int cy = 40;
-      const int width = 120;
+      const int width = 128;
 
       auto scroll_marquee = [&](int center_x, int center_y, int text_width,
                                 display::BaseFont *font, const std::string &value) {

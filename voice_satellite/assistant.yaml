@@ -12,10 +12,6 @@ micro_wake_word:
     - model: okay_nabu
       id: my_wake_word_model
   on_wake_word_detected:
-    - lambda: |-
-        id(my_va_command_text).clear();
-        id(my_va_response_text).clear();
-        id(update_content).execute();
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
 
@@ -45,8 +41,6 @@ voice_assistant:
 
   on_listening:
     - lambda: |-
-        id(my_va_command_text).clear();
-        id(my_va_response_text).clear();
         id(play_ui_sound).execute(id(my_snd_wake));
         id(set_assist_mode).execute(AssistMode::LISTEN);
 
@@ -58,14 +52,10 @@ voice_assistant:
   on_stt_end:
     - lambda: |-
         ESP_LOGI("voice_assistant", "STT: %s", x.c_str());
-        id(my_va_command_text) = x;
-        id(my_va_response_text).clear();
-        id(update_content).execute();
 
   on_tts_start:
     - lambda: |-
         ESP_LOGI("voice_assistant", "TTS: %s", x.c_str());
-        id(my_va_response_text) = x;
         id(play_ui_sound).execute(id(my_snd_success));
         id(set_assist_mode).execute(AssistMode::ANNOUNCE);
 
@@ -76,8 +66,6 @@ voice_assistant:
             micro_wake_word.is_running:
         then:
           - micro_wake_word.start:
-    # Letzte Assistant-Anzeige bleibt für einen vollständigen Scroll-Zyklus lesbar.
-    - delay: 7s
     - lambda: |-
         id(set_assist_mode).execute(AssistMode::IDLE);
 

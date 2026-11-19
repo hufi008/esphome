@@ -51,55 +51,15 @@ display:
 
       const int cx = 64;
       const int cy = 40;
-      const int width = 128;
-
-      auto scroll_marquee = [&](int center_x, int center_y, int text_width,
-                                display::BaseFont *font, const std::string &value) {
-        if (value.empty()) return;
-
-        int tx, ty, tw, th;
-        it.get_text_bounds(center_x, center_y, value.c_str(), font,
-                           TextAlign::CENTER, &tx, &ty, &tw, &th);
-
-        const int half_text = tw / 2;
-        const int half_area = text_width / 2;
-        tx = center_x - half_area;
-        tw = text_width;
-        it.start_clipping(tx, ty, tx + tw, ty + th);
-
-        if (half_text > half_area) {
-          const float max_amplitude = half_text - half_area;
-          const float move_ms = 3000.0f;
-          const float pause_ms = 1200.0f;
-          const float cycle_ms = (move_ms * 2.0f) + (pause_ms * 2.0f);
-          const float current_time = fmodf(millis(), cycle_ms);
-          float offset = 0.0f;
-
-          if (current_time < pause_ms) {
-            offset = -max_amplitude;
-          } else if (current_time < pause_ms + move_ms) {
-            float t = (current_time - pause_ms) / move_ms;
-            float smooth_t = t * t * (3.0f - 2.0f * t);
-            offset = -max_amplitude + (smooth_t * max_amplitude * 2.0f);
-          } else if (current_time < (pause_ms * 2.0f) + move_ms) {
-            offset = max_amplitude;
-          } else {
-            float t = (current_time - (pause_ms * 2.0f) - move_ms) / move_ms;
-            float smooth_t = t * t * (3.0f - 2.0f * t);
-            offset = max_amplitude - (smooth_t * max_amplitude * 2.0f);
-          }
-          it.print(center_x - offset, center_y, font, TextAlign::CENTER, value.c_str());
-        } else {
-          it.print(center_x, center_y, font, TextAlign::CENTER, value.c_str());
-        }
-        it.end_clipping();
-      };
 
       if (id(my_display_message2).empty()) {
-        scroll_marquee(cx, cy, width, id(my_font_huge), id(my_display_message1));
+        it.print(cx, cy, id(my_font_large), TextAlign::CENTER,
+                 id(my_display_message1).c_str());
       } else {
-        scroll_marquee(cx, cy - 10, width, id(my_font_large), id(my_display_message1));
-        scroll_marquee(cx, cy + 10, width, id(my_font_large), id(my_display_message2));
+        it.print(cx, cy - 10, id(my_font_large), TextAlign::CENTER,
+                 id(my_display_message1).c_str());
+        it.print(cx, cy + 10, id(my_font_large), TextAlign::CENTER,
+                 id(my_display_message2).c_str());
       }
 
 globals:
@@ -236,18 +196,17 @@ script:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
                   id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Ja bitte";
+                  id(my_display_message1) = "Ich höre zu";
                   break;
 
                 case AssistMode::THINK:
                   id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = id(my_va_command_text).empty() ? "Einen Moment..." : id(my_va_command_text);
+                  id(my_display_message1) = "Einen Moment...";
                   break;
 
                 case AssistMode::ANNOUNCE:
                   id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = id(my_va_command_text);
-                  id(my_display_message2) = id(my_va_response_text);
+                  id(my_display_message1) = "Ich antworte";
                   break;
 
                 case AssistMode::IDLE:

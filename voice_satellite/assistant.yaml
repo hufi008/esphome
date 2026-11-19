@@ -41,6 +41,8 @@ voice_assistant:
 
   on_listening:
     - lambda: |-
+        id(my_va_command_text).clear();
+        id(my_va_response_text).clear();
         id(play_ui_sound).execute(id(my_snd_wake));
         id(set_assist_mode).execute(AssistMode::LISTEN);
 

@@ -246,9 +246,15 @@ esphome:
     - priority: 250
       then:
         - lambda: |-
-            id(my_idle_updater_scripts).push_back([]() { id(update_time).execute(); });
-            id(my_idle_updater_scripts).push_back([]() { id(update_date).execute(); });
-            id(my_idle_updater_scripts).push_back([]() { id(update_weekday).execute(); });
+            // Einheitlicher Registrierungspunkt für Script-Wrapper und direkte Lambdas.
+            auto register_info_screen = [](std::function<void()> updater) {
+              id(my_idle_updater_scripts).push_back(updater);
+            };
+
+            // ESPHome-Scripts werden als aufrufbare Lambdas registriert.
+            register_info_screen([]() { id(update_time).execute(); });
+            register_info_screen([]() { id(update_date).execute(); });
+            register_info_screen([]() { id(update_weekday).execute(); });
         - script.execute: update_symbols
         - script.execute: update_content
 

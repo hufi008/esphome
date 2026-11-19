@@ -75,14 +75,6 @@ globals:
     type: std::string
     initial_value: '""'
 
-  # Letzte erkannte Spracheingabe und Assistant-Antwort.
-  - id: my_va_command_text
-    type: std::string
-    initial_value: '""'
-  - id: my_va_response_text
-    type: std::string
-    initial_value: '""'
-
   # Tatsächlich gerenderte Display-Daten.
   - id: my_display_title
     type: std::string

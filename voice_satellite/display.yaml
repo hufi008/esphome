@@ -238,9 +238,6 @@ script:
                         }
                       }
                       if (active_timer_count > 0) {
-                        id(my_display_message1).clear();
-                        id(my_display_message2).clear();
-                        id(my_display_message3).clear();
                         id(my_page_info_start_time) = 0;
                         const std::string name1 = active_timers[0]->name.empty()
                             ? "Timer" : active_timers[0]->name;

@@ -46,11 +46,11 @@ select:
     name: "Assist Mode"
     entity_category: diagnostic
     options:
-      - IDLE
+      - NONE
       - LISTEN
       - THINK
       - ANNOUNCE
-    initial_option: IDLE
+    initial_option: NONE
     optimistic: true
     set_action:
       - lambda: |-

@@ -95,10 +95,6 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
-  - id: my_active_timer_count
-    type: size_t
-    restore_value: no
-    initial_value: '0'
   - id: my_idle_updater_scripts
     type: 'std::vector<std::function<void()>>'
     initial_value: 'std::vector<std::function<void()>>()'
@@ -237,8 +233,6 @@ script:
                           active_timers[1] = &timer;
                         }
                       }
-                      id(my_active_timer_count) = active_timer_count;
-
                       if (active_timer_count > 0) {
                         id(my_page_info_start_time) = 0;
                         const std::string name1 = active_timers[0]->name.empty()

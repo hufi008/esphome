@@ -98,6 +98,10 @@ globals:
   - id: my_idle_updater_scripts
     type: 'std::vector<std::function<void()>>'
     initial_value: 'std::vector<std::function<void()>>()'
+  - id: my_idle_updater_index
+    type: size_t
+    restore_value: no
+    initial_value: '0'
 
 number:
   - platform: template
@@ -162,21 +166,18 @@ script:
     then:
       - lambda: |-
           id(my_display_title).clear();
+          id(my_display_message1).clear();
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
 
           switch (id(my_overlay_mode)) {
             case OverlayMode::VOLUME:
-              id(my_display_message1).clear();
-              id(my_display_message2).clear();
-              id(my_display_message3).clear();
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "VOLUME";
               id(my_display_message1) = "Lautstärke";
               break;
 
             case OverlayMode::ERROR:
-              id(my_display_message1).clear();
-              id(my_display_message2).clear();
-              id(my_display_message3).clear();
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "ERROR";
               id(my_display_message1) = "Voice Assistant";
@@ -184,9 +185,6 @@ script:
               break;
 
             case OverlayMode::ALARM:
-              id(my_display_message1).clear();
-              id(my_display_message2).clear();
-              id(my_display_message3).clear();
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
@@ -195,27 +193,18 @@ script:
             case OverlayMode::NONE:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
-                  id(my_display_message1).clear();
-                  id(my_display_message2).clear();
-                  id(my_display_message3).clear();
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich höre zu";
                   break;
 
                 case AssistMode::THINK:
-                  id(my_display_message1).clear();
-                  id(my_display_message2).clear();
-                  id(my_display_message3).clear();
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Moment...";
                   break;
 
                 case AssistMode::ANNOUNCE:
-                  id(my_display_message1).clear();
-                  id(my_display_message2).clear();
-                  id(my_display_message3).clear();
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich antworte";
@@ -224,9 +213,6 @@ script:
                 case AssistMode::NONE:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
-                      id(my_display_message1).clear();
-                      id(my_display_message2).clear();
-                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "BOOT";
                       id(my_display_message1) = "Voice Satellite 1";
@@ -274,45 +260,41 @@ script:
                         }
                       } else {
                         id(my_display_title) = "INFO";
-                        if (!id(my_idle_updater_scripts).empty()) {
+                        const size_t updater_count = id(my_idle_updater_scripts).size();
+                        if (updater_count > 0) {
                           const uint32_t duration_ms =
                               (uint32_t) (id(my_page_info_duration).state * 1000);
-                          if (id(my_page_info_start_time) == 0 ||
-                              millis() - id(my_page_info_start_time) >= duration_ms) {
-                            id(my_page_info_start_time) = millis();
-                            const size_t index = (millis() / duration_ms) %
-                                id(my_idle_updater_scripts).size();
-                            id(my_idle_updater_scripts)[index]();
-                            ESP_LOGD("display", "Info Index: %d", index);
 
+                          if (id(my_page_info_start_time) == 0) {
+                            id(my_page_info_start_time) = millis();
+                          } else if (duration_ms > 0 &&
+                                     millis() - id(my_page_info_start_time) >= duration_ms) {
+                            id(my_idle_updater_index) =
+                                (id(my_idle_updater_index) + 1) % updater_count;
+                            id(my_page_info_start_time) = millis();
                           }
+
+                          id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
+                          ESP_LOGD("display", "Info Index: %u",
+                                   (unsigned) id(my_idle_updater_index));
                         }
                       }
                       break;
                     }
 
                     case ContentMode::PLAY:
-                      id(my_display_message1).clear();
-                      id(my_display_message2).clear();
-                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
 
                     case ContentMode::PAUSE:
-                      id(my_display_message1).clear();
-                      id(my_display_message2).clear();
-                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
 
                     case ContentMode::SHUTDOWN:
-                      id(my_display_message1).clear();
-                      id(my_display_message2).clear();
-                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";
@@ -346,6 +328,6 @@ esphome:
         - script.execute: update_content
 
 interval:
-  - interval: 5s
+  - interval: 1s
     then:
       - script.execute: update_content

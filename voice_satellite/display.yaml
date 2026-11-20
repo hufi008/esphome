@@ -162,18 +162,21 @@ script:
     then:
       - lambda: |-
           id(my_display_title).clear();
-          id(my_display_message1).clear();
-          id(my_display_message2).clear();
-          id(my_display_message3).clear();
 
           switch (id(my_overlay_mode)) {
             case OverlayMode::VOLUME:
+              id(my_display_message1).clear();
+              id(my_display_message2).clear();
+              id(my_display_message3).clear();
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "VOLUME";
               id(my_display_message1) = "Lautstärke";
               break;
 
             case OverlayMode::ERROR:
+              id(my_display_message1).clear();
+              id(my_display_message2).clear();
+              id(my_display_message3).clear();
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "ERROR";
               id(my_display_message1) = "Voice Assistant";
@@ -181,6 +184,9 @@ script:
               break;
 
             case OverlayMode::ALARM:
+              id(my_display_message1).clear();
+              id(my_display_message2).clear();
+              id(my_display_message3).clear();
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
@@ -189,18 +195,27 @@ script:
             case OverlayMode::NONE:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
+                  id(my_display_message1).clear();
+                  id(my_display_message2).clear();
+                  id(my_display_message3).clear();
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich höre zu";
                   break;
 
                 case AssistMode::THINK:
+                  id(my_display_message1).clear();
+                  id(my_display_message2).clear();
+                  id(my_display_message3).clear();
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Moment...";
                   break;
 
                 case AssistMode::ANNOUNCE:
+                  id(my_display_message1).clear();
+                  id(my_display_message2).clear();
+                  id(my_display_message3).clear();
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich antworte";
@@ -209,6 +224,9 @@ script:
                 case AssistMode::NONE:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
+                      id(my_display_message1).clear();
+                      id(my_display_message2).clear();
+                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "BOOT";
                       id(my_display_message1) = "Voice Satellite 1";
@@ -234,6 +252,9 @@ script:
                         }
                       }
                       if (active_timer_count > 0) {
+                        id(my_display_message1).clear();
+                        id(my_display_message2).clear();
+                        id(my_display_message3).clear();
                         id(my_page_info_start_time) = 0;
                         const std::string name1 = active_timers[0]->name.empty()
                             ? "Timer" : active_timers[0]->name;
@@ -271,18 +292,27 @@ script:
                     }
 
                     case ContentMode::PLAY:
+                      id(my_display_message1).clear();
+                      id(my_display_message2).clear();
+                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
 
                     case ContentMode::PAUSE:
+                      id(my_display_message1).clear();
+                      id(my_display_message2).clear();
+                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
 
                     case ContentMode::SHUTDOWN:
+                      id(my_display_message1).clear();
+                      id(my_display_message2).clear();
+                      id(my_display_message3).clear();
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";

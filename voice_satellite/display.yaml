@@ -170,7 +170,7 @@ script:
             case OverlayMode::VOLUME:
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "VOLUME";
-              id(my_display_message1) = "Lautstaerke";
+              id(my_display_message1) = "Lautstärke";
               break;
 
             case OverlayMode::ERROR:
@@ -197,7 +197,7 @@ script:
                 case AssistMode::THINK:
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Einen Moment...";
+                  id(my_display_message1) = "Moment...";
                   break;
 
                 case AssistMode::ANNOUNCE:
@@ -206,7 +206,7 @@ script:
                   id(my_display_message1) = "Ich antworte";
                   break;
 
-                case AssistMode::IDLE:
+                case AssistMode::NONE:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
                       id(my_page_info_start_time) = 0;
@@ -262,6 +262,8 @@ script:
                             const size_t index = (millis() / duration_ms) %
                                 id(my_idle_updater_scripts).size();
                             id(my_idle_updater_scripts)[index]();
+                            ESP_LOGD("display", "Info Index: %d", index);
+
                           }
                         }
                       }

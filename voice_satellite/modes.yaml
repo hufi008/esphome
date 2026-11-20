@@ -12,7 +12,7 @@ globals:
   - id: my_assist_mode
     type: AssistMode
     restore_value: no
-    initial_value: 'AssistMode::IDLE'
+    initial_value: 'AssistMode::NONE'
 
   - id: my_overlay_mode
     type: OverlayMode

@@ -67,12 +67,12 @@ voice_assistant:
         then:
           - micro_wake_word.start:
     - lambda: |-
-        id(set_assist_mode).execute(AssistMode::IDLE);
+        id(set_assist_mode).execute(AssistMode::NONE);
 
   on_error:
     - lambda: |-
         id(play_ui_sound).execute(id(my_snd_error));
-        id(set_assist_mode).execute(AssistMode::IDLE);
+        id(set_assist_mode).execute(AssistMode::NONE);
         id(show_error).execute();
     - if:
         condition:

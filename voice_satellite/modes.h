@@ -15,7 +15,7 @@ enum class ContentMode : uint8_t {
 
 // Zustände der Assistant-Ebene.
 enum class AssistMode : uint8_t {
-  IDLE = 0,
+  NONE = 0,
   LISTEN = 1,
   THINK = 2,
   ANNOUNCE = 3,
@@ -66,7 +66,7 @@ inline constexpr ModeOption<ContentMode> CONTENT_MODE_OPTIONS[] = {
 };
 
 inline constexpr ModeOption<AssistMode> ASSIST_MODE_OPTIONS[] = {
-    {"IDLE", AssistMode::IDLE},
+    {"NONE", AssistMode::NONE},
     {"LISTEN", AssistMode::LISTEN},
     {"THINK", AssistMode::THINK},
     {"ANNOUNCE", AssistMode::ANNOUNCE},

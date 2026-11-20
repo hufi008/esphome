@@ -195,7 +195,7 @@ script:
             case AssistMode::ANNOUNCE:
               id(my_ledstrip).turn_on().set_effect("Effect ASSIST_ANNOUNCE").perform();
               return;
-            case AssistMode::IDLE:
+            case AssistMode::NONE:
               break;
           }
 

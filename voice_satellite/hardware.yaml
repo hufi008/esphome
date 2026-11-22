@@ -199,6 +199,105 @@ image:
     type: binary
     resize: 16x16
 
+# 32x32-Icons für sämtliche Display-Inhalte
+image:
+  - platform: file
+    file: https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg
+    id: my_icon_boot
+    type: binary
+    resize: 46x46
+    invert_alpha: false
+  - platform: file
+    file: mdi:play
+    id: my_icon_play
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:pause
+    id: my_icon_pause
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:ear-hearing
+    id: my_icon_listen
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:thought-bubble-outline
+    id: my_icon_think
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:bullhorn
+    id: my_icon_announce
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:timer
+    id: my_icon_timer
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:knob
+    id: my_icon_volume
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:alert-circle-outline
+    id: my_icon_error
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:alarm
+    id: my_icon_alarm
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:help
+    id: my_icon_unknown
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:clock-outline
+    id: my_icon_time
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:calendar
+    id: my_icon_date
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:calendar-week
+    id: my_icon_weekday
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:thermometer
+    id: my_icon_temperature
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:water-percent
+    id: my_icon_humidity
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:moon-waning-crescent
+    id: my_icon_moon
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-sunset
+    id: my_icon_sun
+    type: binary
+    resize: 32x32
+  - platform: file
+    file: mdi:weather-partly-cloudy
+    id: my_icon_weather
+    type: binary
+    resize: 32x32
+
 # Display-Schriften
 font:
   - id: my_font_medium

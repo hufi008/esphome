@@ -1,0 +1,27 @@
+# Voice Satellite – Info-Seite: Uhrzeit
+
+time:
+  - id: !extend my_esptime
+    on_time_sync:
+      - script.execute: update_time
+      - lambda: |-
+          id(set_content_mode).execute(ContentMode::IDLE);
+      - script.execute: update_content
+
+script:
+  - id: update_time
+    then:
+      - lambda: |-
+          auto now = id(my_esptime).now();
+          if (!now.is_valid()) return;
+          id(my_display_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute);
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(update_time).execute(); });

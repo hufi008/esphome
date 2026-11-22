@@ -1,0 +1,60 @@
+# Voice Satellite – Info-Seiten: BME280
+# Dieses Paket ist alternativ zu info_htu21.yaml.
+
+sensor:
+  - platform: bme280_i2c
+    id: my_bme280
+    update_interval: 60s
+    address: 0x76
+    temperature:
+      id: my_room_temp
+      name: "Temperature"
+      device_class: temperature
+      state_class: measurement
+    humidity:
+      id: my_room_hum
+      name: "Humidity"
+      device_class: humidity
+      state_class: measurement
+    pressure:
+      id: my_room_press
+      name: "Pressure"
+      device_class: atmospheric_pressure
+      state_class: measurement
+
+script:
+  - id: my_update_temp
+    then:
+      - lambda: |-
+          ESP_LOGD("info_bme", "update_temp");
+          id(my_display_message1) = str_sprintf("%.1f °C", id(my_room_temp).state);
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
+
+  - id: my_update_hum
+    then:
+      - lambda: |-
+          ESP_LOGD("info_bme", "update_hum");
+          id(my_display_message1) = str_sprintf("%.0f%% rF", id(my_room_hum).state);
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
+
+  - id: my_update_press
+    then:
+      - lambda: |-
+          ESP_LOGD("info_bme", "update_press");
+          id(my_display_message1) = str_sprintf("%.0f hPa", id(my_room_press).state);
+          id(my_display_message2).clear();
+          id(my_display_message3).clear();
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(my_update_temp).execute(); });
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(my_update_hum).execute(); });
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(my_update_press).execute(); });

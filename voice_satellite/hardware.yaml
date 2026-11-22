@@ -16,6 +16,16 @@ time:
   - platform: homeassistant
     id: my_esptime
 
+button:
+  - platform: restart
+    name: "Restart"
+    icon: mdi:restart
+    on_press:
+      then:
+        - safe_mode.mark_successful
+  - platform: factory_reset
+    name: "Factory Reset NVS"
+
 # WLAN-Messwert als Infrastruktur-Sensor
 sensor:
   - platform: wifi_signal

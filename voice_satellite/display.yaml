@@ -3,11 +3,11 @@
 api:
   on_client_connected:
     - lambda: |-
-        id(play_ui_sound).execute(id(my_snd_connect));
+        // id(play_ui_sound).execute(id(my_snd_connect));
     - script.execute: update_symbols
   on_client_disconnected:
     - lambda: |-
-        id(play_ui_sound).execute(id(my_snd_disconnect));
+        // id(play_ui_sound).execute(id(my_snd_disconnect));
     - script.execute: update_symbols
 
 # WLAN-Verbindungsstatus: Symbol bei Connect und Disconnect neu bewerten.
@@ -179,8 +179,9 @@ script:
                     case ContentMode::BOOT:
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "BOOT";
-                      id(my_display_message1) = "Voice Satellite 1";
-                      id(my_display_message2) = "Initialisierung";
+                      id(my_display_message1) = str_sprintf("PRO: %s", ESPHOME_PROJECT_VERSION);
+                      id(my_display_message2) = str_sprintf("IDF: %s", esp_get_idf_version());
+                      id(my_display_message3) = str_sprintf("ESP: %s", ESPHOME_VERSION);
                       break;
 
                     case ContentMode::IDLE: {

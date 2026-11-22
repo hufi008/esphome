@@ -188,11 +188,6 @@ script:
             return;
           }
 
-          if (id(my_content_mode) == ContentMode::SHUTDOWN) {
-            id(my_ledstrip).turn_off().perform();
-            return;
-          }
-
           const char *mode = content_mode_to_string(id(my_content_mode));
           if (mode == nullptr) return;
           const std::string effect = std::string("Effect CONTENT_") + mode;

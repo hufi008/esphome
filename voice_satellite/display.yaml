@@ -285,7 +285,6 @@ script:
             - script.stop: rotate_info_pages
       - component.update: my_display
 
-script:
   # Ruft jede Info-Seite genau einmal pro Anzeigeslot auf.
   - id: rotate_info_pages
     mode: single

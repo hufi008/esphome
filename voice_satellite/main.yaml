@@ -1,0 +1,21 @@
+# Voice Satellite – zentrale Projektkonfiguration
+
+esphome:
+  project:
+    name: "hufi.voice_satellite"
+    version: 1.0.6
+  includes:
+    - ../voice_satellite/modes.h
+    - "<modes.h>"
+    - ../voice_satellite/utils.h
+    - "<utils.h>"
+  on_boot:
+    - priority: 250
+      then:
+        - script.execute: update_symbols
+        - script.execute: update_content
+        - script.execute: update_ledstrip
+    - priority: 200
+      then:
+        - lambda: |-
+            id(play_ui_sound).execute(id(my_snd_boot));

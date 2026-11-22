@@ -85,3 +85,7 @@ voice_assistant:
         then:
           - micro_wake_word.start:
 
+  on_timer_finished:
+    - script.execute: update_content
+    - script.execute: show_alarm
+

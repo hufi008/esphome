@@ -4,17 +4,9 @@
 
 voice_assistant:
   - id: !extend my_voice_assistant
-    on_timer_started:
-      - script.execute: update_content
-    on_timer_updated:
-      - script.execute: update_content
-    on_timer_cancelled:
-      - script.execute: update_content
     on_timer_finished:
       - script.execute: update_content
       - script.execute: show_alarm
-    on_timer_tick:
-      - script.execute: update_content
 
 script:
   - id: update_timer

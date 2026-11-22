@@ -68,6 +68,12 @@ display:
                                         id(my_display_message3), TextAlign::CENTER, now_ms);
       }
 
+      // Fortschrittsbalken des aktuellen Info-Slots am unteren Displayrand.
+      if (id(my_info_page_show_progress)) {
+        const int bar_width = (int) (128.0f * id(my_info_page_progress));
+        it.filled_rectangle(0, 62, bar_width, 2);
+      }
+
 globals:
   - id: my_status_symbols
     type: 'image::Image*[4]'
@@ -99,6 +105,24 @@ globals:
     type: size_t
     restore_value: no
     initial_value: '0'
+
+  # Fortschritt und Laufzeit des aktuellen Info-Slots.
+  - id: my_info_page_elapsed
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: my_info_page_initialized
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: my_info_page_progress
+    type: float
+    restore_value: no
+    initial_value: '0.0f'
+  - id: my_info_page_show_progress
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 number:
   - platform: template
@@ -222,44 +246,55 @@ script:
                    id(my_display_message1).c_str(),
                    id(my_display_message2).c_str(),
                    id(my_display_message3).c_str());
-      - script.execute: update_timer
       - component.update: my_display
 
-  # Läuft dauerhaft; Info-Seiten werden nur im freien IDLE-Modus gewechselt.
-  - id: rotate_info_pages
-    mode: single
+# Prüfung und Aktualisierung einmal pro Sekunde.
+# Die normale Seite wechselt erst nach Ablauf ihrer eingestellten Anzeigedauer.
+interval:
+  - interval: 1s
     then:
-      - while:
-          condition:
-            lambda: return true;
-          then:
-            - if:
-                condition:
-                  lambda: |-
-                    if (id(my_content_mode) != ContentMode::IDLE ||
-                        id(my_assist_mode) != AssistMode::NONE ||
-                        id(my_overlay_mode) != OverlayMode::NONE ||
-                        id(my_idle_updater_scripts).empty()) {
-                      return false;
-                    }
-                    for (const auto &timer : id(my_voice_assistant).get_timers()) {
-                      if (timer.is_active) return false;
-                    }
-                    return true;
-                then:
-                  - lambda: |-
-                      const size_t count = id(my_idle_updater_scripts).size();
-                      if (count == 0) return;
-                      id(my_idle_updater_index) %= count;
-                      id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
-                  - component.update: my_display
-                  - delay: !lambda |-
-                      return (uint32_t) (id(my_page_info_duration).state * 1000);
-                  - lambda: |-
-                      const size_t count = id(my_idle_updater_scripts).size();
-                      if (count > 0) {
-                        id(my_idle_updater_index) =
-                            (id(my_idle_updater_index) + 1) % count;
-                      }
-                else:
-                  - delay: 1s
+      - lambda: |-
+          if (id(my_content_mode) != ContentMode::IDLE ||
+              id(my_assist_mode) != AssistMode::NONE ||
+              id(my_overlay_mode) != OverlayMode::NONE) {
+            id(my_info_page_show_progress) = false;
+            return;
+          }
+
+          // Aktive Timer haben Vorrang; die normale Seitenrotation pausiert.
+          for (const auto &timer : id(my_voice_assistant).get_timers()) {
+            if (timer.is_active) {
+              id(my_info_page_show_progress) = false;
+              id(update_timer).execute();
+              return;
+            }
+          }
+
+          const size_t count = id(my_idle_updater_scripts).size();
+          if (count == 0) {
+            id(my_info_page_show_progress) = false;
+            return;
+          }
+
+          const uint32_t duration = std::max(
+              1U, (uint32_t) id(my_page_info_duration).state);
+
+          if (!id(my_info_page_initialized)) {
+            id(my_idle_updater_index) %= count;
+            id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
+            id(my_info_page_initialized) = true;
+            id(my_info_page_elapsed) = 0;
+          } else {
+            id(my_info_page_elapsed)++;
+            if (id(my_info_page_elapsed) >= duration) {
+              id(my_idle_updater_index) =
+                  (id(my_idle_updater_index) + 1) % count;
+              id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
+              id(my_info_page_elapsed) = 0;
+            }
+          }
+
+          id(my_info_page_progress) =
+              (float) id(my_info_page_elapsed) / (float) duration;
+          id(my_info_page_show_progress) = true;
+      - component.update: my_display

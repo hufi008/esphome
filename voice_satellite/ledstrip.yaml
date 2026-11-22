@@ -3,12 +3,6 @@
 # Die WS2812-Hardware wird in hardware.yaml deklariert.
 # Dieses Paket ergänzt ausschließlich Effekte und deren Mode-Auswahl.
 
-esphome:
-  on_boot:
-    - priority: 250
-      then:
-        - script.execute: update_ledstrip
-
 globals:
   - id: my_idle_color
     type: esphome::Color

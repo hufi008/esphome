@@ -1,0 +1,42 @@
+# Voice Satellite – Info-Seite: Mondphase
+# Datenquelle: Home Assistant sensor.moon_phase
+
+text_sensor:
+  - platform: homeassistant
+    id: my_moon_phase
+    entity_id: sensor.moon_phase
+    name: "Mondphase"
+
+script:
+  - id: my_update_moon_phase
+    then:
+      - lambda: |-
+          static const std::string moon_keys[9] = {
+            "unknown",
+            "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+            "full_moon", "waning_gibbous", "last_quarter", "waning_crescent"
+          };
+          static const std::string moon_texts[9] = {
+            "Unbekannt",
+            "Neumond", "1/4 Mond »", "Halbmond »", "3/4 Mond »",
+            "Vollmond", "3/4 Mond «", "Halbmond «", "1/4 Mond «"
+          };
+          const std::string phase = id(my_moon_phase).state;
+          int index = 0;
+          for (int i = 1; i < 9; i++) {
+            if (moon_keys[i] == phase) {
+              index = i;
+              break;
+            }
+          }
+          id(my_display_message1) = str_sprintf("Mond (%d/8)", index);
+          id(my_display_message2) = moon_texts[index];
+          id(my_display_message3).clear();
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(my_update_moon_phase).execute(); });

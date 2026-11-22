@@ -146,14 +146,14 @@ script:
 
           switch (id(my_overlay_mode)) {
             case OverlayMode::VOLUME:
-              id(my_display_icon) = &id(my_icon_volume);
+              id(my_display_icon) = id(my_icon_volume);
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "VOLUME";
               id(my_display_message1) = "Lautstärke";
               break;
 
             case OverlayMode::ERROR:
-              id(my_display_icon) = &id(my_icon_error);
+              id(my_display_icon) = id(my_icon_error);
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "ERROR";
               id(my_display_message1) = "Voice Assistant";
@@ -161,7 +161,7 @@ script:
               break;
 
             case OverlayMode::ALARM:
-              id(my_display_icon) = &id(my_icon_alarm);
+              id(my_display_icon) = id(my_icon_alarm);
               id(my_page_info_start_time) = 0;
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
@@ -170,21 +170,21 @@ script:
             case OverlayMode::NONE:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
-                  id(my_display_icon) = &id(my_icon_listen);
+                  id(my_display_icon) = id(my_icon_listen);
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich höre zu";
                   break;
 
                 case AssistMode::THINK:
-                  id(my_display_icon) = &id(my_icon_think);
+                  id(my_display_icon) = id(my_icon_think);
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Moment...";
                   break;
 
                 case AssistMode::ANNOUNCE:
-                  id(my_display_icon) = &id(my_icon_announce);
+                  id(my_display_icon) = id(my_icon_announce);
                   id(my_page_info_start_time) = 0;
                   id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich antworte";
@@ -193,7 +193,7 @@ script:
                 case AssistMode::NONE:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
-                      id(my_display_icon) = &id(my_icon_boot);
+                      id(my_display_icon) = id(my_icon_boot);
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "BOOT";
                       id(my_display_message1) = str_sprintf("PRO: %s", ESPHOME_PROJECT_VERSION);
@@ -224,7 +224,7 @@ script:
                         const std::string name1 = active_timers[0]->name.empty()
                             ? "Timer" : active_timers[0]->name;
                         id(my_display_title) = "TIMER";
-                        id(my_display_icon) = &id(my_icon_timer);
+                        id(my_display_icon) = id(my_icon_timer);
                         id(my_display_message1) = name1 + ": " +
                             std::to_string(active_timers[0]->seconds_left) + " s";
 
@@ -261,21 +261,21 @@ script:
                     }
 
                     case ContentMode::PLAY:
-                      id(my_display_icon) = &id(my_icon_play);
+                      id(my_display_icon) = id(my_icon_play);
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
 
                     case ContentMode::PAUSE:
-                      id(my_display_icon) = &id(my_icon_pause);
+                      id(my_display_icon) = id(my_icon_pause);
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
 
                     case ContentMode::SHUTDOWN:
-                      id(my_display_icon) = &id(my_icon_unknown);
+                      id(my_display_icon) = id(my_icon_unknown);
                       id(my_page_info_start_time) = 0;
                       id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";

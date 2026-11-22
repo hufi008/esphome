@@ -60,12 +60,17 @@ voice_assistant:
         id(set_assist_mode).execute(AssistMode::ANNOUNCE);
 
   on_end:
+    - wait_until:
+        condition:
+          not:
+            voice_assistant.is_running:
     - if:
         condition:
           not:
             micro_wake_word.is_running:
         then:
           - micro_wake_word.start:
+    - delay: 3s
     - lambda: |-
         id(set_assist_mode).execute(AssistMode::NONE);
 

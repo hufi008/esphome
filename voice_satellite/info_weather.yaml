@@ -10,6 +10,8 @@ interval:
   - interval: 30min
     startup_delay: 5sec
     then:
+      - lambda: |-
+          ESP_LOGI("info_weather", "Requesting hourly forecast from Home Assistant.");
       - homeassistant.action:
           action: weather.get_forecasts
           data:
@@ -30,24 +32,28 @@ interval:
             ]
           on_success:
             - lambda: |-
+                ESP_LOGI("info_weather", "Home Assistant action succeeded; processing response.");
                 const char *forecast_json = response["response"].as<const char *>();
                 if (forecast_json == nullptr) {
                   ESP_LOGE("info_weather", "Template response is not a string or is null.");
                 } else {
                   const size_t response_length = strlen(forecast_json);
-                  ESP_LOGD("info_weather", "Template response: %zu bytes", response_length);
+                  ESP_LOGI("info_weather", "Template response: %zu bytes", response_length);
                   for (size_t offset = 0; offset < response_length; offset += 180) {
                     char chunk[181];
                     const size_t count = std::min((size_t) 180, response_length - offset);
                     memcpy(chunk, forecast_json + offset, count);
                     chunk[count] = '\0';
-                    ESP_LOGD("info_weather", "Response [%zu-%zu]: %s",
+                    ESP_LOGI("info_weather", "Response [%zu-%zu]: %s",
                              offset, offset + count - 1, chunk);
                   }
                 }
                 id(my_forecast_repository) = response["response"];
-                ESP_LOGD("info_weather", "Repository size after assignment: %zu",
+                ESP_LOGI("info_weather", "Repository size after assignment: %zu",
                          id(my_forecast_repository).size());
+          on_error:
+            - lambda: |-
+                ESP_LOGE("info_weather", "Home Assistant weather.get_forecasts action failed.");
 
 script:
   - id: my_update_weather_hourly

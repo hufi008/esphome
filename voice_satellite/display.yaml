@@ -190,33 +190,37 @@ script:
               id(my_display_icon) = id(my_icon_alarm);
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
+              id(my_display_message2) = " ";
               break;
 
             case OverlayMode::NONE:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
                   id(my_display_icon) = id(my_icon_listen);
-                      id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Ich höre zu";
+                  id(my_display_title) = "ASSIST";
+                  id(my_display_message1) = "höre";
+                  id(my_display_message2) = " ";
                   break;
 
                 case AssistMode::THINK:
                   id(my_display_icon) = id(my_icon_think);
-                      id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Moment...";
+                  id(my_display_title) = "ASSIST";
+                  id(my_display_message1) = "denke";
+                  id(my_display_message2) = " ";
                   break;
 
                 case AssistMode::ANNOUNCE:
                   id(my_display_icon) = id(my_icon_announce);
-                      id(my_display_title) = "ASSIST";
-                  id(my_display_message1) = "Ich antworte";
+                  id(my_display_title) = "ASSIST";
+                  id(my_display_message1) = "antworte";
+                  id(my_display_message2) = " ";
                   break;
 
                 case AssistMode::NONE:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
                       id(my_display_icon) = id(my_icon_boot);
-                              id(my_display_title) = "BOOT";
+                      id(my_display_title) = "BOOT";
                       id(my_display_message1) = str_sprintf("PRO: %s", ESPHOME_PROJECT_VERSION);
                       id(my_display_message2) = str_sprintf("IDF: %s", esp_get_idf_version());
                       id(my_display_message3) = str_sprintf("ESP: %s", ESPHOME_VERSION);
@@ -228,19 +232,19 @@ script:
 
                     case ContentMode::PLAY:
                       id(my_display_icon) = id(my_icon_play);
-                              id(my_display_title) = "PLAYER";
+                      id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
 
                     case ContentMode::PAUSE:
                       id(my_display_icon) = id(my_icon_pause);
-                              id(my_display_title) = "PLAYER";
+                      id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
 
                     case ContentMode::SHUTDOWN:
                       id(my_display_icon) = id(my_icon_unknown);
-                              id(my_display_title) = "SYSTEM";
+                      id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";
                       break;
                   }

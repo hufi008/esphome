@@ -25,7 +25,6 @@ script:
   - id: my_update_temp
     then:
       - lambda: |-
-          ESP_LOGD("info_htu21", "update_temp");
           id(my_display_icon) = id(my_icon_temperature);
           id(my_display_message1) = str_sprintf("%.1f °C", id(my_room_temp).state);
           id(my_display_message2).clear();
@@ -34,7 +33,6 @@ script:
   - id: my_update_hum
     then:
       - lambda: |-
-          ESP_LOGD("info_htu21", "update_hum");
           id(my_display_icon) = id(my_icon_humidity);
           id(my_display_message1) = str_sprintf("%.0f%% rF", id(my_room_hum).state);
           id(my_display_message2).clear();

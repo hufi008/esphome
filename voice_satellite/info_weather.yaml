@@ -41,6 +41,7 @@ script:
   - id: my_update_weather_hourly
     then:
       - lambda: |-
+          id(my_display_icon) = &id(my_icon_weather);
           static const char* weekdays[] = {
             "Sonntag", "Montag", "Dienstag", "Mittwoch",
             "Donnerstag", "Freitag", "Samstag"

@@ -2,12 +2,6 @@
 #
 # Timer haben Vorrang vor den rotierenden Info-Seiten.
 
-voice_assistant:
-  - id: !extend my_voice_assistant
-    on_timer_finished:
-      - script.execute: update_content
-      - script.execute: show_alarm
-
 script:
   - id: update_timer
     then:

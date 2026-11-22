@@ -11,7 +11,7 @@ script:
   - id: my_update_moon_phase
     then:
       - lambda: |-
-          id(my_display_icon) = &id(my_icon_moon);
+          id(my_display_icon) = id(my_icon_moon);
           static const std::string moon_keys[9] = {
             "unknown",
             "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",

@@ -283,4 +283,19 @@ esphome:
 interval:
   - interval: 1s
     then:
-      - script.execute: update_content
+      - lambda: |-
+          // Nur die rotierende Info-Seite benötigt eine sekündliche Aktualisierung.
+          if (id(my_content_mode) != ContentMode::IDLE ||
+              id(my_assist_mode) != AssistMode::NONE ||
+              id(my_overlay_mode) != OverlayMode::NONE) {
+            return;
+          }
+
+          // Bei aktiven Timern aktualisieren deren eigene Callbacks die Anzeige.
+          for (const auto &timer : id(my_voice_assistant).get_timers()) {
+            if (timer.is_active) {
+              return;
+            }
+          }
+
+          id(update_content).execute();

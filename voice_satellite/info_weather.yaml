@@ -1,0 +1,77 @@
+# Voice Satellite – Info-Seite: stündliche Wettervorhersage
+# Datenquelle: Home Assistant weather.forecast_home
+
+globals:
+  - id: my_forecast_repository
+    type: JsonDocument
+    initial_value: 'JsonDocument()'
+
+interval:
+  - interval: 30min
+    startup_delay: 5sec
+    then:
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+            type: hourly
+          capture_response: true
+          response_template: >-
+            [
+              {% for h in response['weather.forecast_home']['forecast'] %}
+                {
+                  "wday": {{ as_local(as_datetime(h.datetime)).strftime('%w') }},
+                  "hour": "{{ as_local(as_datetime(h.datetime)).strftime('%H:%M') }}",
+                  "cond": "{{ h.condition }}",
+                  "temp": {{ h.temperature | default(0) }},
+                  "prec": {{ h.precipitation_probability | default(0) }}
+                }{% if not loop.last %},{% endif %}
+              {% endfor %}
+            ]
+          on_success:
+            - lambda: |-
+                id(my_forecast_repository) = response["response"];
+                ESP_LOGD("info_weather", "%zu forecast items received.",
+                         id(my_forecast_repository).size());
+
+script:
+  - id: my_update_weather_hourly
+    then:
+      - lambda: |-
+          static const char* weekdays[] = {
+            "Sonntag", "Montag", "Dienstag", "Mittwoch",
+            "Donnerstag", "Freitag", "Samstag"
+          };
+          static size_t current_hourly_index = 0;
+          JsonArrayConst forecast = id(my_forecast_repository).as<JsonArrayConst>();
+          if (forecast.size() == 0) {
+            id(my_display_message1) = "Keine Wetterdaten";
+            id(my_display_message2).clear();
+            id(my_display_message3).clear();
+            return;
+          }
+          if (current_hourly_index >= forecast.size()) current_hourly_index = 0;
+          JsonObjectConst hour_data = forecast[current_hourly_index].as<JsonObjectConst>();
+
+          const int wday = hour_data["wday"].as<int>();
+          const int today_wday = id(my_esptime).now().day_of_week - 1;
+          const int diff_days = (wday - today_wday + 7) % 7;
+          std::string day_str = diff_days == 0 ? "Heute" :
+                                diff_days == 1 ? "Morgen" : weekdays[wday];
+
+          const std::string hour_str = hour_data["hour"].as<std::string>();
+          const float temp = hour_data["temp"].as<float>();
+          const float prec = hour_data["prec"].as<float>();
+
+          id(my_display_message1) = str_sprintf("%s %s", day_str.c_str(), hour_str.c_str());
+          id(my_display_message2) = str_sprintf("%.1f°C | %.0f%%", temp, prec);
+          id(my_display_message3).clear();
+          current_hourly_index++;
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(my_update_weather_hourly).execute(); });

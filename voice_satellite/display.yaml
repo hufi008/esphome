@@ -22,14 +22,6 @@ wifi:
 # Die Hardware-Komponenten werden in hardware.yaml deklariert und hier
 # ausschließlich um ihr funktionsbezogenes Verhalten erweitert.
 
-time:
-  - id: !extend my_esptime
-    on_time_sync:
-      - script.execute: update_time
-      - lambda: |-
-          id(set_content_mode).execute(ContentMode::IDLE);
-      - script.execute: update_content
-
 sensor:
   - id: !extend my_wifi_rssi
     on_value:
@@ -116,34 +108,6 @@ number:
     restore_value: true
 
 script:
-  - id: update_time
-    then:
-      - lambda: |-
-          auto now = id(my_esptime).now();
-          if (!now.is_valid()) return;
-          id(my_display_message1) = str_snprintf("%02d:%02d", 32, now.hour, now.minute);
-          id(my_display_message2).clear();
-          id(my_display_message3).clear();
-
-  - id: update_date
-    then:
-      - lambda: |-
-          auto now = id(my_esptime).now();
-          if (!now.is_valid()) return;
-          id(my_display_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
-          id(my_display_message2).clear();
-          id(my_display_message3).clear();
-
-  - id: update_weekday
-    then:
-      - lambda: |-
-          auto now = id(my_esptime).now();
-          if (!now.is_valid()) return;
-          static const char *weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
-          id(my_display_message1) = weekdays[now.day_of_week - 1];
-          id(my_display_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
-          id(my_display_message3).clear();
-
   # Aktualisiert ausschließlich die Statussymbole (gelber Bereich).
   - id: update_symbols
     mode: restart
@@ -313,14 +277,6 @@ esphome:
   on_boot:
     - priority: 250
       then:
-        - lambda: |-
-            // ESPHome-Script-Aufrufe bleiben hier im YAML-Kontext.
-            voice_satellite::register_info_screen(
-                id(my_idle_updater_scripts), []() { id(update_time).execute(); });
-            voice_satellite::register_info_screen(
-                id(my_idle_updater_scripts), []() { id(update_date).execute(); });
-            voice_satellite::register_info_screen(
-                id(my_idle_updater_scripts), []() { id(update_weekday).execute(); });
         - script.execute: update_symbols
         - script.execute: update_content
 

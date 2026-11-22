@@ -210,7 +210,6 @@ image:
     resize: 16x16
 
 # 32x32-Icons für sämtliche Display-Inhalte
-image:
   - platform: file
     file: https://media.esphome.io/logo/vertical/Logo%20Vertical%20-%20Monochrome%20Blue.svg
     id: my_icon_boot

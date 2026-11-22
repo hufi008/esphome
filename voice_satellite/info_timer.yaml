@@ -1,0 +1,66 @@
+# Voice Satellite – Info-Seite: aktive Timer
+#
+# Timer haben Vorrang vor den rotierenden Info-Seiten.
+
+voice_assistant:
+  - id: !extend my_voice_assistant
+    on_timer_started:
+      - script.execute: update_content
+    on_timer_updated:
+      - script.execute: update_content
+    on_timer_cancelled:
+      - script.execute: update_content
+    on_timer_finished:
+      - script.execute: update_content
+      - script.execute: show_alarm
+    on_timer_tick:
+      - script.execute: update_content
+
+script:
+  - id: update_timer
+    then:
+      - lambda: |-
+          if (id(my_content_mode) != ContentMode::IDLE ||
+              id(my_assist_mode) != AssistMode::NONE ||
+              id(my_overlay_mode) != OverlayMode::NONE) {
+            return;
+          }
+
+          const auto &timers = id(my_voice_assistant).get_timers();
+          const esphome::voice_assistant::Timer *active_timers[2] = {nullptr, nullptr};
+          size_t active_timer_count = 0;
+
+          for (const auto &timer : timers) {
+            if (!timer.is_active) continue;
+            active_timer_count++;
+            if (active_timers[0] == nullptr ||
+                timer.seconds_left < active_timers[0]->seconds_left) {
+              active_timers[1] = active_timers[0];
+              active_timers[0] = &timer;
+            } else if (active_timers[1] == nullptr ||
+                       timer.seconds_left < active_timers[1]->seconds_left) {
+              active_timers[1] = &timer;
+            }
+          }
+
+          if (active_timer_count == 0) return;
+
+          const std::string name1 = active_timers[0]->name.empty()
+              ? "Timer" : active_timers[0]->name;
+          id(my_display_title) = "TIMER";
+          id(my_display_icon) = id(my_icon_timer);
+          id(my_display_message1) = name1 + ": " +
+              std::to_string(active_timers[0]->seconds_left) + " s";
+          id(my_display_message2).clear();
+
+          if (active_timer_count >= 2 && active_timers[1] != nullptr) {
+            const std::string name2 = active_timers[1]->name.empty()
+                ? "Timer" : active_timers[1]->name;
+            id(my_display_message2) = name2 + ": " +
+                std::to_string(active_timers[1]->seconds_left) + " s";
+            if (active_timer_count > 2) {
+              id(my_display_message2) += " (+" +
+                  std::to_string(active_timer_count - 2) + ")";
+            }
+          }
+          id(my_display_message3).clear();

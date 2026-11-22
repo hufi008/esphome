@@ -274,13 +274,6 @@ script:
                    id(my_display_message3).c_str());
       - component.update: my_display
 
-esphome:
-  on_boot:
-    - priority: 250
-      then:
-        - script.execute: update_symbols
-        - script.execute: update_content
-
 interval:
   - interval: 1s
     then:

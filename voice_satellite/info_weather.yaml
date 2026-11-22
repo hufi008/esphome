@@ -30,8 +30,23 @@ interval:
             ]
           on_success:
             - lambda: |-
+                const char *forecast_json = response["response"].as<const char *>();
+                if (forecast_json == nullptr) {
+                  ESP_LOGE("info_weather", "Template response is not a string or is null.");
+                } else {
+                  const size_t response_length = strlen(forecast_json);
+                  ESP_LOGD("info_weather", "Template response: %zu bytes", response_length);
+                  for (size_t offset = 0; offset < response_length; offset += 180) {
+                    char chunk[181];
+                    const size_t count = std::min((size_t) 180, response_length - offset);
+                    memcpy(chunk, forecast_json + offset, count);
+                    chunk[count] = '\\0';
+                    ESP_LOGD("info_weather", "Response [%zu-%zu]: %s",
+                             offset, offset + count - 1, chunk);
+                  }
+                }
                 id(my_forecast_repository) = response["response"];
-                ESP_LOGD("info_weather", "%zu forecast items received.",
+                ESP_LOGD("info_weather", "Repository size after assignment: %zu",
                          id(my_forecast_repository).size());
 
 script:

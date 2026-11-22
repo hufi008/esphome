@@ -190,47 +190,9 @@ script:
                       id(my_display_message3) = str_sprintf("ESP: %s", ESPHOME_VERSION);
                       break;
 
-                    case ContentMode::IDLE: {
-                      // Aktive Timer haben Vorrang vor den normalen Info-Seiten.
-                      const auto &timers = id(my_voice_assistant).get_timers();
-                      const esphome::voice_assistant::Timer *active_timers[2] = {nullptr, nullptr};
-                      size_t active_timer_count = 0;
-
-                      for (const auto &timer : timers) {
-                        if (!timer.is_active) continue;
-                        active_timer_count++;
-                        if (active_timers[0] == nullptr ||
-                            timer.seconds_left < active_timers[0]->seconds_left) {
-                          active_timers[1] = active_timers[0];
-                          active_timers[0] = &timer;
-                        } else if (active_timers[1] == nullptr ||
-                                   timer.seconds_left < active_timers[1]->seconds_left) {
-                          active_timers[1] = &timer;
-                        }
-                      }
-                      if (active_timer_count > 0) {
-                                  const std::string name1 = active_timers[0]->name.empty()
-                            ? "Timer" : active_timers[0]->name;
-                        id(my_display_title) = "TIMER";
-                        id(my_display_icon) = id(my_icon_timer);
-                        id(my_display_message1) = name1 + ": " +
-                            std::to_string(active_timers[0]->seconds_left) + " s";
-
-                        if (active_timer_count >= 2 && active_timers[1] != nullptr) {
-                          const std::string name2 = active_timers[1]->name.empty()
-                              ? "Timer" : active_timers[1]->name;
-                          id(my_display_message2) = name2 + ": " +
-                              std::to_string(active_timers[1]->seconds_left) + " s";
-                          if (active_timer_count > 2) {
-                            id(my_display_message2) += " (+" +
-                                std::to_string(active_timer_count - 2) + ")";
-                          }
-                        }
-                      } else {
-                        id(my_display_title) = "INFO";
-                      }
+                    case ContentMode::IDLE:
+                      id(my_display_title) = "INFO";
                       break;
-                    }
 
                     case ContentMode::PLAY:
                       id(my_display_icon) = id(my_icon_play);
@@ -255,65 +217,49 @@ script:
               break;
           }
 
-          static std::string last_render;
-          const std::string current_render =
-              id(my_display_title) + " | " +
-              id(my_display_message1) + " | " +
-              id(my_display_message2) + " | " +
-              id(my_display_message3);
-          if (current_render != last_render) {
-            ESP_LOGD("display", "render: %s",
-                     current_render.c_str());
-            last_render = current_render;
-          }
-      - if:
-          condition:
-            lambda: |-
-              if (id(my_content_mode) != ContentMode::IDLE ||
-                  id(my_assist_mode) != AssistMode::NONE ||
-                  id(my_overlay_mode) != OverlayMode::NONE ||
-                  id(my_idle_updater_scripts).empty()) {
-                return false;
-              }
-              for (const auto &timer : id(my_voice_assistant).get_timers()) {
-                if (timer.is_active) return false;
-              }
-              return true;
-          then:
-            - script.execute: rotate_info_pages
-          else:
-            - script.stop: rotate_info_pages
+          ESP_LOGD("display", "render: %s | %s | %s | %s",
+                   id(my_display_title).c_str(),
+                   id(my_display_message1).c_str(),
+                   id(my_display_message2).c_str(),
+                   id(my_display_message3).c_str());
+      - script.execute: update_timer
       - component.update: my_display
 
-  # Ruft jede Info-Seite genau einmal pro Anzeigeslot auf.
+  # Läuft dauerhaft; Info-Seiten werden nur im freien IDLE-Modus gewechselt.
   - id: rotate_info_pages
     mode: single
     then:
       - while:
           condition:
-            lambda: |-
-              if (id(my_content_mode) != ContentMode::IDLE ||
-                  id(my_assist_mode) != AssistMode::NONE ||
-                  id(my_overlay_mode) != OverlayMode::NONE ||
-                  id(my_idle_updater_scripts).empty()) {
-                return false;
-              }
-              for (const auto &timer : id(my_voice_assistant).get_timers()) {
-                if (timer.is_active) return false;
-              }
-              return true;
+            lambda: return true;
           then:
-            - lambda: |-
-                const size_t count = id(my_idle_updater_scripts).size();
-                if (count == 0) return;
-                id(my_idle_updater_index) %= count;
-                id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
-            - component.update: my_display
-            - delay: !lambda |-
-                return (uint32_t) (id(my_page_info_duration).state * 1000);
-            - lambda: |-
-                const size_t count = id(my_idle_updater_scripts).size();
-                if (count > 0) {
-                  id(my_idle_updater_index) =
-                      (id(my_idle_updater_index) + 1) % count;
-                }
+            - if:
+                condition:
+                  lambda: |-
+                    if (id(my_content_mode) != ContentMode::IDLE ||
+                        id(my_assist_mode) != AssistMode::NONE ||
+                        id(my_overlay_mode) != OverlayMode::NONE ||
+                        id(my_idle_updater_scripts).empty()) {
+                      return false;
+                    }
+                    for (const auto &timer : id(my_voice_assistant).get_timers()) {
+                      if (timer.is_active) return false;
+                    }
+                    return true;
+                then:
+                  - lambda: |-
+                      const size_t count = id(my_idle_updater_scripts).size();
+                      if (count == 0) return;
+                      id(my_idle_updater_index) %= count;
+                      id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
+                  - component.update: my_display
+                  - delay: !lambda |-
+                      return (uint32_t) (id(my_page_info_duration).state * 1000);
+                  - lambda: |-
+                      const size_t count = id(my_idle_updater_scripts).size();
+                      if (count > 0) {
+                        id(my_idle_updater_index) =
+                            (id(my_idle_updater_index) + 1) % count;
+                      }
+                else:
+                  - delay: 1s

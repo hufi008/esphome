@@ -172,47 +172,28 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (id(my_overlay_mode) == OverlayMode::VOLUME) {
-            id(my_ledstrip).turn_on().set_effect("Effect OVERLAY_VOLUME").perform();
-            return;
-          }
-          if (id(my_overlay_mode) == OverlayMode::ERROR) {
-            id(my_ledstrip).turn_on().set_effect("Effect OVERLAY_ERROR").perform();
-            return;
-          }
-          if (id(my_overlay_mode) == OverlayMode::ALARM) {
-            id(my_ledstrip).turn_on().set_effect("Effect OVERLAY_ALARM").perform();
+          if (id(my_overlay_mode) != OverlayMode::NONE) {
+            const char *mode = overlay_mode_to_string(id(my_overlay_mode));
+            if (mode == nullptr) return;
+            const std::string effect = std::string("Effect OVERLAY_") + mode;
+            id(my_ledstrip).turn_on().set_effect(effect).perform();
             return;
           }
 
-          switch (id(my_assist_mode)) {
-            case AssistMode::LISTEN:
-              id(my_ledstrip).turn_on().set_effect("Effect ASSIST_LISTEN").perform();
-              return;
-            case AssistMode::THINK:
-              id(my_ledstrip).turn_on().set_effect("Effect ASSIST_THINK").perform();
-              return;
-            case AssistMode::ANNOUNCE:
-              id(my_ledstrip).turn_on().set_effect("Effect ASSIST_ANNOUNCE").perform();
-              return;
-            case AssistMode::NONE:
-              break;
+          if (id(my_assist_mode) != AssistMode::NONE) {
+            const char *mode = assist_mode_to_string(id(my_assist_mode));
+            if (mode == nullptr) return;
+            const std::string effect = std::string("Effect ASSIST_") + mode;
+            id(my_ledstrip).turn_on().set_effect(effect).perform();
+            return;
           }
 
-          switch (id(my_content_mode)) {
-            case ContentMode::BOOT:
-              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_BOOT").perform();
-              break;
-            case ContentMode::IDLE:
-              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_IDLE").perform();
-              break;
-            case ContentMode::PLAY:
-              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_PLAY").perform();
-              break;
-            case ContentMode::PAUSE:
-              id(my_ledstrip).turn_on().set_effect("Effect CONTENT_PAUSE").perform();
-              break;
-            case ContentMode::SHUTDOWN:
-              id(my_ledstrip).turn_off().perform();
-              break;
+          if (id(my_content_mode) == ContentMode::SHUTDOWN) {
+            id(my_ledstrip).turn_off().perform();
+            return;
           }
+
+          const char *mode = content_mode_to_string(id(my_content_mode));
+          if (mode == nullptr) return;
+          const std::string effect = std::string("Effect CONTENT_") + mode;
+          id(my_ledstrip).turn_on().set_effect(effect).perform();

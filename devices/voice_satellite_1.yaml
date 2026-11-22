@@ -46,6 +46,12 @@ packages:
   display: !include ../voice_satellite/display.yaml
   ledstrip: !include ../voice_satellite/ledstrip.yaml
   modes: !include ../voice_satellite/modes.yaml
+
   info_time: !include ../voice_satellite/info_time.yaml
   info_date: !include ../voice_satellite/info_date.yaml
   info_weekday: !include ../voice_satellite/info_weekday.yaml
+
+  info_htu21: !include ../voice_satellite/info_htu21.yaml
+  info_moonphase: !include ../voice_satellite/info_moonphase.yaml
+  info_sun: !include ../voice_satellite/info_sun.yaml
+  info_weather: !include ../voice_satellite/info_weather.yaml

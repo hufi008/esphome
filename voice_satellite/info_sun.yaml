@@ -1,0 +1,35 @@
+# Voice Satellite – Info-Seite: Sonnenaufgang und Sonnenuntergang
+
+sun:
+  id: my_sun
+  latitude: !secret latitude
+  longitude: !secret longitude
+
+text_sensor:
+  - platform: sun
+    id: my_sunrise
+    name: "Sonnenaufgang"
+    type: sunrise
+    format: "%H:%M"
+
+  - platform: sun
+    id: my_sunset
+    name: "Sonnenuntergang"
+    type: sunset
+    format: "%H:%M"
+
+script:
+  - id: my_update_sunrise_sunset
+    then:
+      - lambda: |-
+          id(my_display_message1) = id(my_sunrise).state;
+          id(my_display_message2) = id(my_sunset).state;
+          id(my_display_message3).clear();
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(my_update_sunrise_sunset).execute(); });

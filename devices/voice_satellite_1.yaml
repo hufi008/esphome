@@ -49,3 +49,4 @@ packages:
   info_moonphase: !include ../voice_satellite/info_moonphase.yaml
   info_sun: !include ../voice_satellite/info_sun.yaml
   info_weather: !include ../voice_satellite/info_weather.yaml
+  info_timer: !include ../voice_satellite/info_timer.yaml

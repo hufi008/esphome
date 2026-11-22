@@ -4,6 +4,7 @@ script:
   - id: update_date
     then:
       - lambda: |-
+          id(my_display_icon) = &id(my_icon_date);
           auto now = id(my_esptime).now();
           if (!now.is_valid()) return;
           id(my_display_message1) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);

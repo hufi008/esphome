@@ -92,10 +92,6 @@ globals:
     type: 'image::Image*'
     initial_value: 'nullptr'
 
-  - id: my_page_info_start_time
-    type: uint32_t
-    restore_value: no
-    initial_value: '0'
   - id: my_idle_updater_scripts
     type: 'std::vector<std::function<void()>>'
     initial_value: 'std::vector<std::function<void()>>()'
@@ -147,14 +143,12 @@ script:
           switch (id(my_overlay_mode)) {
             case OverlayMode::VOLUME:
               id(my_display_icon) = id(my_icon_volume);
-              id(my_page_info_start_time) = 0;
               id(my_display_title) = "VOLUME";
               id(my_display_message1) = "Lautstärke";
               break;
 
             case OverlayMode::ERROR:
               id(my_display_icon) = id(my_icon_error);
-              id(my_page_info_start_time) = 0;
               id(my_display_title) = "ERROR";
               id(my_display_message1) = "Voice Assistant";
               id(my_display_message2) = "Fehler";
@@ -162,7 +156,6 @@ script:
 
             case OverlayMode::ALARM:
               id(my_display_icon) = id(my_icon_alarm);
-              id(my_page_info_start_time) = 0;
               id(my_display_title) = "ALARM";
               id(my_display_message1) = "Timer beendet";
               break;
@@ -171,22 +164,19 @@ script:
               switch (id(my_assist_mode)) {
                 case AssistMode::LISTEN:
                   id(my_display_icon) = id(my_icon_listen);
-                  id(my_page_info_start_time) = 0;
-                  id(my_display_title) = "ASSIST";
+                      id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich höre zu";
                   break;
 
                 case AssistMode::THINK:
                   id(my_display_icon) = id(my_icon_think);
-                  id(my_page_info_start_time) = 0;
-                  id(my_display_title) = "ASSIST";
+                      id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Moment...";
                   break;
 
                 case AssistMode::ANNOUNCE:
                   id(my_display_icon) = id(my_icon_announce);
-                  id(my_page_info_start_time) = 0;
-                  id(my_display_title) = "ASSIST";
+                      id(my_display_title) = "ASSIST";
                   id(my_display_message1) = "Ich antworte";
                   break;
 
@@ -194,8 +184,7 @@ script:
                   switch (id(my_content_mode)) {
                     case ContentMode::BOOT:
                       id(my_display_icon) = id(my_icon_boot);
-                      id(my_page_info_start_time) = 0;
-                      id(my_display_title) = "BOOT";
+                              id(my_display_title) = "BOOT";
                       id(my_display_message1) = str_sprintf("PRO: %s", ESPHOME_PROJECT_VERSION);
                       id(my_display_message2) = str_sprintf("IDF: %s", esp_get_idf_version());
                       id(my_display_message3) = str_sprintf("ESP: %s", ESPHOME_VERSION);
@@ -220,8 +209,7 @@ script:
                         }
                       }
                       if (active_timer_count > 0) {
-                        id(my_page_info_start_time) = 0;
-                        const std::string name1 = active_timers[0]->name.empty()
+                                  const std::string name1 = active_timers[0]->name.empty()
                             ? "Timer" : active_timers[0]->name;
                         id(my_display_title) = "TIMER";
                         id(my_display_icon) = id(my_icon_timer);
@@ -240,44 +228,25 @@ script:
                         }
                       } else {
                         id(my_display_title) = "INFO";
-                        const size_t updater_count = id(my_idle_updater_scripts).size();
-                        if (updater_count > 0) {
-                          const uint32_t duration_ms =
-                              (uint32_t) (id(my_page_info_duration).state * 1000);
-
-                          if (id(my_page_info_start_time) == 0) {
-                            id(my_page_info_start_time) = millis();
-                          } else if (duration_ms > 0 &&
-                                     millis() - id(my_page_info_start_time) >= duration_ms) {
-                            id(my_idle_updater_index) =
-                                (id(my_idle_updater_index) + 1) % updater_count;
-                            id(my_page_info_start_time) = millis();
-                          }
-
-                          id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
-                        }
                       }
                       break;
                     }
 
                     case ContentMode::PLAY:
                       id(my_display_icon) = id(my_icon_play);
-                      id(my_page_info_start_time) = 0;
-                      id(my_display_title) = "PLAYER";
+                              id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Wiedergabe";
                       break;
 
                     case ContentMode::PAUSE:
                       id(my_display_icon) = id(my_icon_pause);
-                      id(my_page_info_start_time) = 0;
-                      id(my_display_title) = "PLAYER";
+                              id(my_display_title) = "PLAYER";
                       id(my_display_message1) = "Pausiert";
                       break;
 
                     case ContentMode::SHUTDOWN:
                       id(my_display_icon) = id(my_icon_unknown);
-                      id(my_page_info_start_time) = 0;
-                      id(my_display_title) = "SYSTEM";
+                              id(my_display_title) = "SYSTEM";
                       id(my_display_message1) = "Abschaltung";
                       break;
                   }
@@ -297,24 +266,55 @@ script:
                      current_render.c_str());
             last_render = current_render;
           }
+      - if:
+          condition:
+            lambda: |-
+              if (id(my_content_mode) != ContentMode::IDLE ||
+                  id(my_assist_mode) != AssistMode::NONE ||
+                  id(my_overlay_mode) != OverlayMode::NONE ||
+                  id(my_idle_updater_scripts).empty()) {
+                return false;
+              }
+              for (const auto &timer : id(my_voice_assistant).get_timers()) {
+                if (timer.is_active) return false;
+              }
+              return true;
+          then:
+            - script.execute: rotate_info_pages
+          else:
+            - script.stop: rotate_info_pages
       - component.update: my_display
 
-interval:
-  - interval: 1s
+script:
+  # Ruft jede Info-Seite genau einmal pro Anzeigeslot auf.
+  - id: rotate_info_pages
+    mode: single
     then:
-      - lambda: |-
-          // Nur die rotierende Info-Seite benötigt eine sekündliche Aktualisierung.
-          if (id(my_content_mode) != ContentMode::IDLE ||
-              id(my_assist_mode) != AssistMode::NONE ||
-              id(my_overlay_mode) != OverlayMode::NONE) {
-            return;
-          }
-
-          // Bei aktiven Timern aktualisieren deren eigene Callbacks die Anzeige.
-          for (const auto &timer : id(my_voice_assistant).get_timers()) {
-            if (timer.is_active) {
-              return;
-            }
-          }
-
-          id(update_content).execute();
+      - while:
+          condition:
+            lambda: |-
+              if (id(my_content_mode) != ContentMode::IDLE ||
+                  id(my_assist_mode) != AssistMode::NONE ||
+                  id(my_overlay_mode) != OverlayMode::NONE ||
+                  id(my_idle_updater_scripts).empty()) {
+                return false;
+              }
+              for (const auto &timer : id(my_voice_assistant).get_timers()) {
+                if (timer.is_active) return false;
+              }
+              return true;
+          then:
+            - lambda: |-
+                const size_t count = id(my_idle_updater_scripts).size();
+                if (count == 0) return;
+                id(my_idle_updater_index) %= count;
+                id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
+            - component.update: my_display
+            - delay: !lambda |-
+                return (uint32_t) (id(my_page_info_duration).state * 1000);
+            - lambda: |-
+                const size_t count = id(my_idle_updater_scripts).size();
+                if (count > 0) {
+                  id(my_idle_updater_index) =
+                      (id(my_idle_updater_index) + 1) % count;
+                }

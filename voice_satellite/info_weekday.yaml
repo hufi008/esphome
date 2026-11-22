@@ -1,0 +1,20 @@
+# Voice Satellite – Info-Seite: Wochentag
+
+script:
+  - id: update_weekday
+    then:
+      - lambda: |-
+          auto now = id(my_esptime).now();
+          if (!now.is_valid()) return;
+          static const char *weekdays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+          id(my_display_message1) = weekdays[now.day_of_week - 1];
+          id(my_display_message2) = str_snprintf("%02d.%02d.%02d", 32, now.day_of_month, now.month, now.year % 100);
+          id(my_display_message3).clear();
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - lambda: |-
+            voice_satellite::register_info_screen(
+                id(my_idle_updater_scripts), []() { id(update_weekday).execute(); });

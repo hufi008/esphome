@@ -237,8 +237,6 @@ script:
                           }
 
                           id(my_idle_updater_scripts)[id(my_idle_updater_index)]();
-                          ESP_LOGD("display", "Info Index: %u",
-                                   (unsigned) id(my_idle_updater_index));
                         }
                       }
                       break;
@@ -267,11 +265,17 @@ script:
               break;
           }
 
-          ESP_LOGD("display", "render: %s | %s | %s | %s",
-                   id(my_display_title).c_str(),
-                   id(my_display_message1).c_str(),
-                   id(my_display_message2).c_str(),
-                   id(my_display_message3).c_str());
+          static std::string last_render;
+          const std::string current_render =
+              id(my_display_title) + " | " +
+              id(my_display_message1) + " | " +
+              id(my_display_message2) + " | " +
+              id(my_display_message3);
+          if (current_render != last_render) {
+            ESP_LOGD("display", "render: %s",
+                     current_render.c_str());
+            last_render = current_render;
+          }
       - component.update: my_display
 
 interval:

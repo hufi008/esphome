@@ -19,3 +19,4 @@ esphome:
       then:
         - lambda: |-
             id(play_ui_sound).execute(id(my_snd_boot));
+        - script.execute: rotate_info_pages

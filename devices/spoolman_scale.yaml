@@ -1,0 +1,456 @@
+substitutions:
+  device_name: esphome-web-6c88b4
+  friendly_name: "Spoolman Waage"
+
+  # Rechte Platinenseite (alle Module an 3.3V & GND über Breadboard)
+  pin_i2c_sda: GPIO19      # D19 # orange
+  pin_i2c_scl: GPIO18      # D18 # gelb
+  pin_hx711_dout: GPIO17   # TX2 # braun
+  pin_hx711_clk: GPIO16    # RX2 # rot
+  pin_button: GPIO4        # D4
+  pin_led: GPIO2           # Onboard blaue LED
+
+# ==============================================================================
+# 1. SYSTEM & NETZWERK
+# ==============================================================================
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    - priority: 250
+      then:
+        - script.execute:
+            id: set_spool_state
+            uid: "-"
+            info: "--"
+            smid: !lambda 'return NAN;'
+        # 3.5s warten bis HX711 eingeschwungen ist, dann automatisch nullen
+        - delay: 3.5s
+        - if:
+            condition:
+              lambda: 'return !std::isnan(id(scale).state);'
+            then:
+              - number.set:
+                  id: tare_offset
+                  value: !lambda 'return id(tare_offset).state + id(scale).state;'
+              - component.update: scale
+              - logger.log:
+                  format: "Auto-Tara beim Start abgeschlossen (Offset: %.0f g)"
+                  args: ['id(tare_offset).state']
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  id: wifi_id
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  id: api_id
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    encryption:
+
+logger:
+  logs:
+    hx711: ERROR
+    component: ERROR
+
+http_request:
+  useragent: esphome/spoolman-scale
+  timeout: 5s
+  verify_ssl: false
+
+globals:
+  - id: status_msg
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: prev_weight
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+# ==============================================================================
+# 2. HARDWARE-BUSSE, LED & DISPLAY
+# ==============================================================================
+
+i2c:
+  - id: i2c_bus
+    sda: ${pin_i2c_sda}
+    scl: ${pin_i2c_scl}
+    scan: true
+    frequency: 400kHz
+
+output:
+  - platform: gpio
+    id: onboard_led_out
+    pin:
+      number: ${pin_led}
+      ignore_strapping_warning: true
+
+light:
+  - platform: binary
+    id: status_led
+    output: onboard_led_out
+    internal: true
+    effects:
+      - strobe:
+          name: "Fast Pulse"
+          colors:
+            - state: true
+              duration: 150ms
+            - state: false
+              duration: 150ms
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 16
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 12
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    i2c_id: i2c_bus
+    address: 0x3C
+    update_interval: 250ms
+    lambda: |-
+      it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
+
+      if (!std::isnan(id(spool_id).state)) {
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s #%.0f", id(spool_uid).state.c_str(), id(spool_id).state);
+      } else {
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
+      }
+
+      // Zeigt temporäre Statusmeldungen (Messe..., Gespeichert!) oder die aktive Spule
+      const std::string line3 = !id(status_msg).empty() ? id(status_msg) : id(spool_info).state;
+      it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
+
+# ==============================================================================
+# 3. SENSOREN, EINGABEN & BUTTONS
+# ==============================================================================
+
+number:
+  - platform: template
+    id: tare_offset
+    name: "Tara Offset"
+    icon: "mdi:scale-balance"
+    entity_category: config
+    unit_of_measurement: "g"
+    min_value: -5000
+    max_value: 5000
+    step: 1
+    mode: box
+    optimistic: true
+    restore_value: false
+    initial_value: 0
+
+sensor:
+  - platform: hx711
+    id: scale
+    name: "Gewicht"
+    dout_pin: ${pin_hx711_dout}
+    clk_pin: ${pin_hx711_clk}
+    gain: 128
+    update_interval: 0.5s
+    accuracy_decimals: 0
+    on_raw_value:
+      then:
+        - sensor.template.publish:
+            id: scale_raw
+            state: !lambda 'return x;'
+    filters:
+      - calibrate_linear:
+          - -363675 ->   0.0
+          -   -7975 -> 933.0
+      - offset: !lambda 'return -id(tare_offset).state;'
+      - round_to_multiple_of: 2
+      - clamp:
+          min_value: 0
+      - or:
+          - delta: 2
+          - throttle: 300s
+
+  - platform: template
+    id: scale_raw
+    name: "Gewicht Rohwert"
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    filters:
+      - delta: 50
+
+  - platform: template
+    id: spool_id
+    name: "Spool-ID"
+    icon: "mdi:identifier"
+    state_class: measurement
+    accuracy_decimals: 0
+
+text_sensor:
+  - platform: template
+    id: spool_uid
+    name: "Letzte RFID UID"
+    icon: "mdi:nfc"
+
+  - platform: template
+    id: spool_info
+    name: "Aktive Spule"
+
+text:
+  - platform: template
+    id: spoolman_url
+    name: "Spoolman URL"
+    icon: "mdi:link-variant"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "http://jarvis:8000"
+
+binary_sensor:
+  - platform: gpio
+    id: button1
+    name: "Touch Button"
+    pin:
+      number: ${pin_button}
+      mode: INPUT
+      inverted: true
+    on_press:
+      then:
+        - logger.log: "button1.on_click"
+        - script.execute: measure_and_send
+
+button:
+  - platform: restart
+    name: "Restart"
+    icon: mdi:restart
+    on_press:
+      then:
+        - safe_mode.mark_successful
+
+  - platform: factory_reset
+    name: "Factory Reset NVS"
+
+# ==============================================================================
+# 4. NFC-LOGIK & SKRIPTE
+# ==============================================================================
+
+pn532_i2c:
+  update_interval: 1s
+  on_tag:
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(spoolman_url).state.empty();'
+          then:
+            - http_request.get:
+                url: !lambda |-
+                  return id(spoolman_url).state + "/api/v1/spool?tag=" + x;
+                capture_response: true
+                max_response_buffer_size: 4096
+                on_response:
+                  then:
+                    - lambda: |-
+                        const std::string uid = x;
+
+                        if (response->status_code != 200) {
+                          ESP_LOGE("spoolman", "Spoolman-API-Fehler: HTTP %d", response->status_code);
+                          id(set_spool_state)->execute(uid, "API Fehler: " + to_string(response->status_code), NAN);
+                          return;
+                        }
+
+                        JsonDocument doc;
+                        const DeserializationError err = deserializeJson(doc, body);
+                        if (err) {
+                          ESP_LOGE("spoolman", "JSON Parse-Fehler: %s", err.c_str());
+                          id(set_spool_state)->execute(uid, "JSON Fehler", NAN);
+                          return;
+                        }
+
+                        const JsonArray spools = doc.as<JsonArray>();
+                        if (spools.size() > 0) {
+                          const JsonObject spool = spools[0];
+                          const int found_id = spool["id"] | -1;
+                          const std::string vendor = spool["filament"]["vendor"]["name"] | "";
+                          const std::string material = spool["filament"]["material"] | "";
+                          const std::string name = spool["filament"]["name"] | "";
+
+                          const std::string info = vendor + " " + material + " (" + name + ")";
+                          ESP_LOGI("spoolman", "Spule gefunden (#%d): %s", found_id, info.c_str());
+
+                          id(set_spool_state)->execute(uid, info, static_cast<float>(found_id));
+                        } else {
+                          ESP_LOGW("spoolman", "Keine Spule mit UID '%s' gefunden.", uid.c_str());
+                          id(set_spool_state)->execute(uid, "Unbekannt", NAN);
+                        }
+                on_error:
+                  then:
+                    - logger.log:
+                        level: ERROR
+                        format: "Verbindung zu Spoolman fehlgeschlagen!"
+                    - script.execute:
+                        id: set_spool_state
+                        uid: !lambda 'return x;'
+                        info: "Verbindungsfehler"
+                        smid: !lambda 'return NAN;'
+
+  on_tag_removed:
+    then:
+      - script.execute:
+          id: set_spool_state
+          uid: "-"
+          info: "--"
+          smid: !lambda 'return NAN;'
+
+script:
+  - id: set_spool_state
+    parameters:
+      uid: string
+      info: string
+      smid: float
+    then:
+      - text_sensor.template.publish:
+          id: spool_uid
+          state: !lambda 'return uid;'
+      - text_sensor.template.publish:
+          id: spool_info
+          state: !lambda 'return info;'
+      - sensor.template.publish:
+          id: spool_id
+          state: !lambda 'return smid;'
+
+  - id: measure_and_send
+    mode: single # Verhindert Doppelausführung bei mehrfachem Tippen
+    then:
+      # 1. Prüfen ob gültige Spool-ID und URL vorhanden sind
+      - if:
+          condition:
+            lambda: 'return std::isnan(id(spool_id).state) || id(spoolman_url).state.empty();'
+          then:
+            - globals.set:
+                id: status_msg
+                value: '"Keine Spule!"'
+            - script.execute: blink_error
+            - delay: 2s
+            - globals.set:
+                id: status_msg
+                value: '""'
+            - script.stop: measure_and_send
+
+      # 2. LED schnell blinken lassen und auf stabilen Messwert warten (max. 6 Sekunden)
+      - light.turn_on:
+          id: status_led
+          effect: "Fast Pulse"
+      - globals.set:
+          id: status_msg
+          value: '"Messe..."'
+      - globals.set:
+          id: prev_weight
+          value: !lambda 'return id(scale).state;'
+      - repeat:
+          count: 10
+          then:
+            - delay: 0.6s
+            - if:
+                condition:
+                  lambda: |-
+                    const float cur = id(scale).state;
+                    const bool stable = !std::isnan(cur) && std::abs(cur - id(prev_weight)) <= 2.0f;
+                    id(prev_weight) = cur;
+                    return stable;
+                then:
+                  - logger.log:
+                      format: "Messwert stabil: %.0f g"
+                      args: ['id(scale).state']
+                  - http_request.send:
+                      method: PUT
+                      url: !lambda |-
+                        return id(spoolman_url).state + "/api/v1/spool/" + to_string(static_cast<int>(id(spool_id).state)) + "/measure";
+                      request_headers:
+                        Content-Type: "application/json"
+                      body: !lambda |-
+                        return "{\"weight\":" + to_string(static_cast<int>(id(scale).state)) + "}";
+                      on_response:
+                        then:
+                          - if:
+                              condition:
+                                lambda: 'return response->status_code == 200;'
+                              then:
+                                - logger.log:
+                                    format: "Gewicht (%.0f g) erfolgreich an Spoolman gemeldet!"
+                                    args: ['id(scale).state']
+                                - light.turn_on:
+                                    id: status_led
+                                    effect: "None"
+                                - globals.set:
+                                    id: status_msg
+                                    value: '"Gespeichert!"'
+                                - delay: 2s
+                                - light.turn_off: status_led
+                                - globals.set:
+                                    id: status_msg
+                                    value: '""'
+                              else:
+                                - logger.log:
+                                    level: ERROR
+                                    format: "Spoolman-Fehler beim Speichern: HTTP %d"
+                                    args: ['response->status_code']
+                                - globals.set:
+                                    id: status_msg
+                                    value: '"API Fehler!"'
+                                - script.execute: blink_error
+                                - delay: 2s
+                                - globals.set:
+                                    id: status_msg
+                                    value: '""'
+                      on_error:
+                        then:
+                          - logger.log:
+                              level: ERROR
+                              format: "HTTP-Verbindungsfehler beim Senden!"
+                          - globals.set:
+                              id: status_msg
+                              value: '"Sendefehler!"'
+                          - script.execute: blink_error
+                          - delay: 2s
+                          - globals.set:
+                              id: status_msg
+                              value: '""'
+                  - script.stop: measure_and_send
+
+      # 3. Fallback, falls nach 6 Sekunden kein stabiler Wert erreicht wurde
+      - logger.log:
+          level: WARN
+          format: "Abbruch: Messwert wurde nicht stabil."
+      - globals.set:
+          id: status_msg
+          value: '"Instabil!"'
+      - script.execute: blink_error
+      - delay: 2s
+      - globals.set:
+          id: status_msg
+          value: '""'
+
+  - id: blink_error
+    then:
+      - light.turn_off: status_led
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: status_led
+                effect: "None"
+            - delay: 150ms
+            - light.turn_off: status_led
+            - delay: 150ms

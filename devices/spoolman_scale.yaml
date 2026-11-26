@@ -1,0 +1,28 @@
+# spoolman_scale.yaml
+
+substitutions:
+  device_name: esphome-web-6c88b4
+  friendly_name: "Spoolman Waage"
+
+  # Rechte Platinenseite (alle Module an 3.3V & GND über Breadboard)
+  pin_i2c_sda: GPIO19      # D19 # orange
+  pin_i2c_scl: GPIO18      # D18 # gelb
+  pin_hx711_dout: GPIO17   # TX2 # braun
+  pin_hx711_clk: GPIO16    # RX2 # rot
+  pin_button: GPIO4        # D4
+  pin_led: GPIO2           # Onboard blaue LED
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  logs:
+    hx711: ERROR
+    component: ERROR
+
+packages:
+  base: !include ../common/base-esp32.yaml
+  hardware: !include ../spoolman_scale/hardware.yaml
+  functions: !include ../spoolman_scale/main.yaml

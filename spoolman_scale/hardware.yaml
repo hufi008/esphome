@@ -1,0 +1,163 @@
+# ==============================================================================
+# 2. HARDWARE-BUSSE, LED & DISPLAY
+# ==============================================================================
+
+i2c:
+  - id: i2c_bus
+    sda: ${pin_i2c_sda}
+    scl: ${pin_i2c_scl}
+    scan: true
+    frequency: 400kHz
+
+output:
+  - platform: gpio
+    id: onboard_led_out
+    pin:
+      number: ${pin_led}
+      ignore_strapping_warning: true
+
+light:
+  - platform: binary
+    id: status_led
+    output: onboard_led_out
+    internal: true
+    effects:
+      - strobe:
+          name: "Fast Pulse"
+          colors:
+            - state: true
+              duration: 150ms
+            - state: false
+              duration: 150ms
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 16
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 12
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    i2c_id: i2c_bus
+    address: 0x3C
+    update_interval: 250ms
+    lambda: |-
+      it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
+
+      if (!std::isnan(id(spool_id).state)) {
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s #%.0f", id(spool_uid).state.c_str(), id(spool_id).state);
+      } else {
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
+      }
+
+      // Zeigt temporäre Statusmeldungen (Messe..., Gespeichert!) oder die aktive Spule
+      const std::string line3 = !id(status_msg).empty() ? id(status_msg) : id(spool_info).state;
+      it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
+
+# ==============================================================================
+# 3. SENSOREN, EINGABEN & BUTTONS
+# ==============================================================================
+
+number:
+  - platform: template
+    id: tare_offset
+    name: "Tara Offset"
+    icon: "mdi:scale-balance"
+    entity_category: config
+    unit_of_measurement: "g"
+    min_value: -5000
+    max_value: 5000
+    step: 1
+    mode: box
+    optimistic: true
+    restore_value: false
+    initial_value: 0
+
+sensor:
+  - platform: hx711
+    id: scale
+    name: "Gewicht"
+    dout_pin: ${pin_hx711_dout}
+    clk_pin: ${pin_hx711_clk}
+    gain: 128
+    update_interval: 0.5s
+    accuracy_decimals: 0
+    on_raw_value:
+      then:
+        - sensor.template.publish:
+            id: scale_raw
+            state: !lambda 'return x;'
+    filters:
+      - calibrate_linear:
+          - -363675 ->   0.0
+          -   -7975 -> 933.0
+      - offset: !lambda 'return -id(tare_offset).state;'
+      - round_to_multiple_of: 2
+      - clamp:
+          min_value: 0
+      - or:
+          - delta: 2
+          - throttle: 300s
+
+  - platform: template
+    id: scale_raw
+    name: "Gewicht Rohwert"
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    filters:
+      - delta: 50
+
+  - platform: template
+    id: spool_id
+    name: "Spool-ID"
+    icon: "mdi:identifier"
+    state_class: measurement
+    accuracy_decimals: 0
+
+text_sensor:
+  - platform: template
+    id: spool_uid
+    name: "Letzte RFID UID"
+    icon: "mdi:nfc"
+
+  - platform: template
+    id: spool_info
+    name: "Aktive Spule"
+
+text:
+  - platform: template
+    id: spoolman_url
+    name: "Spoolman URL"
+    icon: "mdi:link-variant"
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "http://jarvis:8000"
+
+binary_sensor:
+  - platform: gpio
+    id: button1
+    name: "Touch Button"
+    pin:
+      number: ${pin_button}
+      mode: INPUT
+      inverted: true
+    on_press:
+      then:
+        - logger.log: "button1.on_click"
+        - script.execute: measure_and_send
+
+button:
+  - platform: restart
+    name: "Restart"
+    icon: mdi:restart
+    on_press:
+      then:
+        - safe_mode.mark_successful
+
+  - platform: factory_reset
+    name: "Factory Reset NVS"

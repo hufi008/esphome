@@ -10,7 +10,6 @@ substitutions:
   pin_hx711_dout: GPIO17   # TX2 # braun
   pin_hx711_clk: GPIO16    # RX2 # rot
   pin_button: GPIO4        # D4
-  pin_led: GPIO2           # Onboard blaue LED
 
 esp32:
   board: esp32dev

@@ -27,7 +27,7 @@ display:
     lambda: |-
       it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
 
-      if (!std::isnan(id(spool_id).state)) {
+      if (!id(spool_id).state.empty()) {
         // Erkannte Spule: Vendor + Material in Zeile 2, Spulenname unten.
         it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_info).state.c_str());
       } else {
@@ -37,7 +37,7 @@ display:
 
       // Statusmeldungen haben Vorrang vor dem Spulennamen.
       const std::string line3 = !id(status_msg).empty() ? id(status_msg) :
-                                (!std::isnan(id(spool_id).state) ? id(spool_name).state : id(spool_info).state);
+                                (!id(spool_id).state.empty() ? id(spool_name).state : id(spool_info).state);
       it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
 
 # ==============================================================================
@@ -93,13 +93,6 @@ sensor:
     filters:
       - delta: 50
 
-  - platform: template
-    id: spool_id
-    name: "Spool-ID"
-    icon: "mdi:identifier"
-    state_class: measurement
-    accuracy_decimals: 0
-
 text_sensor:
   - platform: template
     id: spool_uid
@@ -113,6 +106,11 @@ text_sensor:
   - platform: template
     id: spool_name
     name: "Spulenname"
+
+  - platform: template
+    id: spool_id
+    name: "Spool-ID"
+    icon: "mdi:identifier"
 
 text:
   - platform: template

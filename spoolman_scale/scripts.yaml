@@ -44,7 +44,7 @@ script:
   - id: sleep_after_idle
     mode: restart
     then:
-      - delay: 30s
+      - delay: 5min
       # Solange mehr als 50 g auf der Waage liegen, wach bleiben.
       # Alle 10 Sekunden erneut prüfen.
       - while:

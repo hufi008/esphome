@@ -1,8 +1,42 @@
 # ==============================================================================
-# Skripte: Sleep, Spoolman-Abfragen und Messablauf
+# Skripte: Startablauf, Sleep, Spoolman-Abfragen und Messablauf
 # ==============================================================================
 
 script:
+  # Startablauf: Spulenstatus initialisieren, HX711 einschwingen lassen,
+  # bei Kaltstart tarieren und anschließend den Sleep-Timer starten.
+  - id: boot_sequence
+    then:
+      - script.execute:
+          id: set_spool_state
+          uid: "-"
+          info: "--"
+          name: ""
+          smid: ""
+      - delay: 3.5s
+      # Nach Deep-Sleep-Wakeup Tara beibehalten:
+      # Eine aufliegende Spule darf nicht versehentlich weggenullt werden.
+      - if:
+          condition:
+            lambda: 'return !id(woke_from_sleep);'
+          then:
+            - if:
+                condition:
+                  lambda: 'return !std::isnan(id(scale).state);'
+                then:
+                  - number.set:
+                      id: tare_offset
+                      value: !lambda 'return id(tare_offset).state + id(scale).state;'
+                  - component.update: scale
+                  - logger.log:
+                      format: "Auto-Tara beim Start abgeschlossen (Offset: %.0f g)"
+                      args: ['id(tare_offset).state']
+          else:
+            - logger.log:
+                level: INFO
+                format: "Deep-Sleep-Wakeup: gespeicherten Tara-Offset beibehalten"
+      - script.execute: sleep_after_idle
+
   # Wird beim Boot und nach jeder Touch-Bedienung neu gestartet.
   - id: sleep_after_idle
     mode: restart

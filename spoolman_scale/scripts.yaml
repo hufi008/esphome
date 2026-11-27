@@ -40,7 +40,7 @@ script:
               - lambda: |-
                   if (response->status_code != 200) {
                     ESP_LOGE("spoolman", "Spoolman-API-Fehler: HTTP %d", response->status_code);
-                    id(set_spool_state)->execute(uid, "API Fehler: " + to_string(response->status_code), "", NAN);
+                    id(set_spool_state)->execute(uid, "API Fehler: " + to_string(response->status_code), "", "");
                     return;
                   }
 
@@ -48,7 +48,7 @@ script:
                   const DeserializationError err = deserializeJson(doc, body);
                   if (err) {
                     ESP_LOGE("spoolman", "JSON Parse-Fehler: %s", err.c_str());
-                    id(set_spool_state)->execute(uid, "JSON Fehler", "", NAN);
+                    id(set_spool_state)->execute(uid, "JSON Fehler", "", "");
                     return;
                   }
 
@@ -63,10 +63,10 @@ script:
                     const std::string info = vendor + " " + material;
                     ESP_LOGI("spoolman", "Spule gefunden (#%d): %s", found_id, info.c_str());
 
-                    id(set_spool_state)->execute(uid, info, name, static_cast<float>(found_id));
+                    id(set_spool_state)->execute(uid, info, name, to_string(found_id));
                   } else {
                     ESP_LOGW("spoolman", "Keine Spule mit UID '%s' gefunden.", uid.c_str());
-                    id(set_spool_state)->execute(uid, "Unbekannt", "", NAN);
+                    id(set_spool_state)->execute(uid, "Unbekannt", "", "");
                   }
           on_error:
             then:
@@ -78,14 +78,14 @@ script:
                   uid: !lambda 'return uid;'
                   info: "Verbindungsfehler"
                   name: ""
-                  smid: !lambda 'return NAN;'
+                  smid: ""
 
   - id: set_spool_state
     parameters:
       uid: string
       info: string
       name: string
-      smid: float
+      smid: string
     then:
       - text_sensor.template.publish:
           id: spool_uid
@@ -96,7 +96,7 @@ script:
       - text_sensor.template.publish:
           id: spool_name
           state: !lambda 'return name;'
-      - sensor.template.publish:
+      - text_sensor.template.publish:
           id: spool_id
           state: !lambda 'return smid;'
 
@@ -106,7 +106,7 @@ script:
       # 1. Prüfen ob gültige Spool-ID und URL vorhanden sind
       - if:
           condition:
-            lambda: 'return std::isnan(id(spool_id).state) || id(spoolman_url).state.empty();'
+            lambda: 'return id(spool_id).state.empty() || id(spoolman_url).state.empty();'
           then:
             - globals.set:
                 id: status_msg
@@ -142,11 +142,11 @@ script:
                   - http_request.send:
                       method: PUT
                       url: !lambda |-
-                        return id(spoolman_url).state + "/api/v1/spool/" + to_string(static_cast<int>(id(spool_id).state)) + "/measure";
+                        return id(spoolman_url).state + "/api/v1/spool/" + id(spool_id).state + "/measure";
                       request_headers:
                         Content-Type: "application/json"
                       body: !lambda |-
-                        return "{\"weight\":" + to_string(static_cast<int>(id(scale).state)) + "}";
+                        return "{\"weight\":" + to_string(id(scale).state) + "}";
                       on_response:
                         then:
                           - if:

@@ -1,5 +1,5 @@
 # ==============================================================================
-# 2. HARDWARE-BUSSE & DISPLAY
+# HARDWARE: BUSSE, SENSOREN, EINGABEN & BUTTONS
 # ==============================================================================
 
 i2c:
@@ -16,33 +16,6 @@ font:
   - file: "gfonts://Roboto"
     id: font_small
     size: 12
-
-display:
-  - platform: ssd1306_i2c
-    id: my_display
-    model: "SSD1306 128x64"
-    i2c_id: i2c_bus
-    address: 0x3C
-    update_interval: 250ms
-    lambda: |-
-      it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
-
-      if (!id(spool_id).state.empty()) {
-        // Erkannte Spule: Vendor + Material in Zeile 2, Spulenname unten.
-        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_info).state.c_str());
-      } else {
-        // Nicht erkannte Spule: UID anzeigen.
-        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
-      }
-
-      // Statusmeldungen haben Vorrang vor dem Spulennamen.
-      const std::string line3 = !id(status_msg).empty() ? id(status_msg) :
-                                (!id(spool_id).state.empty() ? id(spool_name).state : id(spool_info).state);
-      it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
-
-# ==============================================================================
-# 3. SENSOREN, EINGABEN & BUTTONS
-# ==============================================================================
 
 number:
   - platform: template

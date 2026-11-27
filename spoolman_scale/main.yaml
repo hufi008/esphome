@@ -1,8 +1,87 @@
 # spoolman_scale/main.yaml
-# Zusammenstellung der Funktionsbereiche der Spoolman-Waage
+# Zentrale Funktionslogik der Spoolman-Waage
+
+esphome:
+  project:
+    name: hufi.spoolman_scale
+    version: "1.0.0"
+  on_boot:
+    - priority: 250
+      then:
+        - script.execute: boot_sequence
+
+deep_sleep:
+  id: my_deep_sleep
+  wakeup_pin:
+    number: ${pin_button}
+    inverted: true
+    allow_other_uses: true
+  wakeup_pin_mode: KEEP_AWAKE
+  on_wake:
+    - lambda: 'id(woke_from_sleep) = true;'
+
+http_request:
+  useragent: esphome/spoolman-scale
+  timeout: 5s
+  verify_ssl: false
+
+globals:
+  - id: woke_from_sleep
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: status_msg
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: prev_weight
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+pn532_i2c:
+  update_interval: 1s
+  on_tag:
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(spoolman_url).state.empty();'
+          then:
+            - script.execute:
+                id: lookup_spool
+                uid: !lambda 'return x;'
+
+  on_tag_removed:
+    then:
+      - script.execute:
+          id: set_spool_state
+          uid: "-"
+          info: "--"
+          name: ""
+          smid: ""
+
+display:
+  - platform: ssd1306_i2c
+    id: my_display
+    model: "SSD1306 128x64"
+    i2c_id: i2c_bus
+    address: 0x3C
+    update_interval: 250ms
+    lambda: |-
+      it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
+
+      if (!id(spool_id).state.empty()) {
+        // Erkannte Spule: Vendor + Material in Zeile 2, Spulenname unten.
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_info).state.c_str());
+      } else {
+        // Nicht erkannte Spule: UID anzeigen.
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
+      }
+
+      // Statusmeldungen haben Vorrang vor dem Spulennamen.
+      const std::string line3 = !id(status_msg).empty() ? id(status_msg) :
+                                (!id(spool_id).state.empty() ? id(spool_name).state : id(spool_info).state);
+      it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
 
 packages:
-  runtime: !include runtime.yaml
-  boot: !include boot.yaml
-  rfid: !include rfid.yaml
   scripts: !include scripts.yaml

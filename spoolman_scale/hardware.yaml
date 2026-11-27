@@ -49,13 +49,16 @@ display:
       it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
 
       if (!std::isnan(id(spool_id).state)) {
-        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s #%.0f", id(spool_uid).state.c_str(), id(spool_id).state);
+        // Erkannte Spule: Vendor + Material in Zeile 2, Spulenname unten.
+        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_info).state.c_str());
       } else {
+        // Nicht erkannte Spule: UID anzeigen.
         it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
       }
 
-      // Zeigt temporäre Statusmeldungen (Messe..., Gespeichert!) oder die aktive Spule
-      const std::string line3 = !id(status_msg).empty() ? id(status_msg) : id(spool_info).state;
+      // Statusmeldungen haben Vorrang vor dem Spulennamen.
+      const std::string line3 = !id(status_msg).empty() ? id(status_msg) :
+                                (!std::isnan(id(spool_id).state) ? id(spool_name).state : id(spool_info).state);
       it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
 
 # ==============================================================================
@@ -127,6 +130,10 @@ text_sensor:
   - platform: template
     id: spool_info
     name: "Aktive Spule"
+
+  - platform: template
+    id: spool_name
+    name: "Spulenname"
 
 text:
   - platform: template

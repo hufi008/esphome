@@ -19,4 +19,4 @@ pn532_i2c:
           uid: "-"
           info: "--"
           name: ""
-          smid: !lambda 'return NAN;'
+          smid: ""

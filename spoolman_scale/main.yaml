@@ -147,7 +147,17 @@ script:
     mode: restart
     then:
       - delay: 30s
-      - logger.log: "30 Sekunden ohne Bedienung – Display aus, Deep Sleep"
+      # Solange mehr als 50 g auf der Waage liegen, wach bleiben.
+      # Alle 10 Sekunden erneut prüfen.
+      - while:
+          condition:
+            lambda: 'return !std::isnan(id(scale).state) && id(scale).state > 50.0f;'
+          then:
+            - logger.log:
+                format: "Noch %.0f g auf der Waage – Deep Sleep wird zurückgestellt"
+                args: ['id(scale).state']
+            - delay: 10s
+      - logger.log: "Waage entlastet – Display aus, Deep Sleep"
       - lambda: |-
           id(my_display).turn_off();
       - delay: 200ms

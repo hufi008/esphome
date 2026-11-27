@@ -267,7 +267,7 @@ script:
                           - globals.set:
                               id: status_msg
                               value: '"Sendefehler!"'
-                                              - delay: 2s
+                          - delay: 2s
                           - globals.set:
                               id: status_msg
                               value: '""'

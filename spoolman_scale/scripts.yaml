@@ -1,0 +1,202 @@
+# ==============================================================================
+# Skripte: Sleep, Spoolman-Abfragen und Messablauf
+# ==============================================================================
+
+script:
+  # Wird beim Boot und nach jeder Touch-Bedienung neu gestartet.
+  - id: sleep_after_idle
+    mode: restart
+    then:
+      - delay: 30s
+      # Solange mehr als 50 g auf der Waage liegen, wach bleiben.
+      # Alle 10 Sekunden erneut prüfen.
+      - while:
+          condition:
+            lambda: 'return !std::isnan(id(scale).state) && id(scale).state > 50.0f;'
+          then:
+            - logger.log:
+                format: "Noch %.0f g auf der Waage – Deep Sleep wird zurückgestellt"
+                args: ['id(scale).state']
+            - delay: 10s
+      - logger.log: "Waage entlastet – Display aus, Deep Sleep"
+      - lambda: |-
+          id(my_display).turn_off();
+      - delay: 200ms
+      - deep_sleep.enter:
+          id: my_deep_sleep
+
+  # RFID-UID in Spoolman nachschlagen.
+  - id: lookup_spool
+    parameters:
+      uid: string
+    then:
+      - http_request.get:
+          url: !lambda |-
+            return id(spoolman_url).state + "/api/v1/spool?tag=" + uid;
+          capture_response: true
+          max_response_buffer_size: 4096
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGE("spoolman", "Spoolman-API-Fehler: HTTP %d", response->status_code);
+                    id(set_spool_state)->execute(uid, "API Fehler: " + to_string(response->status_code), "", NAN);
+                    return;
+                  }
+
+                  JsonDocument doc;
+                  const DeserializationError err = deserializeJson(doc, body);
+                  if (err) {
+                    ESP_LOGE("spoolman", "JSON Parse-Fehler: %s", err.c_str());
+                    id(set_spool_state)->execute(uid, "JSON Fehler", "", NAN);
+                    return;
+                  }
+
+                  const JsonArray spools = doc.as<JsonArray>();
+                  if (spools.size() > 0) {
+                    const JsonObject spool = spools[0];
+                    const int found_id = spool["id"] | -1;
+                    const std::string vendor = spool["filament"]["vendor"]["name"] | "";
+                    const std::string material = spool["filament"]["material"] | "";
+                    const std::string name = spool["filament"]["name"] | "";
+
+                    const std::string info = vendor + " " + material;
+                    ESP_LOGI("spoolman", "Spule gefunden (#%d): %s", found_id, info.c_str());
+
+                    id(set_spool_state)->execute(uid, info, name, static_cast<float>(found_id));
+                  } else {
+                    ESP_LOGW("spoolman", "Keine Spule mit UID '%s' gefunden.", uid.c_str());
+                    id(set_spool_state)->execute(uid, "Unbekannt", "", NAN);
+                  }
+          on_error:
+            then:
+              - logger.log:
+                  level: ERROR
+                  format: "Verbindung zu Spoolman fehlgeschlagen!"
+              - script.execute:
+                  id: set_spool_state
+                  uid: !lambda 'return uid;'
+                  info: "Verbindungsfehler"
+                  name: ""
+                  smid: !lambda 'return NAN;'
+
+  - id: set_spool_state
+    parameters:
+      uid: string
+      info: string
+      name: string
+      smid: float
+    then:
+      - text_sensor.template.publish:
+          id: spool_uid
+          state: !lambda 'return uid;'
+      - text_sensor.template.publish:
+          id: spool_info
+          state: !lambda 'return info;'
+      - text_sensor.template.publish:
+          id: spool_name
+          state: !lambda 'return name;'
+      - sensor.template.publish:
+          id: spool_id
+          state: !lambda 'return smid;'
+
+  - id: measure_and_send
+    mode: single # Verhindert Doppelausführung bei mehrfachem Tippen
+    then:
+      # 1. Prüfen ob gültige Spool-ID und URL vorhanden sind
+      - if:
+          condition:
+            lambda: 'return std::isnan(id(spool_id).state) || id(spoolman_url).state.empty();'
+          then:
+            - globals.set:
+                id: status_msg
+                value: '"Keine Spule!"'
+            - delay: 2s
+            - globals.set:
+                id: status_msg
+                value: '""'
+            - script.stop: measure_and_send
+
+      # 2. Auf stabilen Messwert warten (max. 6 Sekunden)
+      - globals.set:
+          id: status_msg
+          value: '"Messe..."'
+      - globals.set:
+          id: prev_weight
+          value: !lambda 'return id(scale).state;'
+      - repeat:
+          count: 10
+          then:
+            - delay: 0.6s
+            - if:
+                condition:
+                  lambda: |-
+                    const float cur = id(scale).state;
+                    const bool stable = !std::isnan(cur) && std::abs(cur - id(prev_weight)) <= 2.0f;
+                    id(prev_weight) = cur;
+                    return stable;
+                then:
+                  - logger.log:
+                      format: "Messwert stabil: %.0f g"
+                      args: ['id(scale).state']
+                  - http_request.send:
+                      method: PUT
+                      url: !lambda |-
+                        return id(spoolman_url).state + "/api/v1/spool/" + to_string(static_cast<int>(id(spool_id).state)) + "/measure";
+                      request_headers:
+                        Content-Type: "application/json"
+                      body: !lambda |-
+                        return "{\\"weight\\":" + to_string(static_cast<int>(id(scale).state)) + "}";
+                      on_response:
+                        then:
+                          - if:
+                              condition:
+                                lambda: 'return response->status_code == 200;'
+                              then:
+                                - logger.log:
+                                    format: "Gewicht (%.0f g) erfolgreich an Spoolman gemeldet!"
+                                    args: ['id(scale).state']
+                                - globals.set:
+                                    id: status_msg
+                                    value: '"Gespeichert!"'
+                                - delay: 2s
+                                - globals.set:
+                                    id: status_msg
+                                    value: '""'
+                              else:
+                                - logger.log:
+                                    level: ERROR
+                                    format: "Spoolman-Fehler beim Speichern: HTTP %d"
+                                    args: ['response->status_code']
+                                - globals.set:
+                                    id: status_msg
+                                    value: '"API Fehler!"'
+                                - delay: 2s
+                                - globals.set:
+                                    id: status_msg
+                                    value: '""'
+                      on_error:
+                        then:
+                          - logger.log:
+                              level: ERROR
+                              format: "HTTP-Verbindungsfehler beim Senden!"
+                          - globals.set:
+                              id: status_msg
+                              value: '"Sendefehler!"'
+                          - delay: 2s
+                          - globals.set:
+                              id: status_msg
+                              value: '""'
+                  - script.stop: measure_and_send
+
+      # 3. Fallback, falls nach 6 Sekunden kein stabiler Wert erreicht wurde
+      - logger.log:
+          level: WARN
+          format: "Abbruch: Messwert wurde nicht stabil."
+      - globals.set:
+          id: status_msg
+          value: '"Instabil!"'
+      - delay: 2s
+      - globals.set:
+          id: status_msg
+          value: '""'

@@ -40,6 +40,7 @@ font:
 
 display:
   - platform: ssd1306_i2c
+    id: my_display
     model: "SSD1306 128x64"
     i2c_id: i2c_bus
     address: 0x3C
@@ -73,7 +74,7 @@ number:
     step: 1
     mode: box
     optimistic: true
-    restore_value: false
+    restore_value: true
     initial_value: 0
 
 sensor:
@@ -149,6 +150,7 @@ binary_sensor:
     on_press:
       then:
         - logger.log: "button1.on_click"
+        - script.execute: sleep_after_idle
         - script.execute: measure_and_send
 
 button:

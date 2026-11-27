@@ -1,5 +1,5 @@
 # ==============================================================================
-# 2. HARDWARE-BUSSE, LED & DISPLAY
+# 2. HARDWARE-BUSSE & DISPLAY
 # ==============================================================================
 
 i2c:
@@ -8,27 +8,6 @@ i2c:
     scl: ${pin_i2c_scl}
     scan: true
     frequency: 400kHz
-
-output:
-  - platform: gpio
-    id: onboard_led_out
-    pin:
-      number: ${pin_led}
-      ignore_strapping_warning: true
-
-light:
-  - platform: binary
-    id: status_led
-    output: onboard_led_out
-    internal: true
-    effects:
-      - strobe:
-          name: "Fast Pulse"
-          colors:
-            - state: true
-              duration: 150ms
-            - state: false
-              duration: 150ms
 
 font:
   - file: "gfonts://Roboto"

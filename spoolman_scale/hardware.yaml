@@ -146,7 +146,6 @@ binary_sensor:
     pin:
       number: ${pin_button}
       mode: INPUT
-      inverted: true
       allow_other_uses: true
     on_press:
       then:

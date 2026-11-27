@@ -183,7 +183,7 @@ script:
                       request_headers:
                         Content-Type: "application/json"
                       body: !lambda |-
-                        return "{\\"weight\\":" + to_string(id(scale).state) + "}";
+                        return "{\"weight\":" + to_string(id(scale).state) + "}";
                       on_response:
                         then:
                           - if:

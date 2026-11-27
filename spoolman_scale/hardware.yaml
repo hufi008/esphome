@@ -147,6 +147,7 @@ binary_sensor:
       number: ${pin_button}
       mode: INPUT
       inverted: true
+      allow_other_uses: true
     on_press:
       then:
         - logger.log: "button1.on_click"

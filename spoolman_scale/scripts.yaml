@@ -36,6 +36,9 @@ script:
                 level: INFO
                 format: "Deep-Sleep-Wakeup: gespeicherten Tara-Offset beibehalten"
       - script.execute: sleep_after_idle
+      - globals.set:
+          id: boot_finished
+          value: 'true'
 
   # Wird beim Boot und nach jeder Touch-Bedienung neu gestartet.
   - id: sleep_after_idle
@@ -180,7 +183,7 @@ script:
                       request_headers:
                         Content-Type: "application/json"
                       body: !lambda |-
-                        return "{\"weight\":" + to_string(id(scale).state) + "}";
+                        return "{\\"weight\\":" + to_string(id(scale).state) + "}";
                       on_response:
                         then:
                           - if:

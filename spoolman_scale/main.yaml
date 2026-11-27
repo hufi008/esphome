@@ -280,7 +280,6 @@ script:
       - globals.set:
           id: status_msg
           value: '"Instabil!"'
-      - script.execute: blink_error
       - delay: 2s
       - globals.set:
           id: status_msg

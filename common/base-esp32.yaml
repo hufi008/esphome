@@ -13,7 +13,7 @@ api:
 ota:
 - platform: esphome
   allow_partition_access: true
-  password: !secret ota_password
+  encryption:
 
 wifi:
   id: wifi_id

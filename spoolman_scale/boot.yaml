@@ -1,0 +1,39 @@
+# Startablauf und automatische Tara
+
+esphome:
+  on_boot:
+    - priority: 250
+      then:
+        - script.execute:
+            id: set_spool_state
+            uid: "-"
+            info: "--"
+            name: ""
+            smid: !lambda 'return NAN;'
+        # HX711 einschwingen lassen.
+        - delay: 3.5s
+
+        # Nach Deep-Sleep-Wakeup Tara beibehalten:
+        # Eine aufliegende Spule darf nicht versehentlich weggenullt werden.
+        - if:
+            condition:
+              lambda: 'return !id(woke_from_sleep);'
+            then:
+              - if:
+                  condition:
+                    lambda: 'return !std::isnan(id(scale).state);'
+                  then:
+                    - number.set:
+                        id: tare_offset
+                        value: !lambda 'return id(tare_offset).state + id(scale).state;'
+                    - component.update: scale
+                    - logger.log:
+                        format: "Auto-Tara beim Start abgeschlossen (Offset: %.0f g)"
+                        args: ['id(tare_offset).state']
+            else:
+              - logger.log:
+                  level: INFO
+                  format: "Deep-Sleep-Wakeup: gespeicherten Tara-Offset beibehalten"
+
+        # Nach 30 Sekunden ohne Touch-Bedienung wieder schlafen.
+        - script.execute: sleep_after_idle

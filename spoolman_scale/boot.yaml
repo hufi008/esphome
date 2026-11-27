@@ -9,7 +9,7 @@ esphome:
             uid: "-"
             info: "--"
             name: ""
-            smid: !lambda 'return NAN;'
+            smid: ""
         # HX711 einschwingen lassen.
         - delay: 3.5s
 

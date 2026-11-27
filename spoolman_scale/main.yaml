@@ -17,7 +17,7 @@ esphome:
         # Eine aufliegende Spule darf nicht versehentlich weggenullt werden.
         - if:
             condition:
-              lambda: 'return !deep_sleep::woke_from_deep_sleep();'
+              lambda: 'return !id(woke_from_sleep);'
             then:
               - if:
                   condition:
@@ -45,6 +45,8 @@ deep_sleep:
     inverted: true
     allow_other_uses: true
   wakeup_pin_mode: KEEP_AWAKE
+  on_wake:
+    - lambda: 'id(woke_from_sleep) = true;'
 
 http_request:
   useragent: esphome/spoolman-scale
@@ -52,6 +54,10 @@ http_request:
   verify_ssl: false
 
 globals:
+  - id: woke_from_sleep
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: status_msg
     type: std::string
     restore_value: no

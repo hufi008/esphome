@@ -30,6 +30,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: boot_finished
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: status_msg
     type: std::string
     restore_value: no
@@ -68,20 +72,26 @@ display:
     address: 0x3C
     update_interval: 250ms
     lambda: |-
-      it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
-
-      if (!id(spool_id).state.empty()) {
-        // Erkannte Spule: Vendor + Material in Zeile 2, Spulenname unten.
-        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_info).state.c_str());
+      if (!id(boot_finished)) {
+        // Bootscreen: die gelben ersten 8 Pixelzeilen bleiben frei.
+        it.printf(64, 22, id(font_small), TextAlign::CENTER, "SPOOLMAN WAAGE");
+        it.printf(64, 42, id(font_small), TextAlign::CENTER, "Starte...");
       } else {
-        // Nicht erkannte Spule: UID anzeigen.
-        it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
-      }
+        it.printf(64, 7, id(font_medium), TextAlign::CENTER, "%.0f gr", id(scale).state);
 
-      // Statusmeldungen haben Vorrang vor dem Spulennamen.
-      const std::string line3 = !id(status_msg).empty() ? id(status_msg) :
-                                (!id(spool_id).state.empty() ? id(spool_name).state : id(spool_info).state);
-      it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
+        if (!id(spool_id).state.empty()) {
+          // Erkannte Spule: Vendor + Material in Zeile 2, Spulenname unten.
+          it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_info).state.c_str());
+        } else {
+          // Nicht erkannte Spule: UID anzeigen.
+          it.printf(64, 30, id(font_small), TextAlign::CENTER, "%s", id(spool_uid).state.c_str());
+        }
+
+        // Statusmeldungen haben Vorrang vor dem Spulennamen.
+        const std::string line3 = !id(status_msg).empty() ? id(status_msg) :
+                                  (!id(spool_id).state.empty() ? id(spool_name).state : id(spool_info).state);
+        it.printf(64, 48, id(font_small), TextAlign::CENTER, "%s", line3.c_str());
+      }
 
 packages:
   scripts: !include scripts.yaml

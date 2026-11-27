@@ -10,19 +10,40 @@ esphome:
             uid: "-"
             info: "--"
             smid: !lambda 'return NAN;'
-        # 3.5s warten bis HX711 eingeschwungen ist, dann automatisch nullen
+        # HX711 einschwingen lassen.
         - delay: 3.5s
+
+        # Nach Deep-Sleep-Wakeup Tara beibehalten:
+        # Eine aufliegende Spule darf nicht versehentlich weggenullt werden.
         - if:
             condition:
-              lambda: 'return !std::isnan(id(scale).state);'
+              lambda: 'return !deep_sleep::woke_from_deep_sleep();'
             then:
-              - number.set:
-                  id: tare_offset
-                  value: !lambda 'return id(tare_offset).state + id(scale).state;'
-              - component.update: scale
+              - if:
+                  condition:
+                    lambda: 'return !std::isnan(id(scale).state);'
+                  then:
+                    - number.set:
+                        id: tare_offset
+                        value: !lambda 'return id(tare_offset).state + id(scale).state;'
+                    - component.update: scale
+                    - logger.log:
+                        format: "Auto-Tara beim Start abgeschlossen (Offset: %.0f g)"
+                        args: ['id(tare_offset).state']
+            else:
               - logger.log:
-                  format: "Auto-Tara beim Start abgeschlossen (Offset: %.0f g)"
-                  args: ['id(tare_offset).state']
+                  level: INFO
+                  format: "Deep-Sleep-Wakeup: gespeicherten Tara-Offset beibehalten"
+
+        # Nach 5 Minuten ohne Touch-Bedienung wieder schlafen.
+        - script.execute: sleep_after_idle
+
+deep_sleep:
+  id: my_deep_sleep
+  wakeup_pin:
+    number: ${pin_button}
+    inverted: true
+  wakeup_pin_mode: KEEP_AWAKE
 
 http_request:
   useragent: esphome/spoolman-scale
@@ -111,6 +132,18 @@ pn532_i2c:
           smid: !lambda 'return NAN;'
 
 script:
+  # Wird beim Boot und nach jeder Touch-Bedienung neu gestartet.
+  - id: sleep_after_idle
+    mode: restart
+    then:
+      - delay: 5min
+      - logger.log: "5 Minuten ohne Bedienung – Display aus, Deep Sleep"
+      - lambda: |-
+          id(my_display).turn_off();
+      - delay: 200ms
+      - deep_sleep.enter:
+          id: my_deep_sleep
+
   - id: set_spool_state
     parameters:
       uid: string

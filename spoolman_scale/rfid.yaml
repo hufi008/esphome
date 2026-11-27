@@ -1,0 +1,22 @@
+# RFID-Erkennung und Übergabe an die Spoolman-Abfrage
+
+pn532_i2c:
+  update_interval: 1s
+  on_tag:
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(spoolman_url).state.empty();'
+          then:
+            - script.execute:
+                id: lookup_spool
+                uid: !lambda 'return x;'
+
+  on_tag_removed:
+    then:
+      - script.execute:
+          id: set_spool_state
+          uid: "-"
+          info: "--"
+          name: ""
+          smid: !lambda 'return NAN;'

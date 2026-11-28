@@ -34,6 +34,7 @@ packages:
   main: !include ../voice_satellite/main.yaml
   base: !include ../common/base-s3_devkitc_1.yaml
   hardware: !include ../voice_satellite/hardware.yaml
+  ssd1306: !include ../common/SSD1306.yaml
   audio: !include ../voice_satellite/audio.yaml
   assistant: !include ../voice_satellite/assistant.yaml
   buttons: !include ../voice_satellite/buttons.yaml

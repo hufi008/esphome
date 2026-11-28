@@ -1,0 +1,77 @@
+# common/SSD1306.yaml
+#
+# Generische Display-Grundlage für SSD1306 mit 128x64 Pixeln.
+# Die I²C-Pins und die Display-Adresse kommen aus dem Device.
+
+substitutions:
+  display_width: "128"
+  display_height: "64"
+  font_size_small: "10"
+  font_size_medium: "14"
+  font_size_large: "21"
+  font_size_huge: "28"
+  font_size_giant: "32"
+
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    id: my_display
+    i2c_id: my_i2c_display
+    address: ${ssd_addr}
+    update_interval: 50ms
+
+font:
+  - id: my_font_small
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: ${font_size_small}
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+  - id: my_font_medium
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: ${font_size_medium}
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+  - id: my_font_large
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: ${font_size_large}
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+  - id: my_font_huge
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: ${font_size_huge}
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
+
+  - id: my_font_giant
+    file:
+      type: gfonts
+      family: Roboto Condensed
+      weight: 300
+    size: ${font_size_giant}
+    glyphs:
+      - äöüÄÖÜß°»«
+    glyphsets:
+      - GF_Latin_Kernel
